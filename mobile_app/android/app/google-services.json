@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "49008197937",
+    "project_id": "walwal-59c61",
+    "storage_bucket": "walwal-59c61.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:49008197937:android:fa2013f4dfa4734369b010",
+        "android_client_info": {
+          "package_name": "com.example.walwal"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB9fy5RNnzUVhg7ZmSOwBX-2nHCofUWksQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

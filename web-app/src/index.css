@@ -1,0 +1,151 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
+
+:root {
+  --primary: #FFB320;
+  /* 펫 입양 앱의 옐로우/오렌지 포인트 컬러 */
+  --primary-glow: rgba(255, 179, 32, 0.4);
+  --primary-light: #FFF8E7;
+  --secondary: #FF8A4C;
+  --accent-yellow: #FFB320;
+  --accent-purple: #8338EC;
+  --bg-dark: #FFFFFF;
+  /* 완전 화이트 앱 배경 */
+  --card-dark: #FFFFFF;
+  /* 완전 화이트 카드 */
+  --card-border: rgba(0, 0, 0, 0.04);
+  --text-main: #2D3748;
+  /* 가독성 높은 다크 그레이 */
+  --text-muted: #3b4a5d;
+  /* 부드러운 서브 텍스트 */
+  --radius-lg: 32px;
+  /* 매우 둥근 쉐입 */
+  --radius-md: 24px;
+  --radius-sm: 16px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: 'Plus Jakarta Sans', 'Noto Sans KR', sans-serif;
+  background-color: #FFFFFF;
+  color: var(--text-main);
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  background: var(--bg-dark);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+@media (min-width: 601px) {
+  body {
+    background-color: #FFD15C;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+  }
+
+  #root {
+    width: 100%;
+    max-width: 440px;
+    height: 94vh;
+    max-height: 920px;
+    border-radius: 40px;
+    border: 12px solid #FFFFFF;
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.18);
+    margin: auto;
+  }
+}
+
+/* Glassmorphism -> Soft Neumorphism/Flat Cards */
+.glass-panel {
+  background: var(--card-dark);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.04);
+}
+
+.glass-pill {
+  background: var(--card-dark);
+  border: 1px solid var(--card-border);
+  border-radius: 9999px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+/* Speech Bubble Animation */
+@keyframes bubbleFloat {
+
+  0%,
+  100% {
+    transform: translateY(0px) scale(1);
+  }
+
+  50% {
+    transform: translateY(-6px) scale(1.02);
+  }
+}
+
+@keyframes pulseGlow {
+
+  0%,
+  100% {
+    box-shadow: 0 0 15px var(--primary-glow);
+  }
+
+  50% {
+    box-shadow: 0 0 25px rgba(255, 179, 32, 0.6);
+  }
+}
+
+@keyframes waveBar {
+
+  0%,
+  100% {
+    height: 6px;
+  }
+
+  50% {
+    height: 28px;
+  }
+}
+
+.bubble-anim {
+  animation: bubbleFloat 3s ease-in-out infinite;
+}
+
+.glow-btn {
+  animation: pulseGlow 2.5s infinite;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
