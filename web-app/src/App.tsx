@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LanguageProvider, useTranslation } from './i18n/LanguageContext';
 // LanguageSelector moved to ProfileView
 import { ARCameraView } from './components/ARCameraView';
@@ -12,11 +12,26 @@ import { AuthView } from './components/AuthView';
 import { PaywallView } from './components/PaywallView';
 // VirtualChatModal replaced by AR Camera 2-Dog Interaction Mode
 import {  DogProfile, MOCK_DOGS, getMockDogs  } from './data/mockDogs';
+import { auth } from './firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
 
 function WalWalMain() {
-  const [appState, setAppState] = useState<'auth' | 'paywall' | 'main'>(() => {
-    return (localStorage.getItem('walwal_app_state') as 'auth' | 'paywall' | 'main') || 'auth';
-  });
+  const [appState, setAppState] = useState<'loading' | 'auth' | 'paywall' | 'main'>('loading');
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      if (currentUser) {
+        // Skip paywall — logged-in users go straight to main
+        setAppState('main');
+        localStorage.setItem('walwal_app_state', 'main');
+      } else {
+        setAppState('auth');
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   const [currentTab, setCurrentTab] = useState<NavTab | 'studio'>('ar');
   const [arKey, setArKey] = useState<number>(0);
@@ -56,19 +71,21 @@ function WalWalMain() {
     }
   };
 
-  if (appState === 'auth') {
-    return <AuthView onLoginSuccess={() => {
-      localStorage.setItem('walwal_app_state', 'paywall');
-      setAppState('paywall');
-    }} />;
+  if (appState === 'loading') {
+    return (
+      <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#FFB320' }}>
+        <h2 style={{ color: '#fff' }}>Loading...</h2>
+      </div>
+    );
   }
 
-  if (appState === 'paywall') {
-    return <PaywallView onSubscribeSuccess={() => {
+  if (appState === 'auth') {
+    return <AuthView onLoginSuccess={() => {
       localStorage.setItem('walwal_app_state', 'main');
       setAppState('main');
     }} />;
   }
+
 
   return (
     <div style={{ width: '100%', height: '100%', flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>

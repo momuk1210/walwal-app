@@ -1,22 +1,41 @@
 import React, { useState, useEffect } from 'react';
-import { Heart, MessageSquare, Send, X, Image as ImageIcon, Download, Share2, Bone, Sparkles, MoreVertical, Edit3, Trash2, Plus } from 'lucide-react';
+import { Heart, MessageSquare, Send, X, Image as ImageIcon, Download, Share2, Bone, Sparkles, MoreVertical, Edit3, Trash2, Plus, MoreHorizontal } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { getMockDogs, isSameDogName, getDefaultDogAvatar } from '../data/mockDogs';
 import { useTranslation } from '../i18n/LanguageContext';
+import { getMedia, saveMedia, blobCache } from '../utils/mediaStore';
+import { DogProfileModal } from './DogProfileModal';
 
 interface FeedViewProps {
   feedDraft?: { dog: any, thought: string, image?: string } | null;
   handleClearFeedDraft?: () => void;
+  onClearFeedDraft?: () => void;
 }
 
-export const FeedView: React.FC<FeedViewProps> = ({ feedDraft: propFeedDraft, onClearFeedDraft: propOnClearFeedDraft }) => {
+const stripQuotes = (text?: string): string => {
+  if (!text) return '';
+  return text.replace(/^["'“”«»\s]+|["'“”«»\s]+$/g, '').trim();
+};
+
+export const FeedView: React.FC<FeedViewProps> = ({ feedDraft: propFeedDraft, onClearFeedDraft: propOnClearFeedDraft, handleClearFeedDraft: propHandleClearFeedDraft }) => {
   const { t, language } = useTranslation();
 
-  const myDog = getMockDogs(language)[0];
-
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const commentImageInputRef = React.useRef<HTMLInputElement>(null);
   const [localFeedDraft, setLocalFeedDraft] = useState<any | null>(null);
   const feedDraft = propFeedDraft || localFeedDraft;
+
+  const handleCommentImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setModalCommentImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+    if (e.target) e.target.value = '';
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -31,12 +50,36 @@ export const FeedView: React.FC<FeedViewProps> = ({ feedDraft: propFeedDraft, on
   };
 
   const handleClearFeedDraft = () => {
-    if (propFeedDraft && propOnClearFeedDraft) propOnClearFeedDraft();
+    if (propOnClearFeedDraft) propOnClearFeedDraft();
+    if (propHandleClearFeedDraft) propHandleClearFeedDraft();
     if (localFeedDraft) setLocalFeedDraft(null);
   };
 
 
   const [feedPosts, setFeedPosts] = useState<any[]>([]);
+
+  // 피드 상호작용 (좋아요, 댓글, 공유 수) 로컬 스토리지 헬퍼
+  const getStoredInteractions = (): Record<string, any> => {
+    try {
+      const saved = localStorage.getItem('WALWAL_FEED_INTERACTIONS');
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  };
+
+  const saveFeedInteraction = (postId: string, update: Partial<{ liked: boolean; likes: number; comments: any[]; shares: number }>) => {
+    try {
+      const current = getStoredInteractions();
+      current[postId] = {
+        ...(current[postId] || {}),
+        ...update
+      };
+      localStorage.setItem('WALWAL_FEED_INTERACTIONS', JSON.stringify(current));
+    } catch (e) {
+      console.error('Failed to save feed interaction:', e);
+    }
+  };
 
   React.useEffect(() => {
     let customPosts: any[] = [];
@@ -47,30 +90,69 @@ export const FeedView: React.FC<FeedViewProps> = ({ feedDraft: propFeedDraft, on
       console.error('Failed to load WALWAL_USER_FEED_POSTS:', e);
     }
 
-    setFeedPosts(prev => {
-      const mockPosts = getMockDogs(language).map((dog, idx) => {
-        const existing = prev.find(p => p.id === dog.id);
-        return {
-          ...dog,
-          likes: existing ? existing.likes : Math.floor(Math.random() * 30) + 10,
-          liked: existing ? existing.liked : false,
-          comments: existing ? existing.comments : [
-            { id: Date.now() + Math.random(), author: t.community?.hostMom || 'Mom', text: dog.recentThought }
-          ],
-          showComments: existing ? existing.showComments : false,
-          shares: existing ? existing.shares : 11
-        };
+    const loadPostsWithMedia = async () => {
+      const interactions = getStoredInteractions();
+
+      for (let i = 0; i < customPosts.length; i++) {
+        const post = customPosts[i];
+        if (interactions[post.id]) {
+          const inter = interactions[post.id];
+          if (inter.liked !== undefined) post.liked = inter.liked;
+          if (inter.likes !== undefined) post.likes = inter.likes;
+          if (inter.comments !== undefined) post.comments = inter.comments;
+          if (inter.shares !== undefined) post.shares = inter.shares;
+        }
+
+        if (post.feedImage && post.feedImage.startsWith('indexeddb:')) {
+          const mediaId = post.feedImage.split(':')[1];
+          try {
+            const blob = await getMedia(mediaId);
+            if (blob) {
+              post.originalFeedImage = post.feedImage;
+              post.feedImage = URL.createObjectURL(blob);
+              post.isVideo = true;
+            }
+          } catch (err) {
+            console.error('Failed to load media from IndexedDB:', err);
+          }
+        }
+      }
+
+      setFeedPosts(prev => {
+        const mockPosts = getMockDogs(language).map((dog, idx) => {
+          const existing = prev.find(p => p.id === dog.id);
+          const inter = interactions[dog.id];
+          const defaultLikes = 15 + (idx * 7) % 25;
+          const defaultComments = [
+            { id: 1000 + idx, author: t.community?.hostMom || 'Mom', text: dog.recentThought }
+          ];
+
+          return {
+            ...dog,
+            likes: inter?.likes !== undefined ? inter.likes : (existing ? existing.likes : defaultLikes),
+            liked: inter?.liked !== undefined ? inter.liked : (existing ? existing.liked : false),
+            comments: inter?.comments !== undefined ? inter.comments : (existing ? existing.comments : defaultComments),
+            showComments: existing ? existing.showComments : false,
+            shares: inter?.shares !== undefined ? inter.shares : (existing ? existing.shares : 11)
+          };
+        });
+
+        // customPosts가 최신 순서(맨 위)로 나오도록 합침
+        const existingCustomIds = new Set(customPosts.map(p => p.id));
+        const prevOnlyCustom = prev.filter(p => !p.id.toString().startsWith('dog-') && !existingCustomIds.has(p.id));
+
+        return [...customPosts, ...prevOnlyCustom, ...mockPosts];
       });
+    };
 
-      // customPosts가 최신 순서(맨 위)로 나오도록 합침
-      const existingCustomIds = new Set(customPosts.map(p => p.id));
-      const prevOnlyCustom = prev.filter(p => !p.id.toString().startsWith('dog-') && !existingCustomIds.has(p.id));
-
-      return [...customPosts, ...prevOnlyCustom, ...mockPosts];
-    });
+    loadPostsWithMedia();
   }, [language, t]);
 
   const [newCommentText, setNewCommentText] = useState<{ [key: string]: string }>({});
+  const [activeCommentPostId, setActiveCommentPostId] = useState<string | null>(null);
+  const [modalCommentInput, setModalCommentInput] = useState('');
+  const [modalCommentImage, setModalCommentImage] = useState<string | null>(null);
+  const activeCommentPost = feedPosts.find(p => p.id === activeCommentPostId);
   const [draftText, setDraftText] = useState('');
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -108,7 +190,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ feedDraft: propFeedDraft, on
         id: p.id || p.name,
         name: p.name,
         breed: p.breed,
-        ownerName: p.ownerName || `${p.name} 맘`,
+        ownerName: p.name,
         avatar,
         age: p.age ? String(p.age).replace(/[^0-9]/g, '') : '1',
         gender: p.gender || mock?.gender || 'male',
@@ -116,6 +198,10 @@ export const FeedView: React.FC<FeedViewProps> = ({ feedDraft: propFeedDraft, on
       };
     });
   }, [language, petsUpdateTrigger]);
+
+  const myDog = petOptions[0] || getMockDogs(language)[0];
+  const [selectedCommentPetId, setSelectedCommentPetId] = useState<string>('');
+  const currentCommentPet = petOptions.find(p => p.id === selectedCommentPetId) || petOptions[0] || myDog;
 
   const [selectedPetIds, setSelectedPetIds] = useState<string[]>(() => [petOptions[0]?.id || 'dog-1']);
   const [activeMenuPostId, setActiveMenuPostId] = useState<string | null>(null);
@@ -227,11 +313,11 @@ export const FeedView: React.FC<FeedViewProps> = ({ feedDraft: propFeedDraft, on
                       height: '32px',
                       borderRadius: '50%',
                       objectFit: 'cover',
-                      border: '1.5px solid #FFB320',
+                      border: '1px solid #FFB320',
                       boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
                     }}
                   />
-                  <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1A202C' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1A202C' }}>
                     {dog.name}
                   </span>
                 </div>
@@ -260,7 +346,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ feedDraft: propFeedDraft, on
           transition: 'all 0.15s ease'
         }}
         title={`${singleDog.name} 프로필 보기`}
-        onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 179, 32, 0.12)')}
+        onMouseEnter={(e) => (e.currentTarget.style.background = 'transparent')}
         onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
       >
         <img
@@ -272,7 +358,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ feedDraft: propFeedDraft, on
             boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
           }}
         />
-        <span style={{ fontSize: '1rem', fontWeight: 700, color: '#1A202C' }}>
+        <span style={{ fontSize: '.85rem', fontWeight: 600, color: '#1A202C' }}>
           {singleDog.name}
         </span>
       </div>
@@ -425,7 +511,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ feedDraft: propFeedDraft, on
   // When feedDraft changes, initialize the text
   React.useEffect(() => {
     if (feedDraft) {
-      setDraftText(`"${feedDraft.thought}"\n`);
+      setDraftText(stripQuotes(feedDraft.thought));
       if (feedDraft.dog && feedDraft.dog.id) {
         const found = petOptions.find(o => o.id === feedDraft.dog.id || o.name === feedDraft.dog.name);
         if (found) setSelectedPetIds([found.id]);
@@ -463,24 +549,37 @@ export const FeedView: React.FC<FeedViewProps> = ({ feedDraft: propFeedDraft, on
       ownerName: combinedOwnerName,
       avatar: activePets[0].avatar,
       personality: combinedPersonality,
-      recentThought: draftText || feedDraft.thought,
+      recentThought: stripQuotes(draftText || feedDraft.thought),
       feedImage: feedDraft.image,
       likes: 0,
       liked: false,
       comments: [],
       showComments: false,
-      shares: 0
+      shares: 0,
+      isVideo: feedDraft.image && feedDraft.image.startsWith('blob:')
     };
+
+    const postToSave = { ...newPost };
+
+    if (feedDraft.image && feedDraft.image.startsWith('blob:') && blobCache.has(feedDraft.image)) {
+      const blob = blobCache.get(feedDraft.image);
+      if (blob) {
+        saveMedia(newPost.id, blob).catch(console.error);
+        postToSave.feedImage = `indexeddb:${newPost.id}`;
+        newPost.originalFeedImage = postToSave.feedImage;
+      }
+    }
+
     try {
       const saved = localStorage.getItem('WALWAL_USER_FEED_POSTS');
       const posts = saved ? JSON.parse(saved) : [];
-      posts.unshift(newPost);
+      posts.unshift(postToSave);
       localStorage.setItem('WALWAL_USER_FEED_POSTS', JSON.stringify(posts));
     } catch (e) {
       console.error('Failed to save feed draft:', e);
     }
     setFeedPosts(prev => [newPost, ...prev]);
-    showToast(language === 'ko' ? `${combinedName} 피드가 등록되었습니다! 🐾` : `Posted as ${combinedName}! 🐾`);
+    showToast(language === 'ko' ? `${combinedName} 피드가 등록되었습니다!` : `Posted as ${combinedName}!`);
     if (handleClearFeedDraft) handleClearFeedDraft();
   };
 
@@ -489,8 +588,18 @@ export const FeedView: React.FC<FeedViewProps> = ({ feedDraft: propFeedDraft, on
     setFeedPosts(prev => {
       const updated = prev.filter(p => p.id !== id);
       try {
-        const userPosts = updated.filter(p => !p.id.toString().startsWith('dog-'));
+        const userPosts = updated.filter(p => !p.id.toString().startsWith('dog-')).map(p => ({
+          ...p,
+          feedImage: p.originalFeedImage || p.feedImage,
+          originalFeedImage: undefined
+        }));
         localStorage.setItem('WALWAL_USER_FEED_POSTS', JSON.stringify(userPosts));
+
+        const interactions = getStoredInteractions();
+        if (interactions[id]) {
+          delete interactions[id];
+          localStorage.setItem('WALWAL_FEED_INTERACTIONS', JSON.stringify(interactions));
+        }
       } catch (e) {
         console.error('Failed to update localStorage on delete:', e);
       }
@@ -513,7 +622,11 @@ export const FeedView: React.FC<FeedViewProps> = ({ feedDraft: propFeedDraft, on
         return p;
       });
       try {
-        const userPosts = updated.filter(p => !p.id.toString().startsWith('dog-'));
+        const userPosts = updated.filter(p => !p.id.toString().startsWith('dog-')).map(p => ({
+          ...p,
+          feedImage: p.originalFeedImage || p.feedImage,
+          originalFeedImage: undefined
+        }));
         localStorage.setItem('WALWAL_USER_FEED_POSTS', JSON.stringify(userPosts));
       } catch (e) {
         console.error('Failed to update localStorage on edit:', e);
@@ -529,7 +642,9 @@ export const FeedView: React.FC<FeedViewProps> = ({ feedDraft: propFeedDraft, on
 
     setFeedPosts(prev => prev.map(p => {
       if (p.id === id) {
-        return { ...p, shares: p.shares + 1 };
+        const newShares = (p.shares || 0) + 1;
+        saveFeedInteraction(id, { shares: newShares });
+        return { ...p, shares: newShares };
       }
       return p;
     }));
@@ -539,7 +654,7 @@ export const FeedView: React.FC<FeedViewProps> = ({ feedDraft: propFeedDraft, on
         if (navigator.share) {
           await navigator.share({
             title: `WalWal - ${postToShare.name}의 속마음`,
-            text: `"${postToShare.recentThought}"\n우리 댕댕이 무슨 생각하는지 궁금하다면? WalWal 앱에서 확인해보세요! 🐾`,
+            text: `"${postToShare.recentThought}"\n우리 댕댕이 무슨 생각하는지 궁금하다면? WalWal 앱에서 확인해보세요!`,
             url: window.location.href,
           });
         } else {
@@ -553,39 +668,171 @@ export const FeedView: React.FC<FeedViewProps> = ({ feedDraft: propFeedDraft, on
   };
 
   const handleLikeFeed = (id: string) => {
-    setFeedPosts(prev => prev.map(p => {
-      if (p.id === id) {
-        return {
+    setFeedPosts(prev => {
+      const updated = prev.map(p => {
+        if (p.id === id) {
+          const newLiked = !p.liked;
+          const currentLikes = p.likes || 0;
+          const newLikes = newLiked ? currentLikes + 1 : Math.max(0, currentLikes - 1);
+          saveFeedInteraction(id, { liked: newLiked, likes: newLikes });
+          return {
+            ...p,
+            liked: newLiked,
+            likes: newLikes
+          };
+        }
+        return p;
+      });
+
+      // customPosts에도 반영하여 최신 상태 동기화
+      try {
+        const userPosts = updated.filter(p => !p.id.toString().startsWith('dog-')).map(p => ({
           ...p,
-          liked: !p.liked,
-          likes: p.liked ? p.likes - 1 : p.likes + 1
-        };
+          feedImage: p.originalFeedImage || p.feedImage,
+          originalFeedImage: undefined
+        }));
+        localStorage.setItem('WALWAL_USER_FEED_POSTS', JSON.stringify(userPosts));
+      } catch (e) {
+        console.error('Failed to sync WALWAL_USER_FEED_POSTS on like:', e);
       }
-      return p;
-    }));
+
+      return updated;
+    });
+  };
+
+  const handleOpenComments = (post: any) => {
+    setActiveCommentPostId(post.id);
+    setModalCommentInput('');
+  };
+
+  const handleCloseComments = () => {
+    setActiveCommentPostId(null);
+    setModalCommentInput('');
+    setModalCommentImage(null);
+  };
+
+  const handleDeleteComment = (postId: string, commentId: number) => {
+    setFeedPosts(prev => {
+      const updated = prev.map(p => {
+        if (p.id === postId) {
+          const newComments = (p.comments || []).filter((c: any) => c.id !== commentId);
+          saveFeedInteraction(postId, { comments: newComments });
+          return {
+            ...p,
+            comments: newComments
+          };
+        }
+        return p;
+      });
+
+      try {
+        const userPosts = updated.filter(p => !p.id.toString().startsWith('dog-')).map(p => ({
+          ...p,
+          feedImage: p.originalFeedImage || p.feedImage,
+          originalFeedImage: undefined
+        }));
+        localStorage.setItem('WALWAL_USER_FEED_POSTS', JSON.stringify(userPosts));
+      } catch (err) {
+        console.error('Failed to sync WALWAL_USER_FEED_POSTS on delete comment:', err);
+      }
+
+      return updated;
+    });
+
+    showToast(language === 'ko' ? '댓글이 삭제되었습니다. 🗑️' : 'Comment deleted. 🗑️');
+  };
+
+  const handleModalSubmitComment = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!activeCommentPostId || (!modalCommentInput.trim() && !modalCommentImage)) return;
+
+    const commentText = modalCommentInput.trim();
+    const commentImage = modalCommentImage;
+
+    setFeedPosts(prev => {
+      const updated = prev.map(p => {
+        if (p.id === activeCommentPostId) {
+          const newCommentList = [
+            ...(p.comments || []),
+            {
+              id: Date.now(),
+              author: currentCommentPet.name,
+              avatar: currentCommentPet.avatar || getDefaultDogAvatar(),
+              text: commentText,
+              image: commentImage || undefined,
+              isMine: true,
+              createdAt: language === 'ko' ? '방금 전' : (language === 'ja' ? 'たった今' : 'Just now')
+            }
+          ];
+          saveFeedInteraction(activeCommentPostId, { comments: newCommentList });
+          return {
+            ...p,
+            comments: newCommentList
+          };
+        }
+        return p;
+      });
+
+      try {
+        const userPosts = updated.filter(p => !p.id.toString().startsWith('dog-')).map(p => ({
+          ...p,
+          feedImage: p.originalFeedImage || p.feedImage,
+          originalFeedImage: undefined
+        }));
+        localStorage.setItem('WALWAL_USER_FEED_POSTS', JSON.stringify(userPosts));
+      } catch (err) {
+        console.error('Failed to sync WALWAL_USER_FEED_POSTS on modal comment:', err);
+      }
+
+      return updated;
+    });
+
+    setModalCommentInput('');
+    setModalCommentImage(null);
   };
 
   const handleToggleComments = (id: string) => {
-    setFeedPosts(prev => prev.map(p => {
-      if (p.id === id) {
-        return { ...p, showComments: !p.showComments };
-      }
-      return p;
-    }));
+    const post = feedPosts.find(p => p.id === id);
+    if (post) {
+      handleOpenComments(post);
+    }
   };
 
   const handleSubmitComment = (id: string, e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCommentText[id]?.trim()) return;
-    setFeedPosts(prev => prev.map(p => {
-      if (p.id === id) {
-        return {
+    const commentText = newCommentText[id]?.trim();
+    if (!commentText) return;
+
+    setFeedPosts(prev => {
+      const updated = prev.map(p => {
+        if (p.id === id) {
+          const newCommentList = [
+            ...(p.comments || []),
+            { id: Date.now(), author: myDog.name, text: commentText }
+          ];
+          saveFeedInteraction(id, { comments: newCommentList });
+          return {
+            ...p,
+            comments: newCommentList
+          };
+        }
+        return p;
+      });
+
+      // customPosts에도 반영
+      try {
+        const userPosts = updated.filter(p => !p.id.toString().startsWith('dog-')).map(p => ({
           ...p,
-          comments: [...p.comments, { id: Date.now(), author: myDog.ownerName, text: newCommentText[id].trim() }]
-        };
+          feedImage: p.originalFeedImage || p.feedImage,
+          originalFeedImage: undefined
+        }));
+        localStorage.setItem('WALWAL_USER_FEED_POSTS', JSON.stringify(userPosts));
+      } catch (e) {
+        console.error('Failed to sync WALWAL_USER_FEED_POSTS on comment:', e);
       }
-      return p;
-    }));
+
+      return updated;
+    });
     setNewCommentText(prev => ({ ...prev, [id]: '' }));
   };
 
@@ -598,11 +845,9 @@ export const FeedView: React.FC<FeedViewProps> = ({ feedDraft: propFeedDraft, on
           <p className="text-sub">{t.feed?.subtitle || '세상의 모든 귀여움, 댕댕이 피드'}</p>
         </div>
         <button
-          className="btn-primary"
-          style={{ padding: '8px 16px', borderRadius: '100px', fontSize: '0.85rem', fontWeight: 700 }}
-          onClick={() => fileInputRef.current?.click()}
+          className="btn-ghost" onClick={() => fileInputRef.current?.click()}
         >
-          <Plus size={16} strokeWidth={3} />
+          <Plus size={24} strokeWidth={2} />
         </button>
         <input
           type="file"
@@ -708,9 +953,9 @@ export const FeedView: React.FC<FeedViewProps> = ({ feedDraft: propFeedDraft, on
                   )}
                 </div>
               </div>
-              {!post.feedImage && post.recentThought && (
+              {post.recentThought && (
                 <p className="text-body" style={{ margin: '12px 0' }}>
-                  "{post.recentThought}"
+                  {stripQuotes(post.recentThought)}
                 </p>
               )}
               {post.feedImage && (
@@ -752,38 +997,13 @@ export const FeedView: React.FC<FeedViewProps> = ({ feedDraft: propFeedDraft, on
                 <span className="action-item" onClick={() => handleLikeFeed(post.id)}>
                   <Heart size={16} color={post.liked ? "#333" : "#333"} fill={post.liked ? "#FF4757" : "none"} style={{ transition: '0.2s' }} /> {post.likes}
                 </span>
-                <span className="action-item" onClick={() => handleToggleComments(post.id)}>
-                  <MessageSquare size={16} color="#333" fill={post.showComments ? "rgba(56, 197, 183, 0.2)" : "none"} style={{ transition: '0.2s' }} /> {post.comments.length}
+                <span className="action-item" onClick={() => handleOpenComments(post)} style={{ cursor: 'pointer' }}>
+                  <MessageSquare size={16} color="#333" fill={activeCommentPostId === post.id ? "rgba(56, 197, 183, 0.2)" : "none"} style={{ transition: '0.2s' }} /> {post.comments.length}
                 </span>
                 <span className="action-item" onClick={() => handleShareFeed(post.id)}>
                   <Send size={16} color="#333" style={{ transition: '0.2s' }} /> {post.shares}
                 </span>
               </div>
-
-              {post.showComments && (
-                <div style={{ paddingTop: '16px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
-                    {post.comments.map((c: any) => (
-                      <div key={c.id} style={{ fontSize: '0.85rem' }}>
-                        <span style={{ fontWeight: 700, marginRight: '8px', color: '#2D3748' }}>{c.author}</span>
-                        <span style={{ color: '#4A5568' }}>{c.text}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <form onSubmit={(e) => handleSubmitComment(post.id, e)} style={{ display: 'flex', gap: '8px' }}>
-                    <input
-                      type="text"
-                      placeholder={t.community?.placeholderComment || '댓글 달기...'}
-                      value={newCommentText[post.id] || ''}
-                      onChange={(e) => setNewCommentText(prev => ({ ...prev, [post.id]: e.target.value }))}
-                      style={{ flex: 1, padding: '10px 14px', borderRadius: '20px', border: '1px solid #E2E8F0', fontSize: '0.85rem', outline: 'none' }}
-                    />
-                    <button type="submit" style={{ padding: '8px 16px', borderRadius: '20px', background: '#38c5b7', color: '#fff', border: 'none', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer' }}>
-                      {t.community?.btnPostComment || '게시'}
-                    </button>
-                  </form>
-                </div>
-              )}
             </div>
           ))}
         </div>
@@ -1019,113 +1239,388 @@ export const FeedView: React.FC<FeedViewProps> = ({ feedDraft: propFeedDraft, on
         </div>
       )}
 
-      {/* Mini Dog Profile Modal */}
-      {profileModalDog && (
+      {/* Dog Profile Popup Modal */}
+      <DogProfileModal
+        dog={profileModalDog}
+        onClose={() => setProfileModalDog(null)}
+      />
+
+      {/* Instagram/TikTok Style Comment Bottom Sheet Modal */}
+      {activeCommentPost && (
         <div
-          className="pet-studio-modal-overlay"
-          style={{ zIndex: 4000, background: 'rgba(0, 0, 0, 0.45)', backdropFilter: 'blur(3px)' }}
-          onClick={() => setProfileModalDog(null)}
+          className="comment-bottom-sheet-overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) handleCloseComments();
+          }}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.55)',
+            backdropFilter: 'blur(3px)',
+            zIndex: 3500,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'flex-end',
+            animation: 'fadeIn 0.2s ease-out'
+          }}
         >
           <div
-            onClick={(e) => e.stopPropagation()}
+            className="comment-bottom-sheet-container"
             style={{
-              width: '85%',
-              maxWidth: '300px',
+              width: '100%',
+              maxWidth: '480px',
+              margin: '0 auto',
               background: '#FFFFFF',
-              borderRadius: '24px',
-              padding: '24px 20px',
+              borderTopLeftRadius: '28px',
+              borderTopRightRadius: '28px',
+              height: '75vh',
+              maxHeight: '620px',
               display: 'flex',
               flexDirection: 'column',
-              alignItems: 'center',
-              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.25)',
-              position: 'relative',
-              boxSizing: 'border-box',
+              overflow: 'hidden',
+              boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.25)',
+              position: 'relative'
             }}
           >
-            {/* Close Button */}
-            <button
-              onClick={() => setProfileModalDog(null)}
+            {/* Top Drag Handle */}
+            <div
               style={{
-                position: 'absolute',
-                top: '12px',
-                right: '12px',
-                background: '#F7FAFC',
-                border: 'none',
-                borderRadius: '50%',
-                width: '30px',
-                height: '30px',
+                width: '42px',
+                height: '4.5px',
+                background: '#475569',
+                borderRadius: '3px',
+                margin: '12px auto 8px'
+              }}
+            />
+
+            {/* Header */}
+            <div
+              style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                cursor: 'pointer',
-                color: '#718096',
+                position: 'relative',
+                padding: '4px 16px 14px',
+                borderBottom: '1px solid #F1F5F9'
               }}
             >
-              <X size={16} />
-            </button>
-
-            {/* Profile Avatar */}
-            <div style={{
-              width: '80px',
-              height: '80px',
-              borderRadius: '50%',
-              padding: '3px',
-              background: 'linear-gradient(135deg, #FFB320, #FFA500)',
-              boxShadow: '0 6px 18px rgba(255, 179, 32, 0.35)',
-              marginBottom: '12px',
-              flexShrink: 0,
-            }}>
-              <img
-                src={profileModalDog.avatar}
-                alt={profileModalDog.name}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  borderRadius: '50%',
-                  objectFit: 'cover',
-                  display: 'block',
-                  background: '#F8FAFC',
-                }}
-              />
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                {t.feed?.commentTitle || '댓글'}
+              </h3>
             </div>
 
-            {/* Name */}
-            <h3 style={{ margin: '0 0 4px 0', fontSize: '1.2rem', fontWeight: 800, color: '#1A202C' }}>
-              {profileModalDog.name}
-            </h3>
-
-            {/* Breed, Age & Gender */}
-            <p style={{ margin: '0 0 14px 0', fontSize: '0.88rem', color: '#718096', fontWeight: 600 }}>
-              {profileModalDog.breed} · {profileModalDog.age}{t.profile?.dogAgeSuffix || (language === 'ko' ? '살' : ' yrs')} · {
-                profileModalDog.gender === 'male'
-                  ? (t.common?.genderShortMale || (language === 'ko' ? '남' : 'M'))
-                  : (t.common?.genderShortFemale || (language === 'ko' ? '여' : 'F'))
-              }
-            </p>
-
-            {/* Personality Hashtags */}
-            <div style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '6px',
-              justifyContent: 'center',
-              width: '100%',
-            }}>
-              {(profileModalDog.personality || []).map((tag: string, i: number) => (
-                <span
-                  key={i}
+            {/* Comment List Body */}
+            <div
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column'
+              }}
+            >
+              {activeCommentPost.comments.length === 0 ? (
+                /* Empty State (스크린샷 디자인 100% 반영) */
+                <div
                   style={{
-                    color: '#38c5b7',
-                    border: '1px solid #38c5b7',
-                    padding: '4px 9px',
-                    borderRadius: '12px',
-                    fontSize: '0.78rem',
-                    fontWeight: 500,
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '60px 20px',
+                    textAlign: 'center'
                   }}
                 >
-                  {tag.startsWith('#') ? tag : `#${tag}`}
-                </span>
-              ))}
+                  <h2
+                    style={{
+                      fontSize: '1.35rem',
+                      fontWeight: 800,
+                      color: '#000000',
+                      marginBottom: '10px',
+                      letterSpacing: '-0.02em'
+                    }}
+                  >
+                    {t.feed?.noComments || '아직 댓글이 없습니다'}
+                  </h2>
+                  <p style={{ fontSize: '0.95rem', color: '#64748B', margin: 0 }}>
+                    {t.feed?.beFirstComment || '댓글을 남겨보세요.'}
+                  </p>
+                </div>
+              ) : (
+                /* Comment Items List */
+                <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                  {activeCommentPost.comments.map((c: any) => {
+                    const isMyComment = Boolean(
+                      c.isMine ||
+                      petOptions.some(p => isSameDogName(p.name, c.author) || (p.ownerName && isSameDogName(p.ownerName, c.author))) ||
+                      isSameDogName(c.author, '보리') ||
+                      isSameDogName(c.author, '딸기') ||
+                      c.author === '나'
+                    );
+
+                    const authorAvatar = isMyComment
+                      ? (currentCommentPet?.avatar || myDog?.avatar || c.avatar || getDefaultDogAvatar())
+                      : (c.avatar || getDefaultDogAvatar());
+
+                    const cleanAuthor = (c.author || '')
+                      .replace(/\s*(엄마|맘|아빠|Mom|Dad|ママ|パパ)\s*$/gi, '')
+                      .trim() || c.author;
+
+                    return (
+                      <div key={c.id} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                        <img
+                          src={authorAvatar}
+                          alt={cleanAuthor}
+                          style={{
+                            width: '38px',
+                            height: '38px',
+                            borderRadius: '50%',
+                            objectFit: 'cover',
+                            background: '#F1F5F9',
+                            flexShrink: 0,
+                            border: '1px solid #E2E8F0'
+                          }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontWeight: 700, fontSize: '0.88rem', color: '#0F172A' }}>{cleanAuthor}</span>
+                              <span style={{ fontSize: '0.75rem', color: '#94A3B8' }}>{c.createdAt || '방금 전'}</span>
+                            </div>
+                            {isMyComment && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteComment(activeCommentPost.id, c.id)}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  padding: '2px 4px',
+                                  cursor: 'pointer',
+                                  color: '#CBD5E1',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  transition: 'color 0.15s'
+                                }}
+                                onMouseEnter={(e) => (e.currentTarget.style.color = '#EF4444')}
+                                onMouseLeave={(e) => (e.currentTarget.style.color = '#CBD5E1')}
+                                title={t.feed?.deleteComment || '댓글 삭제'}
+                              >
+                                <X size={14} />
+                              </button>
+                            )}
+                          </div>
+                          {c.text && (
+                            <p style={{ fontSize: '0.9rem', color: '#334155', margin: '4px 0 0', lineHeight: 1.45, wordBreak: 'break-word' }}>
+                              {c.text}
+                            </p>
+                          )}
+                          {c.image && (
+                            <div style={{ marginTop: '8px', borderRadius: '12px', overflow: 'hidden', maxWidth: '180px', maxHeight: '180px', border: '1px solid #E2E8F0', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                              <img src={c.image} alt="Comment image" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Interaction Bar */}
+            <div style={{ borderTop: '1px solid #F1F5F9', background: '#FFFFFF' }}>
+              {/* Quick Emojis Row (❤️ 🙌 🔥 👏 😢 😍 😮 😂) */}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '10px 18px 6px'
+                }}
+              >
+                {['❤️', '🙌', '🔥', '👏', '😢', '😍', '😮', '😂'].map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => setModalCommentInput((prev) => prev + emoji)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      fontSize: '1.45rem',
+                      cursor: 'pointer',
+                      padding: '2px',
+                      transition: 'transform 0.15s'
+                    }}
+                    onMouseDown={(e) => (e.currentTarget.style.transform = 'scale(1.25)')}
+                    onMouseUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                    onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.18)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+
+              {/* Hidden File Input for Image Attachment */}
+              <input
+                type="file"
+                ref={commentImageInputRef}
+                onChange={handleCommentImageSelect}
+                accept="image/*"
+                style={{ display: 'none' }}
+              />
+
+              {/* Attached Image Preview */}
+              {modalCommentImage && (
+                <div style={{ padding: '4px 16px 8px', display: 'flex', alignItems: 'center' }}>
+                  <div style={{ position: 'relative', display: 'inline-block' }}>
+                    <img
+                      src={modalCommentImage}
+                      alt="Preview"
+                      style={{ width: '56px', height: '56px', borderRadius: '10px', objectFit: 'cover', border: '1px solid #ffb320', boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setModalCommentImage(null)}
+                      style={{
+                        position: 'absolute',
+                        top: '-6px',
+                        right: '-6px',
+                        width: '20px',
+                        height: '20px',
+                        borderRadius: '50%',
+                        background: '#0F172A',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Multi-Pet Selector Chips (반려견이 2마리 이상일 때 표시) */}
+              {petOptions.length > 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 16px 6px', overflowX: 'auto' }}>
+
+                  {petOptions.map(pet => {
+                    const isSelected = (currentCommentPet.id === pet.id || currentCommentPet.name === pet.name);
+                    return (
+                      <button
+                        className={`badge-name ${isSelected ? 'active' : ''}`}
+                        key={pet.id}
+                        type="button"
+                        onClick={() => setSelectedCommentPetId(pet.id)}
+                      >
+                        <img src={pet.avatar} alt={pet.name} style={{ width: '16px', height: '16px', borderRadius: '50%', objectFit: 'cover' }} />
+                        <span>{pet.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Input Form */}
+              <form
+                onSubmit={handleModalSubmitComment}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '8px 16px 24px',
+                  background: '#FFFFFF'
+                }}
+              >
+                <img
+                  src={currentCommentPet.avatar || getDefaultDogAvatar()}
+                  alt={currentCommentPet.name}
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    flexShrink: 0,
+                    border: '1.5px solid #38c5b7'
+                  }}
+                  title={`${currentCommentPet.name} 프로필`}
+                />
+                <div
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    background: '#FFFFFF',
+                    border: '1.5px solid #E2E8F0',
+                    borderRadius: '24px',
+                    padding: '4px 12px 4px 16px',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
+                  }}
+                >
+                  <input
+                    type="text"
+                    placeholder={t.feed?.commentPlaceholder || '댓글 달기...'}
+                    value={modalCommentInput}
+                    onChange={(e) => setModalCommentInput(e.target.value)}
+                    style={{
+                      flex: 1,
+                      border: 'none',
+                      background: 'transparent',
+                      outline: 'none',
+                      fontSize: '0.92rem',
+                      color: '#0F172A',
+                      padding: '6px 0'
+                    }}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => commentImageInputRef.current?.click()}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#0F172A',
+                        cursor: 'pointer',
+                        padding: '2px',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                      title="갤러리에서 사진 첨부"
+                    >
+                      <ImageIcon size={22} strokeWidth={2} />
+                    </button>
+                    {(modalCommentInput.trim() || modalCommentImage) && (
+                      <button
+                        type="submit"
+                        style={{
+                          background: '#38c5b7',
+                          color: '#FFFFFF',
+                          border: 'none',
+                          borderRadius: '50%',
+                          width: '28px',
+                          height: '28px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          marginLeft: '2px',
+                          boxShadow: '0 2px 8px rgba(56, 197, 183, 0.4)'
+                        }}
+                      >
+                        <Send size={13} style={{ marginLeft: '1px' }} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </form>
             </div>
           </div>
         </div>

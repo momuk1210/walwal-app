@@ -87,10 +87,10 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat, target
         const city = addr?.city || addr?.county || '';
         const dong = addr?.suburb || addr?.neighbourhood || addr?.borough || addr?.city_district || addr?.town || '';
 
-        const fullDong = dong ? `${city ? city + ' ' : ''}${dong}` : (city || '현재 위치');
-        setLocationLabel(`내 위치 (${fullDong})`);
+        const fullDong = dong ? `${city ? city + ' ' : ''}${dong}` : (city || (language === 'ko' ? '현재 위치' : 'Current Location'));
+        setLocationLabel(`${language === 'ko' ? '내 위치' : 'My Location'} (${fullDong})`);
       } catch (e) {
-        setLocationLabel(`내 위치 (${latitude.toFixed(3)}°, ${longitude.toFixed(3)}°)`);
+        setLocationLabel(`${language === 'ko' ? '내 위치' : 'My Location'} (${latitude.toFixed(3)}°, ${longitude.toFixed(3)}°)`);
       }
     };
 
@@ -107,10 +107,10 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat, target
             const ipRes = await fetch('https://ipapi.co/json/');
             const ipData = await ipRes.json();
             if (ipData && ipData.latitude && ipData.longitude) {
-              const cityName = ipData.city === 'Seongnam-si' ? '성남시' : (ipData.city || '내 현재 위치');
+              const cityName = ipData.city === 'Seongnam-si' ? (language === 'ko' ? '성남시' : 'Seongnam') : (ipData.city || (language === 'ko' ? '내 현재 위치' : 'My Current Location'));
               setUserCoords({ lat: ipData.latitude, lng: ipData.longitude });
               setIsLocating(false);
-              setLocationLabel(`내 위치 (${cityName})`);
+              setLocationLabel(`${language === 'ko' ? '내 위치' : 'My Location'} (${cityName})`);
               if (leafletMapRef.current) {
                 leafletMapRef.current.setView([ipData.latitude, ipData.longitude], 16);
               }
@@ -120,7 +120,7 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat, target
             console.warn('IP fallback error:', ipErr);
           }
           setIsLocating(false);
-          setLocationLabel('내 위치');
+          setLocationLabel(language === 'ko' ? '내 위치' : 'My Location');
         },
         { enableHighAccuracy: true, timeout: 5000 }
       );
@@ -415,7 +415,7 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat, target
             style={{
               color: isLocating ? '#2EC4B6' : '#FF7E36',
             }}
-            title="현재 내 위치로 이동"
+            title={language === 'ko' ? '현재 내 위치로 이동' : 'Go to Current Location'}
           >
             <LocateFixed size={18} className={isLocating ? 'animate-spin' : ''} />
           </button>
@@ -450,7 +450,7 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat, target
                 {selectedPin.gender === 'female' ? t.common?.genderShortFemale : selectedPin.gender === 'male' ? t.common?.genderShortMale : ''}
                 <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '6px' }}>
                   {selectedPin.personality?.map((trait, idx) => (
-                    <span key={idx} className="tag-hashtag">{trait}</span>
+                    <span key={idx} className="badge-hashtag">{trait}</span>
                   ))}
                 </div>
               </div>
@@ -458,9 +458,7 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat, target
           </div>
 
           <div className="text-box">
-            <div className="text-body" style={{ fontSize: '0.9rem', textAlign: 'center', fontWeight: 600 }}>
-              "{selectedPin.greeting || t.radar?.greetingEmpty || '안녕하세요! 반가워요 😊'}"
-            </div>
+            "{selectedPin.greeting || t.radar?.greetingEmpty || '안녕하세요! 반가워요 😊'}"
           </div>
 
           <div className="row gap-12 mt-20 btn-box">
@@ -468,7 +466,7 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat, target
             <button className="btn"
               onClick={() => setOwnerNoteTarget(selectedPin)}
             >
-              <Send size={18} />
+              <Send size={20} />
               {t.radar.sendNote}
             </button>
           </div>

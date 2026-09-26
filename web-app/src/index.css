@@ -28,6 +28,7 @@
   margin: 0;
   padding: 0;
   -webkit-font-smoothing: antialiased;
+  color: #0F172A;
 }
 
 html,
@@ -38,7 +39,6 @@ body {
   padding: 0;
   overflow: hidden;
   font-family: 'Plus Jakarta Sans', 'Noto Sans KR', sans-serif;
-  background-color: #FFFFFF;
   color: var(--text-main);
   -webkit-font-smoothing: antialiased;
 }
@@ -148,4 +148,10 @@ body {
 
 ::-webkit-scrollbar-track {
   background: transparent;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }

@@ -133,6 +133,16 @@ export const ShareExportModal: React.FC<ShareExportModalProps> = ({
     });
   };
 
+  const incrementStudioCount = () => {
+    try {
+      const saved = localStorage.getItem('WALWAL_STUDIO_COUNTS');
+      const counts = saved ? JSON.parse(saved) : {};
+      counts[dogName] = (counts[dogName] || 0) + 1;
+      localStorage.setItem('WALWAL_STUDIO_COUNTS', JSON.stringify(counts));
+      window.dispatchEvent(new Event('walwal_studio_updated'));
+    } catch (e) { }
+  };
+
   const handleDownloadOnly = async () => {
     setSelectedPlatform('download');
     showToast(t.share.rendering);
@@ -145,6 +155,7 @@ export const ShareExportModal: React.FC<ShareExportModalProps> = ({
 
       confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
       showToast(t.share.downloadComplete);
+      incrementStudioCount();
     }
   };
 
@@ -172,6 +183,7 @@ export const ShareExportModal: React.FC<ShareExportModalProps> = ({
             text: caption
           });
           showToast(t.share.shareSuccess);
+          incrementStudioCount();
           return;
         } catch (shareErr: any) {
           if (shareErr.name === 'AbortError') {
@@ -193,6 +205,7 @@ export const ShareExportModal: React.FC<ShareExportModalProps> = ({
         }
       } catch (clipErr) { }
 
+      incrementStudioCount();
       setTimeout(() => {
         if (fallbackUrl) {
           window.open(fallbackUrl, '_blank');
@@ -307,10 +320,10 @@ export const ShareExportModal: React.FC<ShareExportModalProps> = ({
           background: '#FFFFFF',
         }}>
           <div>
-            <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#FFB320', marginBottom: '3px' }}>
+            <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#FFB320', marginBottom: '3px' }}>
               💬 {dogName}
             </div>
-            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#2D3748', lineHeight: 1.35, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
+            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#2D3748', lineHeight: 1.35, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
               "{thought}"
             </div>
           </div>

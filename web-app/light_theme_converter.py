@@ -51,7 +51,7 @@ for filepath in files_to_process:
     if "ARCameraView.tsx" in filepath:
         content = content.replace("background: '#F8F9FB'", "background: '#000'")
         # Some white text on transparent backgrounds needs to stay white
-        content = content.replace("color: '#2D3748', fontSize: '0.78rem', fontWeight: 900", "color: '#fff', fontSize: '0.78rem', fontWeight: 900")
+        content = content.replace("color: '#2D3748', fontSize: '0.7rem', fontWeight: 900", "color: '#fff', fontSize: '0.7rem', fontWeight: 900")
         
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(content)

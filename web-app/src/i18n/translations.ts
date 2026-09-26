@@ -29,6 +29,7 @@ export interface TranslationSchema {
     welcomeSub: string;
     continueApple: string;
     continueGoogle: string;
+    continueGuest?: string;
   };
   paywall: {
     title: string;
@@ -43,9 +44,11 @@ export interface TranslationSchema {
   };
   profile: any;
   community: any;
-  feed: any;
+  feed?: any;
   share: any;
   breedQuips: any;
+  settings: any;
+  legal: any;
   common: any;
 }
 
@@ -60,11 +63,55 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
     },
     "tabs": {
       "ar": "펫톡",
-      "radar": "레이다",
+      "radar": "레이더",
       "studio": "펫스튜디오",
       "community": "산책",
       "feed": "피드",
       "profile": "마이펫"
+    },
+    "feed": {
+      "subtitle": "세상의 모든 귀여움, 댕댕이 피드",
+      "commentTitle": "댓글",
+      "noComments": "아직 댓글이 없습니다",
+      "beFirstComment": "댓글을 남겨보세요.",
+      "commentPlaceholder": "댓글 달기...",
+      "deleteComment": "댓글 삭제"
+    },
+    "legal": {
+      "faqTitle": "자주 묻는 질문",
+      "termsTitle": "이용약관",
+      "privacyTitle": "개인정보 처리방침",
+      "faqQ1": "WalWal 앱에서는 어떤 프리미엄 기능을 제공하나요?",
+      "faqA1": "WalWal은 전면 유료 구독 기반의 프리미엄 서비스입니다. 구독 시 무제한 다중 반려견 프로필 관리, 정밀한 실시간 AR 짖음 번역기, 그리고 글로벌 반려견 커뮤니티(번개 모임) 매칭 기능을 광고 없이 쾌적하게 이용하실 수 있습니다.",
+      "faqQ2": "강아지 프로필은 몇 개까지 추가할 수 있나요?",
+      "faqA2": "구독 기간 동안 마리 수 제한 없이 무제한으로 반려견 프로필을 추가하고 통합 관리하실 수 있습니다.",
+      "termsContent": "제1조 (목적)\n본 약관은 WalWal 서비스의 이용과 관련하여 회사와 회원 간의 권리, 의무 및 책임사항을 규정함을 목적으로 합니다.\n\n제2조 (서비스의 제공)\n회사는 회원의 원활한 반려동물 소통을 돕기 위해 AR 번역 및 커뮤니티 서비스를 제공합니다.",
+      "privacyContent": "1. 수집하는 개인정보 항목\n이메일, 닉네임, 기기 정보(마이크, 카메라 접근 권한 등).\n\n2. 개인정보의 이용 목적\n- 반려견 AR 짖음 분석 서비스 제공\n- 위치기반 반려견 커뮤니티 모임 매칭 기능 제공"
+    },
+    "settings": {
+      "title": "설정",
+      "proTitle": "WalWal Pro 구독",
+      "proStatus": "무료 체험 진행 중",
+      "restorePurchase": "구매 항목 복원",
+      "preferences": "앱 설정",
+      "language": "언어 (Language)",
+      "notifications": "알림 설정",
+      "radarAlert": "근처 반려견 등장 (레이더)",
+      "meetupAlert": "번개 모임",
+      "feedAlert": "피드 소식",
+      "permissions": "권한 관리",
+      "camera": "카메라",
+      "mic": "마이크",
+      "location": "위치",
+      "support": "고객 지원 및 약관",
+      "faq": "자주 묻는 질문",
+      "terms": "이용약관",
+      "privacy": "개인정보 처리방침",
+      "account": "계정 관리",
+      "logout": "로그아웃",
+      "deleteAccount": "회원 탈퇴",
+      "confirmDelete": "정말로 계정을 탈퇴하시겠습니까? 탈퇴 시 모든 데이터가 삭제되며 복구할 수 없습니다.",
+      "logoutError": "로그아웃 중 오류가 발생했습니다."
     },
     "profile": {
       "greetingLabel": "인사말",
@@ -371,7 +418,7 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
     "radar": {
       "greetingLabel": "인사말",
       "greetingEmpty": "안녕하세요! 반가워요 😊",
-      "title": "댕댕이 레이다",
+      "title": "댕댕이 레이더",
       "dogsNearby": "주변 반경 산책 중인 댕댕이",
       "startVirtualChat": "펫톡",
       "sendNote": "메세지",
@@ -392,7 +439,7 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "tagline": "전 세계 펫팸족을 위한 글로뢌 1위 AR 번역기",
       "benefit1": "실시간 AR 통역 & 티키타카 무제한",
       "benefit2": "워터마크 완전 제거 & 4K 고화질 저장",
-      "benefit3": "레이다 반경 5km 무제한 확장",
+      "benefit3": "레이더 반경 5km 무제한 확장",
       "benefit4": "AI 반려견 음성/행동 정밀 분석 리포트",
       "cta": "프리미엄 구독 시작하기",
       "activeText": "이미 Pro 플랜 이용 중입니다",
@@ -402,10 +449,11 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "storeNotice": "Google Play & App Store 안심 정기구독 · 7일 이내 해지 시 0원 청구"
     },
     "auth": {
-      "welcomeTitle": "반려견과의 대화가 시작되는 곳",
+      "welcomeTitle": "반려견과의 소통",
       "welcomeSub": "WalWal과 함께 특별한 소통을 경험하세요",
       "continueApple": "Apple로 계속하기",
-      "continueGoogle": "Google로 계속하기"
+      "continueGoogle": "Google로 계속하기",
+      "continueGuest": "게스트로 시작하기"
     },
     "paywall": {
       "title": "WalWal Pro",
@@ -415,7 +463,7 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "feature3": "글로벌 커뮤니티 자동 번역",
       "price": "월 8,900원",
       "trial": "7일 무료 체험 후 결제",
-      "subscribeBtn": "7일 무료 체험 시작하기",
+      "subscribeBtn": "프리미엄 구독 시작하기",
       "terms": "결제는 언제든 취소 가능합니다."
     },
     "community": {
@@ -452,6 +500,16 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "modalTagPlaceholder": "#대형견환영",
       "modalMaxLabel": "최대 인원 (명)",
       "modalBtnSubmit": "모임 등록하기",
+      "selectPetTitle": "함께 산책 갈 반려견 선택",
+      "selectPetDesc": "이번 모임에 함께 참여할 아이를 선택해주세요. (다중 선택 가능)",
+      "allPetsBtn": "모든 반려견 ({count}마리 모두)",
+      "btnJoinWithCount": "{count}마리 반려견과 함께 참여하기",
+      "minOnePetAlert": "최소 1마리 이상의 반려견을 선택해주세요.",
+      "joinReqBeforeChat": "모임에 참가 신청 후 톡방에 입장할 수 있습니다.",
+      "participatingNeighbors": "참여 이웃:",
+      "senderProfile": "발신 프로필:",
+      "chatPlaceholder": "{name}(으)로 메시지 입력...",
+      "participantsCountSuffix": "명 참여 중",
       "mock": {
         "m1": { "title": "서울숲 야간 킁킁 산책 번개", "location": "서울숲 중앙잔디광장", "time": "오늘 저녁 8시 30분", "tag": "#대형견환영" },
         "m2": { "title": "웰시코기 & 숏다리 친구들 모여라!", "location": "뚝섬 한강공원 피크닉존", "time": "내일 오후 3시", "tag": "#숏다리모임" },
@@ -609,6 +667,50 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "community": "Walk",
       "feed": "Feed",
       "profile": "My Pet"
+    },
+    "feed": {
+      "subtitle": "All the cuteness in the world, doggy feed",
+      "commentTitle": "Comments",
+      "noComments": "No comments yet",
+      "beFirstComment": "Be the first to comment.",
+      "commentPlaceholder": "Add a comment...",
+      "deleteComment": "Delete comment"
+    },
+    "legal": {
+      "faqTitle": "FAQ",
+      "termsTitle": "Terms of Service",
+      "privacyTitle": "Privacy Policy",
+      "faqQ1": "What premium features does the WalWal app offer?",
+      "faqA1": "WalWal is a fully premium subscription service. By subscribing, you gain ad-free, unlimited access to multi-dog profile management, real-time AR bark translation, and global pet community matching.",
+      "faqQ2": "How many dogs can I add?",
+      "faqA2": "During your subscription, you can add and manage an unlimited number of dog profiles without any restrictions.",
+      "termsContent": "Article 1 (Purpose)\nThe purpose of these Terms is to define the rights and obligations between the company and the user regarding the WalWal service.\n\nArticle 2 (Service Provision)\nThe company provides AR translation and community services to facilitate communication with pets.",
+      "privacyContent": "1. Information Collected\nEmail, nickname, device permissions (mic, camera, etc.).\n\n2. Purpose of Use\n- Providing AR bark analysis services\n- Offering location-based pet community matching"
+    },
+    "settings": {
+      "title": "Settings",
+      "proTitle": "WalWal Pro Subscription",
+      "proStatus": "Free trial active",
+      "restorePurchase": "Restore Purchases",
+      "preferences": "App Preferences",
+      "language": "Language",
+      "notifications": "Notifications",
+      "radarAlert": "Radar Alerts (Nearby Dogs)",
+      "meetupAlert": "Meetups",
+      "feedAlert": "Feed Activity",
+      "permissions": "Permissions",
+      "camera": "Camera",
+      "mic": "Microphone",
+      "location": "Location",
+      "support": "Support & Legal",
+      "faq": "FAQ",
+      "terms": "Terms of Service",
+      "privacy": "Privacy Policy",
+      "account": "Account Management",
+      "logout": "Log Out",
+      "deleteAccount": "Delete Account",
+      "confirmDelete": "Are you sure you want to delete your account? All data will be permanently removed.",
+      "logoutError": "An error occurred during logout."
     },
     "profile": {
       "greetingLabel": "Greeting",
@@ -948,7 +1050,8 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "welcomeTitle": "Where conversations with your dog begin",
       "welcomeSub": "Experience special moments with WalWal",
       "continueApple": "Continue with Apple",
-      "continueGoogle": "Continue with Google"
+      "continueGoogle": "Continue with Google",
+      "continueGuest": "Start as Guest"
     },
     "paywall": {
       "title": "WalWal Pro",
@@ -958,7 +1061,7 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "feature3": "Auto-translation for Global Community",
       "price": "$8.99 / month",
       "trial": "7 days free trial, then billed monthly",
-      "subscribeBtn": "Start 7-Day Free Trial",
+      "subscribeBtn": "Start Premium Subscription",
       "terms": "Cancel anytime."
     },
     "community": {
@@ -995,6 +1098,16 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "modalTagPlaceholder": "#LargeDogsWelcome",
       "modalMaxLabel": "Max People",
       "modalBtnSubmit": "Create Meetup",
+      "selectPetTitle": "Select Dogs for Walk",
+      "selectPetDesc": "Please select which dog(s) will join this meetup. (Multiple selection allowed)",
+      "allPetsBtn": "All Dogs (all {count})",
+      "btnJoinWithCount": "Join with {count} dog(s)",
+      "minOnePetAlert": "Please select at least 1 dog.",
+      "joinReqBeforeChat": "Please join the meetup first to enter the chat room.",
+      "participatingNeighbors": "Neighbors:",
+      "senderProfile": "Send as:",
+      "chatPlaceholder": "Type message as {name}...",
+      "participantsCountSuffix": "joined",
       "mock": {
         "m1": { "title": "🌙 Seoul Forest Night Sniffing Walk", "location": "Seoul Forest Central Lawn", "time": "Tonight at 8:30 PM", "tag": "#LargeDogsWelcome" },
         "m2": { "title": " Corgi & Short-legged Friends Gather!", "location": "Ttukseom Hangang Park Picnic Zone", "time": "Tomorrow at 3:00 PM", "tag": "#ShortLegsClub" },
@@ -1152,6 +1265,50 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "community": "散歩",
       "feed": "フィード",
       "profile": "マイペット"
+    },
+    "feed": {
+      "subtitle": "世界中のすべての可愛さ、わんこフィード",
+      "commentTitle": "コメント",
+      "noComments": "まだコメントがありません",
+      "beFirstComment": "コメントを残してみましょう。",
+      "commentPlaceholder": "コメントを追加...",
+      "deleteComment": "コメント削除"
+    },
+    "legal": {
+      "faqTitle": "よくある質問",
+      "termsTitle": "利用規約",
+      "privacyTitle": "プライバシーポリシー",
+      "faqQ1": "WalWalアプリではどのようなプレミアム機能を提供していますか？",
+      "faqA1": "WalWalは完全有料のサブスクリプションサービスです。登録すると、複数の愛犬プロフィール管理、高精度のリアルタイムAR吠え声翻訳、グローバルコミュニティ（オフ会）マッチング機能を広告なしで無制限にご利用いただけます。",
+      "faqQ2": "犬のプロフィールはいくつ追加できますか？",
+      "faqA2": "サブスクリプション期間中は、無制限に愛犬のプロフィールを追加して管理できます。",
+      "termsContent": "第1条（目的）\n本規約は、WalWalサービスの利用に関して、会社と会員間の権利、義務、および責任事項を規定することを目的とします。\n\n第2条（サービスの提供）\n会社は、円滑なペットコミュニケーションを支援するためにAR翻訳およびコミュニティサービスを提供します。",
+      "privacyContent": "1. 収集する個人情報\nメール、ニックネーム、デバイス権限（マイク、カメラなど）。\n\n2. 利用目的\n- 犬のAR吠え声分析サービスの提供\n- 位置情報ベースのペットコミュニティマッチングの提供"
+    },
+    "settings": {
+      "title": "設定",
+      "proTitle": "WalWal Pro サブスクリプション",
+      "proStatus": "無料トライアル中",
+      "restorePurchase": "購入の復元",
+      "preferences": "アプリ設定",
+      "language": "言語 (Language)",
+      "notifications": "通知",
+      "radarAlert": "レーダーアラート",
+      "meetupAlert": "ミートアップ",
+      "feedAlert": "フィードアクティビティ",
+      "permissions": "権限",
+      "camera": "カメラ",
+      "mic": "マイク",
+      "location": "位置情報",
+      "support": "サポートと規約",
+      "faq": "よくある質問",
+      "terms": "利用規約",
+      "privacy": "プライバシーポリシー",
+      "account": "アカウント管理",
+      "logout": "ログアウト",
+      "deleteAccount": "アカウント削除",
+      "confirmDelete": "本当にアカウントを削除しますか？すべてのデータは完全に消去されます。",
+      "logoutError": "ログアウト中にエラーが発生しました。"
     },
     "profile": {
       "greetingLabel": "挨拶",
@@ -1538,6 +1695,16 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "modalTagPlaceholder": "#大型犬歓迎",
       "modalMaxLabel": "最大人数",
       "modalBtnSubmit": "登録する",
+      "selectPetTitle": "一緒に散歩する愛犬を選択",
+      "selectPetDesc": "今回の散歩に参加する愛犬を選択してください。（複数選択可）",
+      "allPetsBtn": "すべての愛犬（全{count}頭）",
+      "btnJoinWithCount": "{count}頭の愛犬と一緒に参加する",
+      "minOnePetAlert": "少なくとも1頭の愛犬を選択してください。",
+      "joinReqBeforeChat": "イベントに参加申請後、チャットルームに入室できます。",
+      "participatingNeighbors": "参加メンバー:",
+      "senderProfile": "送信元:",
+      "chatPlaceholder": "{name}としてメッセージ入力...",
+      "participantsCountSuffix": "人参加中",
       "mock": {
         "m1": { "title": "🌙 ソウルの森 夜のクンクン散歩", "location": "ソウルの森 中央芝生広場", "time": "今日の夜 8:30", "tag": "#大型犬歓迎" },
         "m2": { "title": " コーギー＆短足仲間集まれ！", "location": "トゥクソム漢江公園 ピクニックゾーン", "time": "明日の午後 3:00", "tag": "#短足クラブ" },
@@ -1695,6 +1862,50 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "community": "Paseo",
       "feed": "Feed",
       "profile": "Mi Mascota"
+    },
+    "feed": {
+      "subtitle": "Toda la ternura del mundo, feed perrito",
+      "commentTitle": "Comentarios",
+      "noComments": "Aún no hay comentarios",
+      "beFirstComment": "Sé el primero en comentar.",
+      "commentPlaceholder": "Añadir un comentario...",
+      "deleteComment": "Eliminar comentario"
+    },
+    "legal": {
+      "faqTitle": "Preguntas frecuentes",
+      "termsTitle": "Términos de servicio",
+      "privacyTitle": "Política de privacidad",
+      "faqQ1": "¿Qué funciones premium ofrece la aplicación WalWal?",
+      "faqA1": "WalWal es un servicio de suscripción totalmente premium. Al suscribirse, obtendrá acceso ilimitado y sin anuncios a la gestión de múltiples perfiles de perros, traducción de ladridos AR en tiempo real y emparejamiento con la comunidad global de mascotas.",
+      "faqQ2": "¿Cuántos perros puedo añadir?",
+      "faqA2": "Durante tu suscripción, puedes añadir y gestionar un número ilimitado de perfiles de perros sin restricciones.",
+      "termsContent": "Artículo 1 (Propósito)\nEl propósito de estos Términos es definir los derechos y obligaciones entre la empresa y el usuario con respecto al servicio WalWal.\n\nArtículo 2 (Provisión de servicios)\nLa empresa proporciona traducción AR y servicios comunitarios para facilitar la comunicación con las mascotas.",
+      "privacyContent": "1. Información recopilada\nCorreo electrónico, apodo, permisos del dispositivo (micrófono, cámara, etc.).\n\n2. Propósito de uso\n- Proporcionar servicios de análisis de ladridos AR\n- Ofrecer emparejamiento comunitario de mascotas basado en la ubicación"
+    },
+    "settings": {
+      "title": "Ajustes",
+      "proTitle": "Suscripción WalWal Pro",
+      "proStatus": "Prueba gratuita activa",
+      "restorePurchase": "Restaurar compras",
+      "preferences": "Preferencias de la aplicación",
+      "language": "Idioma (Language)",
+      "notifications": "Notificaciones",
+      "radarAlert": "Alertas de radar",
+      "meetupAlert": "Reuniones",
+      "feedAlert": "Actividad del feed",
+      "permissions": "Permisos",
+      "camera": "Cámara",
+      "mic": "Micrófono",
+      "location": "Ubicación",
+      "support": "Soporte y legal",
+      "faq": "Preguntas frecuentes",
+      "terms": "Términos de servicio",
+      "privacy": "Política de privacidad",
+      "account": "Gestión de cuenta",
+      "logout": "Cerrar sesión",
+      "deleteAccount": "Eliminar cuenta",
+      "confirmDelete": "¿Estás seguro de que quieres eliminar tu cuenta? Todos los datos se perderán permanentemente.",
+      "logoutError": "Ocurrió un error al cerrar sesión."
     },
     "profile": {
       "greetingLabel": "Saludo",
@@ -2079,6 +2290,16 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "modalTagPlaceholder": "#PerrosGrandesBienvenidos",
       "modalMaxLabel": "Personas máximas",
       "modalBtnSubmit": "Crear Reunión",
+      "selectPetTitle": "Seleccionar Perros para el Paseo",
+      "selectPetDesc": "Selecciona qué perro(s) participarán en este encuentro. (Selección múltiple)",
+      "allPetsBtn": "Todos los perros ({count} en total)",
+      "btnJoinWithCount": "Unirse con {count} perro(s)",
+      "minOnePetAlert": "Por favor, selecciona al menos 1 perro.",
+      "joinReqBeforeChat": "Debes unirte al encuentro antes de entrar al chat.",
+      "participatingNeighbors": "Vecinos:",
+      "senderProfile": "Enviar como:",
+      "chatPlaceholder": "Mensaje como {name}...",
+      "participantsCountSuffix": "participando",
       "mock": {
         "m1": { "title": "🌙 Paseo Nocturno Bosque de Seúl", "location": "Césped Central Bosque de Seúl", "time": "Hoy a las 8:30 PM", "tag": "#PerrosGrandesBienvenidos" },
         "m2": { "title": " ¡Club de Patas Cortas!", "location": "Zona de Picnic Río Han", "time": "Mañana a las 3:00 PM", "tag": "#PatasCortas" },

@@ -2,6 +2,20 @@
    WalWal Design System — Common Styles
    src/styles/common.css
    ============================================================ */
+*,
+button,
+a {
+  color: #0F172A;
+  text-decoration: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+div *,
+button *,
+.badge * {
+  color: inherit;
+}
 
 /* ── Layout ── */
 .page-root {
@@ -20,7 +34,7 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
-  padding: 10px;
+  padding: 10px 2px;
 }
 
 .section-gap {
@@ -56,9 +70,20 @@
   border: none;
   color: #718096;
   font-size: .74rem;
-  font-weight: 700;
+  font-weight: 600;
   padding: 6px 10px;
   box-shadow: none;
+}
+
+.section-gap>.card-lg .btn-disabled {
+  border: none;
+  color: #fff;
+  font-size: .74rem;
+  font-weight: 600;
+  padding: 6px 10px;
+  box-shadow: none;
+  border-radius: 20px;
+  background: #9aa7bc;
 }
 
 .tap-btn {
@@ -282,10 +307,10 @@
 }
 
 .nav-btn__label {
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   font-weight: 600;
-  color: #3b4a5d;
   transition: all 0.2s ease;
+  opacity: .7;
 }
 
 .nav-btn__label.active {
@@ -390,6 +415,22 @@
   font-weight: 500;
   background: #fff;
   border: 1px solid #718096;
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+}
+
+
+.badge-hashtag {
+  background: #fff;
+  color: rgb(56, 197, 183);
+  border: 1px solid rgb(56, 197, 183);
+  padding: 4px 10px;
+  border-radius: 16px;
+  font-size: 0.7rem;
+  font-weight: 500;
 }
 
 .badge-primary {
@@ -409,6 +450,34 @@
   padding: 6px 12px;
   font-size: 0.75rem;
   font-weight: 600;
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+}
+
+.badge-name {
+  color: #4A5568;
+  border-radius: 18px;
+  padding: 6px 12px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  border: 1px solid #ddd;
+  background: #f8f8f8;
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.badge-name.active {
+  background: #FFB320;
+  color: #fff;
+  border: none;
 }
 
 /* ── Info Rows ── */
@@ -643,9 +712,9 @@
 
 /* ���� Tag Chips ���� */
 .tag-chip {
-  background: #F8F9FB;
-  border: 1px solid #E2E8F0;
-  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #c9ced7;
+  border-radius: 18px;
   padding: 8px 12px;
   font-size: 0.8rem;
   font-weight: 400;
@@ -656,11 +725,8 @@
 }
 
 .tag-chip.active {
-  background: #FFB320;
-  border: 1px solid #FFB320;
-  /* To prevent layout shift when border is removed */
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(255, 179, 32, 0.3);
+  color: #2baa9d;
+  border: 1px solid #38c5b7;
 }
 
 .btn-map {
@@ -700,9 +766,31 @@
   display: flex;
   gap: 8px;
   overflow: hidden;
-  overflow-X: auto;
   padding: 2px 0 8px 0;
   min-height: 38px;
+  justify-content: space-between;
+  flex-flow: row nowrap;
+  align-items: center;
+}
+
+.petNameSection>div {
+  flex: 1;
+  display: flex;
+  flex-flow: row nowrap;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  /* for scrollbar */
+}
+
+/* Hide scrollbar for cleaner look if desired */
+.petNameSection>div::-webkit-scrollbar {
+  display: none;
+}
+
+.petNameSection>div {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 .petNameBtn {
@@ -714,6 +802,7 @@
   font-size: .8rem;
   font-weight: 500;
   white-space: nowrap;
+  flex-shrink: 0;
   transition: all .2s;
   background: #fff;
   border: 1px solid rgba(0, 0, 0, 0.05);
@@ -739,19 +828,13 @@
 
 .editProfileBtn {
   position: absolute;
-  top: 16px;
-  right: 16px;
-  background: #71809660;
+  top: 18px;
+  right: 8px;
   border: none;
-  border-radius: 12px;
-  color: #fff;
   font-size: .8rem;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.09);
 }
 
 .dogAvata {
@@ -780,25 +863,12 @@
 
 /*rader*/
 .text-box {
-  margin-top: 16px;
-  background: #f8f9fb;
-  border-radius: 20px;
-  padding: 16px;
-  border: 1px solid rgba(0, 0, 0, 0.02);
   position: relative;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.09);
-}
-
-
-.tag-hashtag {
-  color: #38c5b7;
-  border: 1px solid #38c5b7;
-  background: #fff;
-  padding: 6px 10px;
-  line-height: 1;
-  border-radius: 15px;
-  font-size: 0.75rem;
-  font-weight: 400;
+  color: #0F172A;
+  font-size: 1.2rem;
+  font-weight: 500;
+  text-align: center;
+  padding: 16px 0 0;
 }
 
 .pet-studio-modal-overlay {
@@ -961,4 +1031,33 @@
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+}
+
+/* Comment Bottom Sheet Animations */
+@keyframes slideUpBottomSheet {
+  from {
+    transform: translateY(100%);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInOverlay {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.comment-bottom-sheet-overlay {
+  animation: fadeInOverlay 0.2s ease-out forwards;
+}
+
+.comment-bottom-sheet-container {
+  animation: slideUpBottomSheet 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

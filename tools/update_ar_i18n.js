@@ -26,7 +26,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({ onCaptureToStory, on
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  // ¾ð¾î³ª °ßÁ¾ÀÌ º¯°æµÇ¸é ÇØ´ç ¾ð¾î ´ë»ç·Î Áï½Ã ÀÚµ¿ ¹ø¿ª/°»½Å
+  // ï¿½ï¿½î³ª ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½Ç¸ï¿½ ï¿½Ø´ï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½Úµï¿½ ï¿½ï¿½ï¿½ï¿½/ï¿½ï¿½ï¿½ï¿½
   useEffect(() => {
     const breedDict = TRANSLATIONS[language]?.breedQuips?.[selectedBreed.id] || TRANSLATIONS.en.breedQuips[selectedBreed.id] || [];
     const quipList = breedDict[language] || breedDict['en'] || selectedBreed.quipsByEmotion.excited;
@@ -119,7 +119,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({ onCaptureToStory, on
             <div style={{ fontWeight: 800, fontSize: '0.85rem', background: 'linear-gradient(90deg, #FF7E36, #FFBF00)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
               {t.appTitle}
             </div>
-            <div style={{ fontSize: '0.62rem', color: '#94A3B8' }}>{selectedBreed.breedKr} ¡¤ AI Active</div>
+            <div style={{ fontSize: '0.62rem', color: '#94A3B8' }}>{selectedBreed.breedKr} ï¿½ï¿½ AI Active</div>
           </div>
         </div>
       </div>
@@ -301,7 +301,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({ onCaptureToStory, on
           left: '16px',
           bottom: '160px',
           zIndex: 22,
-          background: 'rgba(15, 18, 22, 0.78)',
+          background: 'rgba(15, 18, 22, 0.7)',
           backdropFilter: 'blur(12px)',
           border: '1px solid rgba(255,255,255,0.1)',
           borderRadius: '16px',
@@ -364,7 +364,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({ onCaptureToStory, on
                   style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #fff' }}
                 />
                 <div style={{ textAlign: 'left' }}>
-                  <div style={{ color: '#fff', fontWeight: 700, fontSize: '0.78rem' }}>{breed.name}</div>
+                  <div style={{ color: '#fff', fontWeight: 700, fontSize: '0.7rem' }}>{breed.name}</div>
                   <div style={{ color: isSelected ? '#FFE8D6' : '#94A3B8', fontSize: '0.65rem' }}>{breed.breedKr}</div>
                 </div>
               </button>

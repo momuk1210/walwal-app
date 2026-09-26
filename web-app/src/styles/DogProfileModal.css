@@ -1,0 +1,114 @@
+.dog-profile-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+  animation: modalFadeIn 0.2s ease-out;
+}
+
+.dog-profile-modal-card {
+  background: #FFFFFF;
+  border-radius: 24px;
+  padding: 28px 24px 24px;
+  width: 100%;
+  max-width: 320px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+  position: relative;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: modalSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dog-profile-modal-close-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: #F7FAFC;
+  border: none;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #718096;
+  transition: all 0.15s ease;
+}
+
+.dog-profile-modal-close-btn:hover {
+  background: #EDF2F7;
+  color: #2D3748;
+}
+
+.dog-profile-modal-avatar-ring {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  padding: 3px;
+  background: linear-gradient(135deg, #FFB320, #FFA500);
+  box-shadow: 0 6px 18px rgba(255, 179, 32, 0.35);
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.dog-profile-modal-avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  background: #F8FAFC;
+}
+
+.dog-profile-modal-name {
+  margin: 0 0 4px 0;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #1A202C;
+}
+
+.dog-profile-modal-subtitle {
+  margin: 0 0 14px 0;
+  font-size: 0.88rem;
+  color: #718096;
+  font-weight: 600;
+}
+
+.dog-profile-modal-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  width: 100%;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

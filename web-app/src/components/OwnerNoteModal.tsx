@@ -101,6 +101,7 @@ export const OwnerNoteModal: React.FC<OwnerNoteModalProps> = ({
                   {targetDog.distance} 인근
                 </span>
               </div>
+
               <div className="own-message-modal-dog-info">
                 <div>{targetDog.breed} {targetDog.age}{t.profile?.dogAgeSuffix || '살'} &middot; {targetDog.gender === 'female' ? (t.common?.genderShortFemale || '여') : (t.common?.genderShortMale || '남')}</div>
                 <div>{targetDog.personality?.join(' ')}</div>

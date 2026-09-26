@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar, MapPin, Heart, MessageSquare, Plus, CheckCircle2, Navigation, X, Send, PawPrint, Crown, LogOut } from 'lucide-react';
-import { MOCK_DOGS, getMockDogs } from '../data/mockDogs';
+import { MOCK_DOGS, getMockDogs, isSameDogName, getDefaultDogAvatar, normalizeDogProfile, getLiveDogAvatar, getLiveDogProfile, localizeBreed, localizePersonalityTags } from '../data/mockDogs';
 import { MeetupChatModal } from './MeetupChatModal';
+import { DogProfileModal } from './DogProfileModal';
 
 export interface WalkMeetup {
   id: string;
@@ -20,12 +21,14 @@ export interface WalkMeetup {
   status?: 'upcoming' | 'past';
   participants?: any[];
   unreadCount?: number;
+  userJoinedPets?: any[];
+  joinedPetIds?: string[];
 }
 
 const INITIAL_MEETUPS: WalkMeetup[] = [
   {
     id: 'm1',
-    title: '🌙 서울숲 야간 킁킁 산책 번개',
+    title: '서울숲 야간 킁킁 산책 번개',
     location: '서울숲 중앙잔디광장',
     lat: 37.5445,
     lng: 127.0374,
@@ -47,7 +50,7 @@ const INITIAL_MEETUPS: WalkMeetup[] = [
   },
   {
     id: 'm2',
-    title: '🍞 웰시코기 & 숏다리 친구들 모여라!',
+    title: '웰시코기 & 숏다리 친구들 모여라!',
     location: '뚝섬 한강공원 피크닉존',
     lat: 37.5298,
     lng: 127.0700,
@@ -69,7 +72,7 @@ const INITIAL_MEETUPS: WalkMeetup[] = [
   },
   {
     id: 'm3',
-    title: '☁️ 쫄보 솜뭉치들의 조용한 힐링 산책',
+    title: '쫄보 솜뭉치들의 조용한 힐링 산책',
     location: '살곶이 다리 산책로',
     lat: 37.5580,
     lng: 127.0435,
@@ -89,7 +92,7 @@ const INITIAL_MEETUPS: WalkMeetup[] = [
   },
   {
     id: 'm4',
-    title: '🍂 가을맞이 시바견 정모 (종료)',
+    title: ' 가을맞이 시바견 정모 (종료)',
     location: '어린이대공원 반려견놀이터',
     lat: 37.5492,
     lng: 127.0818,
@@ -129,7 +132,18 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
   ];
 
   // Initialize or sync with language changes
-  const [meetups, setMeetups] = useState<WalkMeetup[]>(localizedMeetups);
+  const [meetups, setMeetups] = useState<WalkMeetup[]>(() => {
+    try {
+      const saved = localStorage.getItem('WALWAL_MEETUPS');
+      if (saved) return JSON.parse(saved);
+    } catch (e) { }
+    return localizedMeetups;
+  });
+
+  // Save to localStorage whenever meetups change
+  React.useEffect(() => {
+    localStorage.setItem('WALWAL_MEETUPS', JSON.stringify(meetups));
+  }, [meetups]);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedHostProfile, setSelectedHostProfile] = useState<any>(null);
@@ -142,17 +156,44 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
   const [meetupStatusFilter, setMeetupStatusFilter] = useState<'upcoming' | 'joined' | 'past'>('upcoming');
   const [showParticipantsModal, setShowParticipantsModal] = useState<WalkMeetup | null>(null);
   const [activeChatMeetup, setActiveChatMeetup] = useState<WalkMeetup | null>(null);
+  const [petVersion, setPetVersion] = useState(0);
 
-  const [myDog] = useState(() => {
+  useEffect(() => {
+    const handlePetUpdate = () => setPetVersion(v => v + 1);
+    window.addEventListener('walwal_pets_updated', handlePetUpdate);
+    window.addEventListener('storage', handlePetUpdate);
+    return () => {
+      window.removeEventListener('walwal_pets_updated', handlePetUpdate);
+      window.removeEventListener('storage', handlePetUpdate);
+    };
+  }, []);
+
+  // 내 전체 반려견 목록 (다견 지원)
+  const myPets = React.useMemo(() => {
     try {
       const saved = localStorage.getItem('WALWAL_PETS');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed && parsed.length > 0) return parsed[0];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((p: any) => normalizeDogProfile(p, language));
+        }
       }
     } catch (e) { }
-    return getMockDogs("ko")[0];
-  });
+    return getMockDogs(language);
+  }, [language, petVersion]);
+
+  const myDog = myPets[0] || getMockDogs("ko")[0];
+
+  const getLiveDogAvatar = (name?: string, fallbackAvatar?: string): string => {
+    if (!name) return fallbackAvatar || '';
+    const myPet = myPets.find(p => isSameDogName(p.name, name));
+    if (myPet?.avatar) return myPet.avatar;
+    return fallbackAvatar || getDefaultDogAvatar(name);
+  };
+
+  // 다견 산책 참여 선택 모달 상태
+  const [joinPetSelectionMeetup, setJoinPetSelectionMeetup] = useState<WalkMeetup | null>(null);
+  const [selectedJoinPetIds, setSelectedJoinPetIds] = useState<string[]>([]);
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -173,7 +214,9 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
       tag: formTag || '#자유모임',
       joined: true,
       status: 'upcoming',
-      participants: [myDog]
+      participants: [myDog],
+      userJoinedPets: [myDog],
+      joinedPetIds: [myDog.id || myDog.name]
     };
 
     setMeetups([newMeetup, ...meetups]);
@@ -204,26 +247,81 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
   }, [language]);
 
   const handleJoin = (id: string) => {
+    const targetMeetup = meetups.find(m => m.id === id);
+    if (!targetMeetup) return;
+
+    // 이미 참여한 모임이면 -> 취소 처리
+    if (targetMeetup.joined) {
+      setMeetups(prev =>
+        prev.map(m => {
+          if (m.id === id) {
+            const myNames = new Set(myPets.map((p: any) => p.name));
+            const filteredParticipants = (m.participants || []).filter(p => !myNames.has(p.name));
+            const removedCount = (m.participants || []).length - filteredParticipants.length;
+            return {
+              ...m,
+              joined: false,
+              participantsCount: Math.max(0, m.participantsCount - (removedCount || 1)),
+              participants: filteredParticipants,
+              userJoinedPets: [],
+              joinedPetIds: []
+            };
+          }
+          return m;
+        })
+      );
+      return;
+    }
+
+    // 미참여 모임인데, 반려견이 2마리 이상인 경우 -> 반려견 선택 모달 표시
+    if (myPets.length > 1) {
+      setJoinPetSelectionMeetup(targetMeetup);
+      setSelectedJoinPetIds(myPets.map((p: any) => p.id || p.name));
+      return;
+    }
+
+    // 반려견이 1마리인 경우 -> 바로 1마리로 참여
     setMeetups(prev =>
       prev.map(m => {
         if (m.id === id) {
-          const nextJoined = !m.joined;
-          let nextParticipants = m.participants ? [...m.participants] : [];
-          if (nextJoined) {
-            nextParticipants.push(myDog);
-          } else {
-            nextParticipants = nextParticipants.filter(p => p.name !== myDog.name);
-          }
+          const nextParticipants = [...(m.participants || []), myDog];
           return {
             ...m,
-            joined: nextJoined,
-            participantsCount: nextJoined ? m.participantsCount + 1 : m.participantsCount - 1,
-            participants: nextParticipants
+            joined: true,
+            participantsCount: m.participantsCount + 1,
+            participants: nextParticipants,
+            userJoinedPets: [myDog],
+            joinedPetIds: [myDog.id || myDog.name]
           };
         }
         return m;
       })
     );
+  };
+
+  const confirmJoinWithSelectedPets = () => {
+    if (!joinPetSelectionMeetup || selectedJoinPetIds.length === 0) return;
+
+    const chosenDogs = myPets.filter((p: any) => selectedJoinPetIds.includes(p.id || p.name));
+
+    setMeetups(prev =>
+      prev.map(m => {
+        if (m.id === joinPetSelectionMeetup.id) {
+          const nextParticipants = [...(m.participants || []), ...chosenDogs];
+          return {
+            ...m,
+            joined: true,
+            participantsCount: m.participantsCount + chosenDogs.length,
+            participants: nextParticipants,
+            userJoinedPets: chosenDogs,
+            joinedPetIds: selectedJoinPetIds
+          };
+        }
+        return m;
+      })
+    );
+
+    setJoinPetSelectionMeetup(null);
   };
 
   const handleLocationClick = (m: WalkMeetup) => {
@@ -243,10 +341,10 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
           <p className="text-sub">{t.community.subtitle}</p>
         </div>
         <button
-          className="btn-primary"
+          className="btn-ghost"
           onClick={() => setShowCreateModal(true)}
         >
-          <Plus size={16} strokeWidth={3} />
+          <Plus size={24} strokeWidth={2} />
         </button>
       </div>
 
@@ -284,14 +382,14 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
             <div className="row-between" style={{ alignItems: 'flex-start' }}>
               <div className="row gap-12" style={{ alignItems: 'start', flex: '1' }}>
                 <img
-                  src={m.avatar}
+                  src={getLiveDogAvatar(m.hostDog, m.avatar)}
                   alt={m.hostDog}
                   className="avatar-md"
                   style={{ cursor: 'pointer', border: '2px solid transparent', transition: 'border-color 0.2s' }}
                   onMouseOver={e => (e.currentTarget.style.borderColor = '#FFB320')}
                   onMouseOut={e => (e.currentTarget.style.borderColor = 'transparent')}
                   onClick={() => {
-                    const profile = [myDog, ...getMockDogs("ko")].find(d => d.avatar === m.avatar);
+                    const profile = myPets.find(d => isSameDogName(d.name, m.hostDog)) || getMockDogs(language).find(d => isSameDogName(d.name, m.hostDog));
                     if (profile) setSelectedHostProfile(profile);
                     else {
                       setSelectedHostProfile({
@@ -299,7 +397,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
                         breed: '알 수 없음',
                         age: '비공개',
                         ownerName: m.hostOwner,
-                        avatar: m.avatar,
+                        avatar: getLiveDogAvatar(m.hostDog, m.avatar),
                         personality: []
                       });
                     }
@@ -308,7 +406,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
                 <div className="host-info-wrapper"
                   onClick={() => {
                     if (!m.joined) {
-                      alert('모임에 참가 신청 후 톡방에 입장할 수 있습니다. 🐾');
+                      alert(t.community.joinReqBeforeChat || '모임에 참가 신청 후 톡방에 입장할 수 있습니다.');
                       return;
                     }
                     setActiveChatMeetup(m);
@@ -316,7 +414,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
                   style={{ cursor: 'pointer' }}
                 >
                   <div className="row-between gap-12" style={{ alignItems: 'center', width: '100%' }}>
-                    <span className="badge">{m.tag}</span>
+                    <span className="badge-hashtag">{m.tag}</span>
                     <div className="text-sub" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <Crown size={14} style={{ color: '#FFB320' }} />
                       {m.hostOwner}
@@ -365,7 +463,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
                     {m.participants.slice(0, 5).map((p: any, idx: number) => (
                       <img
                         key={idx}
-                        src={p.avatar}
+                        src={getLiveDogAvatar(p.name, p.avatar)}
                         alt={p.name}
                         style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #fff', marginLeft: idx === 0 ? 0 : '-10px', zIndex: 5 - idx, position: 'relative' }}
                       />
@@ -381,7 +479,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
               <button
                 onClick={() => m.status !== 'past' && handleJoin(m.id)}
                 className={m.status === 'past' ? 'btn-disabled' : (m.joined ? 'btn-dark-line' : 'btn-primary')}
-                style={{ background: m.status === 'past' ? '#CBD5E0' : undefined, cursor: m.status === 'past' ? 'not-allowed' : 'pointer', color: m.status === 'past' ? '#718096' : undefined, height: 'fit-content' }}
+                style={{ background: m.status === 'past' ? '#bfc4c9ff' : undefined, cursor: m.status === 'past' ? 'not-allowed' : 'pointer', color: m.status === 'past' ? '#fff' : undefined, height: 'fit-content' }}
                 disabled={m.status === 'past'}
               >
                 {m.status === 'past' ? (
@@ -497,57 +595,11 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
           </div>
         )
       }
-      {/* Host Profile Modal */}
-      {
-        selectedHostProfile && (
-          <div style={{
-            position: 'fixed',
-            top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.6)',
-            zIndex: 10000,
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            padding: '20px',
-            backdropFilter: 'blur(5px)'
-          }}>
-            <div style={{
-              background: '#fff',
-              borderRadius: '24px',
-              padding: '24px',
-              width: '100%',
-              maxWidth: '320px',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              position: 'relative'
-            }}>
-              <button onClick={() => setSelectedHostProfile(null)} style={{ position: 'absolute', top: '16px', right: '16px', background: 'none', border: 'none', cursor: 'pointer' }}>
-                <X size={24} color="#3b4a5d" />
-              </button>
-              <img src={selectedHostProfile.avatar} alt={selectedHostProfile.name} style={{ width: '100px', height: '100px', borderRadius: '50%', objectFit: 'cover', border: '4px solid #FFB320', marginBottom: '16px' }} />
-              <h3 style={{ margin: 0, fontSize: '1.4rem', color: '#2D3748', fontWeight: 800 }}>{selectedHostProfile.name}</h3>
-              <p style={{ margin: '4px 0 16px 0', fontSize: '0.9rem', color: '#718096' }}>
-                {selectedHostProfile.breed} {selectedHostProfile.age}{t.profile.dogAgeSuffix} {selectedHostProfile.gender === 'female' ? t.common?.genderShortFemale : selectedHostProfile.gender === 'male' ? t.common?.genderShortMale : ''} {selectedHostProfile.personality && selectedHostProfile.personality.length > 0 ? `(${selectedHostProfile.personality.join(' ')})` : ''}
-              </p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', marginBottom: '20px' }}>
-                {selectedHostProfile.personality.map((p: string, i: number) => (
-                  <span key={i} style={{ background: '#FFF7E6', color: '#FFB320', padding: '6px 12px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 700 }}>
-                    {p}
-                  </span>
-                ))}
-              </div>
-              <button
-                onClick={() => setSelectedHostProfile(null)}
-                style={{ width: '100%', background: '#F7FAFC', color: '#4A5568', border: '1px solid #E2E8F0', padding: '12px', borderRadius: '12px', fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer' }}
-              >
-                {t.community.modalBtnClose}
-              </button>
-            </div>
-          </div>
-        )
-      }
+      {/* Host / Participant Profile Modal */}
+      <DogProfileModal
+        dog={selectedHostProfile}
+        onClose={() => setSelectedHostProfile(null)}
+      />
       {/* Participant List Modal */}
       {
         showParticipantsModal && (
@@ -585,14 +637,25 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
 
               <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {showParticipantsModal.participants?.map((p: any, idx: number) => (
-                  <div key={idx} className='avatar-wrapper' >
-                    <img className="avatar-sm" src={p.avatar} alt={p.name} />
+                  <div
+                    key={idx}
+                    className='avatar-wrapper'
+                    style={{ cursor: 'pointer', transition: 'background 0.15s', padding: '6px 8px', borderRadius: '14px' }}
+                    onClick={() => {
+                      const profile = getLiveDogProfile(p.name, language) || p;
+                      setSelectedHostProfile(profile);
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#F8FAFC')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                    title={`${p.name} 프로필 보기`}
+                  >
+                    <img className="avatar-sm" src={getLiveDogAvatar(p.name, p.avatar)} alt={p.name} />
                     <div>
-                      <div className="pName">{p.name} <span>({p.breed} / {p.age}{t.profile.dogAgeSuffix} / {p.gender === 'male' ? t.common?.genderShortMale : p.gender === 'female' ? t.common?.genderShortFemale : ''})</span></div>
+                      <div className="pName">{p.name} <span>({localizeBreed(p.breed, language)} / {p.age ? String(p.age).replace(/[^0-9]/g, '') : '1'}{t.profile?.dogAgeSuffix || '살'} / {p.gender === 'male' ? (t.common?.genderShortMale || '남') : (t.common?.genderShortFemale || '여')})</span></div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
-                        {p.personality?.map((tag: string, i: number) => (
-                          <span key={i} className='tag-hashtag'>
-                            {tag}
+                        {localizePersonalityTags(p.personality || [], language).map((tag: string, i: number) => (
+                          <span key={i} className='badge-hashtag'>
+                            {tag.startsWith('#') ? tag : `#${tag}`}
                           </span>
                         ))}
                       </div>
@@ -611,15 +674,180 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
           </div>
         )
       }
+      {/* Multi-Pet Join Selection Modal (함께 산책 갈 반려견 선택) */}
+      {joinPetSelectionMeetup && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            zIndex: 10000,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: '20px',
+            backdropFilter: 'blur(5px)'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setJoinPetSelectionMeetup(null);
+          }}
+        >
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: '24px',
+              padding: '24px',
+              width: '100%',
+              maxWidth: '360px',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.25)',
+              display: 'flex',
+              flexDirection: 'column',
+              position: 'relative'
+            }}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#1E293B', fontWeight: 800 }}>
+                  {t.community.selectPetTitle || '함께 산책 갈 반려견 선택'}
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#64748B' }}>
+                  {joinPetSelectionMeetup.title}
+                </p>
+              </div>
+              <button
+                onClick={() => setJoinPetSelectionMeetup(null)}
+                style={{ background: '#F1F5F9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748B' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: '0.85rem', color: '#475569', marginBottom: '16px', lineHeight: 1.4 }}>
+              {t.community.selectPetDesc || '이번 모임에 함께 참여할 아이를 선택해주세요. (다중 선택 가능)'}
+            </p>
+
+            {/* Pet Options */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+              {myPets.map((pet: any) => {
+                const petKey = pet.id || pet.name;
+                const isSelected = selectedJoinPetIds.includes(petKey);
+                return (
+                  <div
+                    key={petKey}
+                    onClick={() => {
+                      if (isSelected) {
+                        if (selectedJoinPetIds.length === 1) {
+                          alert(t.community.minOnePetAlert || '최소 1마리 이상의 반려견을 선택해주세요.');
+                          return;
+                        }
+                        setSelectedJoinPetIds(selectedJoinPetIds.filter(id => id !== petKey));
+                      } else {
+                        setSelectedJoinPetIds([...selectedJoinPetIds, petKey]);
+                      }
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '12px 14px',
+                      borderRadius: '16px',
+                      border: isSelected ? '2px solid #FFB320' : '1.5px solid #E2E8F0',
+                      background: isSelected ? '#FFFDF5' : '#FFFFFF',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <img
+                        src={getLiveDogAvatar(pet.name, pet.avatar)}
+                        alt={pet.name}
+                        style={{ width: '44px', height: '44px', borderRadius: '50%', objectFit: 'cover', border: isSelected ? '2px solid #FFB320' : '1px solid #E2E8F0' }}
+                      />
+                      <div>
+                        <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1E293B' }}>{pet.name}</div>
+                        <div style={{ fontSize: '0.7rem', color: '#64748B' }}>
+                          {pet.breed} · {pet.age}{t.profile?.dogAgeSuffix || '살'} {pet.gender === 'female' ? (t.common?.genderShortFemale || '여') : pet.gender === 'male' ? (t.common?.genderShortMale || '남') : ''}
+                        </div>
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '50%',
+                        background: isSelected ? '#FFB320' : '#E2E8F0',
+                        color: '#FFFFFF',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.8rem',
+                        fontWeight: 800
+                      }}
+                    >
+                      {isSelected ? '✓' : ''}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Quick All / Single toggle */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+              <button
+                type="button"
+                onClick={() => setSelectedJoinPetIds(myPets.map((p: any) => p.id || p.name))}
+                style={{
+                  flex: 1,
+                  padding: '8px',
+                  borderRadius: '10px',
+                  border: '1px solid #E2E8F0',
+                  background: selectedJoinPetIds.length === myPets.length ? '#FFF7E6' : '#F8FAFC',
+                  color: selectedJoinPetIds.length === myPets.length ? '#D97706' : '#64748B',
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                {(t.community.allPetsBtn || '모든 반려견 ({count}마리 모두)').replace('{count}', String(myPets.length))}
+              </button>
+            </div>
+
+            {/* Submit Button */}
+            <button
+              type="button"
+              onClick={confirmJoinWithSelectedPets}
+              disabled={selectedJoinPetIds.length === 0}
+              style={{
+                width: '100%',
+                background: selectedJoinPetIds.length > 0 ? '#FFB320' : '#CBD5E1',
+                color: '#FFFFFF',
+                border: 'none',
+                padding: '14px',
+                borderRadius: '14px',
+                fontSize: '0.98rem',
+                fontWeight: 700,
+                cursor: selectedJoinPetIds.length > 0 ? 'pointer' : 'not-allowed',
+                boxShadow: selectedJoinPetIds.length > 0 ? '0 4px 12px rgba(255, 179, 32, 0.35)' : 'none'
+              }}
+            >
+              {(t.community.btnJoinWithCount || '{count}마리 반려견과 함께 참여하기').replace('{count}', String(selectedJoinPetIds.length))}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Meetup Chat Modal */}
-      {
-        activeChatMeetup && (
-          <MeetupChatModal
-            meetup={activeChatMeetup}
-            onClose={() => setActiveChatMeetup(null)}
-          />
-        )
-      }
-    </div >
+      {activeChatMeetup && (
+        <MeetupChatModal
+          meetup={activeChatMeetup}
+          onClose={() => setActiveChatMeetup(null)}
+          language={language}
+        />
+      )}
+    </div>
   );
 };

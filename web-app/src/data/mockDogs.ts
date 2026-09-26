@@ -17,6 +17,11 @@ export interface DogProfile {
   soundPattern: string; // e.g. "왈! 멍멍!"
   posePattern: string; // e.g. "꼬리 180도 회전, 귀 쫑긋"
   conversationLog: { speaker: string; text: string; time: string }[];
+  stats?: {
+    translateCount: number;
+    studioCount: number;
+    meetupCount: number;
+  };
 }
 
 const MOCK_DOGS_KO: DogProfile[] = [
@@ -235,6 +240,177 @@ export const getDefaultDogAvatar = (nameOrBreed?: string): string => {
   return 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=500&auto=format&fit=crop&q=80';
 };
 
+export const BREED_TRANSLATIONS: Array<{ key: string; ko: string; en: string; ja: string; es: string }> = [
+  { key: 'golden', ko: '골든 리트리버', en: 'Golden Retriever', ja: 'ゴールデンレトリバー', es: 'Golden Retriever' },
+  { key: 'corgi', ko: '웰시코기', en: 'Welsh Corgi', ja: 'ウェルシュコーギー', es: 'Corgi Galés' },
+  { key: 'pomeranian', ko: '화이트 포메라니안', en: 'Pomeranian', ja: 'ポメラニアン', es: 'Pomerania' },
+  { key: 'pomeranian_short', ko: '포메라니안', en: 'Pomeranian', ja: 'ポメラニアン', es: 'Pomerania' },
+  { key: 'shiba', ko: '시바견', en: 'Shiba Inu', ja: '柴犬', es: 'Shiba Inu' },
+  { key: 'maltese', ko: '말티즈', en: 'Maltese', ja: 'マルチーズ', es: 'Maltés' },
+  { key: 'poodle', ko: '푸들', en: 'Poodle', ja: 'プードル', es: 'Caniche' },
+  { key: 'chihuahua', ko: '치와와', en: 'Chihuahua', ja: 'チワワ', es: 'Chihuahua' },
+  { key: 'shih_tzu', ko: '시추', en: 'Shih Tzu', ja: 'シーズー', es: 'Shih Tzu' },
+  { key: 'yorkshire', ko: '요크셔테리어', en: 'Yorkshire Terrier', ja: 'ヨークシャーテリア', es: 'Yorkshire Terrier' },
+  { key: 'cocker', ko: '코카 스패니얼', en: 'Cocker Spaniel', ja: 'コッカースパニエル', es: 'Cocker Spaniel' },
+  { key: 'beagle', ko: '비글', en: 'Beagle', ja: 'ビーグル', es: 'Beagle' },
+  { key: 'jindo', ko: '진돗개', en: 'Jindo Dog', ja: '珍島犬', es: 'Perro Jindo' },
+  { key: 'shepherd', ko: '저먼 셰퍼드', en: 'German Shepherd', ja: 'ジャーマンシェパード', es: 'Pastor Alemán' },
+  { key: 'husky', ko: '시베리안 허스키', en: 'Siberian Husky', ja: 'シベリアンハスキー', es: 'Husky Siberiano' },
+  { key: 'terrier', ko: '테리어', en: 'Terrier', ja: 'テリア', es: 'Terrier' },
+  { key: 'dachshund', ko: '닥스훈트', en: 'Dachshund', ja: 'ダックスフント', es: 'Dachshund' },
+  { key: 'spitz', ko: '스피츠', en: 'Spitz', ja: 'スピッツ', es: 'Spitz' }
+];
+
+export const PERSONALITY_TAG_TRANSLATIONS: Array<{ ko: string; en: string; ja: string; es: string }> = [
+  { ko: '#파워인싸', en: '#SocialButterfly', ja: '#陽キャ犬', es: '#MariposaSocial' },
+  { ko: '#모든인간은내친구', en: '#Friendly', ja: '#みんな友達', es: '#Amigable' },
+  { ko: '#간식감별사', en: '#SnackExpert', ja: '#おやつ鑑定士', es: '#ExpertoEnSnacks' },
+  { ko: '#식빵엉덩이', en: '#LoafBooty', ja: '#食パンお尻', es: '#TraseroDePan' },
+  { ko: '#숏다리의자존심', en: '#ShortLegsPride', ja: '#短足の誇り', es: '#OrgulloPatasCortas' },
+  { ko: '#간식헌터', en: '#TreatHunter', ja: '#おやつハンター', es: '#CazadorDePremios' },
+  { ko: '#폼생폼사', en: '#SwagKing', ja: '#かっこつけ', es: '#PuraActitud' },
+  { ko: '#참지않는말티즈', en: '#FierceMaltese', ja: '#我慢しないマルチーズ', es: '#MaltésFeroz' },
+  { ko: '#호기심대마왕', en: '#CuriousExplorer', ja: '#好奇心旺盛', es: '#GranCurioso' },
+  { ko: '#애교쟁이', en: '#CuddleBug', ja: '#甘えん坊', es: '#Cariñoso' },
+  { ko: '#엄마바라기', en: '#MommyBoy', ja: '#ママっ子', es: '#HijoDeMamá' },
+  { ko: '#산책중독자', en: '#WalkAddict', ja: '#散歩中毒', es: '#AdictoAlPaseo' },
+  { ko: '#귀여움이권력', en: '#CutenessIsPower', ja: '#可愛いは正義', es: '#PoderTierno' },
+  { ko: '#극대노솜뭉치', en: '#AngryFluffball', ja: '#怒りんぼモフモフ', es: '#BolitaFuria' },
+  { ko: '#파워쫄보', en: '#Timid', ja: '#超ビビり', es: '#Tímido' },
+  { ko: '#철벽남', en: '#Independent', ja: '#ツンデレ', es: '#Independiente' },
+  { ko: '#안가시바', en: '#Stubborn', ja: '#動かない柴', es: '#Terco' },
+  { ko: '#마이웨이', en: '#MyWay', ja: '#マイペース', es: '#AMiManera' },
+  { ko: '#ShortLegs', en: '#ShortLegs', ja: '#短足', es: '#PatasCortas' }
+];
+
+export const localizeBreed = (breed: string, targetLang: string = 'ko'): string => {
+  if (!breed) return breed;
+  const match = BREED_TRANSLATIONS.find(b =>
+    b.ko.toLowerCase() === breed.toLowerCase() ||
+    b.en.toLowerCase() === breed.toLowerCase() ||
+    b.ja.toLowerCase() === breed.toLowerCase() ||
+    b.es.toLowerCase() === breed.toLowerCase() ||
+    breed.toLowerCase().includes(b.ko.toLowerCase()) ||
+    breed.toLowerCase().includes(b.en.toLowerCase())
+  );
+  if (match) {
+    return (match as any)[targetLang] || match.ko;
+  }
+  return breed;
+};
+
+export const localizePersonalityTags = (tags: string[] = [], targetLang: string = 'ko'): string[] => {
+  if (!tags || !Array.isArray(tags)) return [];
+  return tags.map(tag => {
+    const cleanTag = tag.startsWith('#') ? tag : `#${tag}`;
+    const match = PERSONALITY_TAG_TRANSLATIONS.find(p =>
+      p.ko === cleanTag ||
+      p.en.toLowerCase() === cleanTag.toLowerCase() ||
+      p.ja === cleanTag ||
+      p.es.toLowerCase() === cleanTag.toLowerCase()
+    );
+    if (match) {
+      return (match as any)[targetLang] || match.ko;
+    }
+    return cleanTag;
+  });
+};
+
+export const localizeDogName = (name: string, targetLang: string = 'ko'): string => {
+  if (!name) return name;
+  const n = name.trim().toLowerCase();
+  if (n === 'bori' || n === '보리' || n === 'ボリ') {
+    return targetLang === 'ko' ? '보리' : targetLang === 'ja' ? 'ボリ' : 'Bori';
+  }
+  if (n === 'strawberry' || n === '딸기' || n === 'イチゴ' || n === 'fresa') {
+    return targetLang === 'ko' ? '딸기' : targetLang === 'ja' ? 'イチゴ' : targetLang === 'es' ? 'Fresa' : 'Strawberry';
+  }
+  if (n === 'peanut' || n === '땅콩' || n === 'ピーナッツ' || n === 'cacahuate') {
+    return targetLang === 'ko' ? '땅콩' : targetLang === 'ja' ? 'ピーナッツ' : 'Peanut';
+  }
+  if (n === 'cloud' || n === '구름' || n === '구름이' || n === 'クラウド' || n === 'nube') {
+    return targetLang === 'ko' ? '구름이' : targetLang === 'ja' ? 'クラウド' : 'Cloud';
+  }
+  if (n === 'mochi' || n === '모찌' || n === 'モチ') {
+    return targetLang === 'ko' ? '모찌' : targetLang === 'ja' ? 'モチ' : 'Mochi';
+  }
+  return name;
+};
+
+export const getLiveDogProfile = (dogNameOrId: string, targetLang: string = 'ko'): DogProfile | null => {
+  if (!dogNameOrId) return null;
+  const clean = dogNameOrId.trim();
+  try {
+    const saved = localStorage.getItem('WALWAL_PETS');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        const found = parsed.find((p: any) => p.id === clean || isSameDogName(p.name, clean));
+        if (found) {
+          return normalizeDogProfile(found, targetLang);
+        }
+      }
+    }
+  } catch (e) { }
+
+  const mock = getMockDogs(targetLang).find(m => m.id === clean || isSameDogName(m.name, clean));
+  return mock || null;
+};
+
+export const getLiveDogAvatar = (dogNameOrId?: string, fallbackAvatar?: string): string => {
+  if (!dogNameOrId && !fallbackAvatar) return getDefaultDogAvatar('');
+
+  if (dogNameOrId) {
+    try {
+      const saved = localStorage.getItem('WALWAL_PETS');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const found = parsed.find((p: any) => p.id === dogNameOrId || isSameDogName(p.name, dogNameOrId));
+          if (found?.avatar && !found.avatar.includes('photo-1517849845537-4d257902454a')) {
+            return found.avatar;
+          }
+        }
+      }
+    } catch (e) { }
+
+    const mock = getMockDogs('ko').find(m => m.id === dogNameOrId || isSameDogName(m.name, dogNameOrId));
+    if (mock?.avatar) {
+      return mock.avatar;
+    }
+  }
+
+  if (fallbackAvatar && !fallbackAvatar.includes('photo-1517849845537-4d257902454a')) {
+    return fallbackAvatar;
+  }
+
+  return getDefaultDogAvatar(dogNameOrId || '');
+};
+
+export const normalizeDogProfile = (dog: DogProfile, targetLang: string = 'ko'): DogProfile => {
+  const isBori = isSameDogName(dog.name, '보리');
+  const isStrawberry = isSameDogName(dog.name, '딸기');
+
+  let fixedAvatar = dog.avatar;
+  // If Bori erroneously had the pug picture or missing, normalize to Bori Golden Retriever
+  if (isBori && (!fixedAvatar || fixedAvatar.includes('photo-1517849845537-4d257902454a'))) {
+    fixedAvatar = 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=500&auto=format&fit=crop&q=80';
+  } else if (isStrawberry && (!fixedAvatar || fixedAvatar.includes('photo-1517849845537-4d257902454a'))) {
+    fixedAvatar = 'https://images.dog.ceo/breeds/maltese/n02085936_2927.jpg';
+  } else if (!fixedAvatar) {
+    fixedAvatar = getDefaultDogAvatar(dog.name || dog.breed);
+  }
+
+  return {
+    ...dog,
+    name: localizeDogName(dog.name, targetLang),
+    breed: localizeBreed(dog.breed, targetLang),
+    personality: localizePersonalityTags(dog.personality, targetLang),
+    avatar: fixedAvatar
+  };
+};
+
 export const getMockDogs = (language: string): DogProfile[] => {
-  return language === 'ko' ? MOCK_DOGS_KO : MOCK_DOGS_EN;
+  const base = language === 'ko' ? MOCK_DOGS_KO : MOCK_DOGS_EN;
+  return base.map(d => normalizeDogProfile(d, language));
 };

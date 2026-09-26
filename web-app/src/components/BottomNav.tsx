@@ -32,7 +32,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onChangeTab })
             className="nav-btn"
           >
             <div className={`nav-btn__icon${isActive ? ' active' : ''}`}>
-              <Icon size={20} color={isActive ? '#FFB320' : '#3b4a5d'} style={tab.style} />
+              <Icon size={24} color={isActive ? '#FFB320' : '#3b4a5d'} style={tab.style} />
             </div>
             <span className={`nav-btn__label${isActive ? ' active' : ''}`}>
               {tab.label}

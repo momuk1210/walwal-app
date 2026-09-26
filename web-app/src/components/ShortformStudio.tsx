@@ -5,6 +5,7 @@ import confetti from 'canvas-confetti';
 import WalWalLogo from '../assets/walwal.svg';
 import { useTranslation } from '../i18n/LanguageContext';
 import { TRANSLATIONS, Language } from '../i18n/translations';
+import { saveMedia, blobCache } from '../utils/mediaStore';
 
 interface ShortformStudioProps {
   initialDog?: any;
@@ -404,7 +405,7 @@ export const ShortformStudio: React.FC<ShortformStudioProps> = ({
       age: initialDog?.age || 2,
       gender: initialDog?.gender || 'female',
       personality: Array.isArray(initialDog?.personality) ? initialDog.personality : [getFormattedPersonality()],
-      recentThought: thought || initialThought,
+      recentThought: (thought || initialThought || '').replace(/^["'“”«»\s]+|["'“”«»\s]+$/g, '').trim(),
       feedImage: initialImage,
       isVideo: isVideo,
       createdAt: new Date().toISOString(),
@@ -415,11 +416,22 @@ export const ShortformStudio: React.FC<ShortformStudioProps> = ({
       shares: 0
     };
 
+    const postToSave = { ...newPost };
+
+    if (initialImage && initialImage.startsWith('blob:') && blobCache.has(initialImage)) {
+      const blob = blobCache.get(initialImage);
+      if (blob) {
+        saveMedia(newPost.id, blob).catch(console.error);
+        postToSave.feedImage = `indexeddb:${newPost.id}`;
+        (newPost as any).originalFeedImage = postToSave.feedImage;
+      }
+    }
+
     // 2. localStorage에 저장
     try {
       const saved = localStorage.getItem('WALWAL_USER_FEED_POSTS');
       const posts = saved ? JSON.parse(saved) : [];
-      posts.unshift(newPost);
+      posts.unshift(postToSave);
       localStorage.setItem('WALWAL_USER_FEED_POSTS', JSON.stringify(posts));
     } catch (e) {
       console.error('Failed to save feed post:', e);

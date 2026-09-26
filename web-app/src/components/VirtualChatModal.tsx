@@ -215,7 +215,7 @@ export const VirtualChatModal: React.FC<VirtualChatModalProps> = ({
 
           <button
             onClick={() => {
-              alert(`${dog2.ownerName} 엄마/아빠님께 산책 모임 제안 알림을 보냈습니다! 🐾`);
+              alert(`${dog2.ownerName} 엄마/아빠님께 산책 모임 제안 알림을 보냈습니다!`);
             }}
             className="card"
             style={{

@@ -590,13 +590,13 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
                 onClick={() => setShowKeyModal(false)}
-                style={{ flex: 1, padding: '10px', background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '12px', color: '#fff', cursor: 'pointer', fontSize: '0.78rem' }}
+                style={{ flex: 1, padding: '10px', background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '12px', color: '#fff', cursor: 'pointer', fontSize: '0.7rem' }}
               >
                 ���
               </button>
               <button
                 onClick={saveApiKey}
-                style={{ flex: 1, padding: '10px', background: '#2EC4B6', border: 'none', borderRadius: '12px', color: '#fff', fontWeight: 800, cursor: 'pointer', fontSize: '0.78rem' }}
+                style={{ flex: 1, padding: '10px', background: '#2EC4B6', border: 'none', borderRadius: '12px', color: '#fff', fontWeight: 800, cursor: 'pointer', fontSize: '0.7rem' }}
               >
                 ���� �� ����
               </button>

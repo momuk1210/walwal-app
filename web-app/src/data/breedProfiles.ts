@@ -27,7 +27,7 @@ export const BREED_DEFINITIONS: BreedDefinition[] = [
         '나 쓰다듬고 가도 돼 헤헤 ✨'
       ],
       curious: [
-        '다른 칭구 냄새난다! 어디 있니? 🐾',
+        '다른 칭구 냄새난다! 어디 있니?',
         '나비야! 잔디밭 같이 뛸래? 🦋'
       ],
       dramatic: [

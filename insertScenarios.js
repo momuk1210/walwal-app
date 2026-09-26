@@ -24,7 +24,7 @@ const scenariosKo = {
   ],
   active: [
     { thought: '뭔가 있다 킁킁! 냄새 추적 시작! 🔍', behavior: '무성 탐색 · 후각 주도 이동', signal: '고모션 + 저음량 · 탐색 행동', confidence: 95 },
-    { thought: '내 구역 순찰 중! 이상 무 🐾', behavior: '순찰 보행 · 영역 확인 행동', signal: '규칙적 이동 패턴 감지', confidence: 93 },
+    { thought: '내 구역 순찰 중! 이상 무', behavior: '순찰 보행 · 영역 확인 행동', signal: '규칙적 이동 패턴 감지', confidence: 93 },
     { thought: '저기 꿀잼 냄새! 빨리 가보자 🎾', behavior: '자발적 이동 · 놀이 탐색', signal: '빠른 이동 + 귀 전방 직립', confidence: 96 },
     { thought: '달리고 싶어! 전속력으로 고고 🏃', behavior: '과잉 에너지 · 운동 욕구', signal: '전신 근육 긴장 + 이동 반복', confidence: 97 },
     { thought: '여기도 저기도 다 볼 거야! 바쁘다 바빠 👀', behavior: '다방향 주의 · 활발 탐색', signal: '빠른 시선 이동 + 체중 전방', confidence: 91 }
@@ -62,7 +62,7 @@ const scenariosEn = {
   ],
   active: [
     { thought: "Something's here sniff sniff! Tracking! 🔍", behavior: 'Silent Search · Olfactory Driven', signal: 'High Motion + Low Vol · Searching', confidence: 95 },
-    { thought: 'Patrolling my area! All clear 🐾', behavior: 'Patrol Walk · Area Check', signal: 'Regular Movement Pattern', confidence: 93 },
+    { thought: 'Patrolling my area! All clear', behavior: 'Patrol Walk · Area Check', signal: 'Regular Movement Pattern', confidence: 93 },
     { thought: "Fun smell over there! Let's go 🎾", behavior: 'Spontaneous Movement · Play Search', signal: 'Fast Movement + Ears Forward', confidence: 96 },
     { thought: 'I wanna run! Full speed ahead 🏃', behavior: 'Excess Energy · Exercise Desire', signal: 'Full Body Tension + Repetitive Move', confidence: 97 },
     { thought: 'Gonna check everywhere! So busy 👀', behavior: 'Multi-direction Attention · Active Search', signal: 'Fast Gaze Shift + Forward Weight', confidence: 91 }
@@ -100,7 +100,7 @@ const scenariosJa = {
   ],
   active: [
     { thought: '何かあるクンクン! 匂い追跡開始! 🔍', behavior: '無声探索 · 嗅覚主導の移動', signal: '高モーション+低音量 · 探索', confidence: 95 },
-    { thought: '僕のエリアパトロール中! 異常なし 🐾', behavior: 'パトロール歩行 · 領域確認', signal: '規則的な移動パターン', confidence: 93 },
+    { thought: '僕のエリアパトロール中! 異常なし', behavior: 'パトロール歩行 · 領域確認', signal: '規則的な移動パターン', confidence: 93 },
     { thought: 'あっちから面白い匂い! 行ってみよう 🎾', behavior: '自発的移動 · 遊び探索', signal: '速い移動 + 耳が前方直立', confidence: 96 },
     { thought: '走りたい! 全速力でゴーゴー 🏃', behavior: '過剰エネルギー · 運動欲求', signal: '全身の筋肉緊張+移動反復', confidence: 97 },
     { thought: 'あっちもこっちも見なきゃ! 大忙し 👀', behavior: '多方向注意 · 活発な探索', signal: '速い視線移動 + 体重前方', confidence: 91 }
@@ -138,7 +138,7 @@ const scenariosEs = {
   ],
   active: [
     { thought: '¡Sniff sniff! ¡Rastreando olor! 🔍', behavior: 'Búsqueda Silenciosa · Olfato', signal: 'Alto Movimiento + Bajo Vol', confidence: 95 },
-    { thought: '¡Patrullando mi área! Todo despejado 🐾', behavior: 'Paseo de Patrulla · Revisión', signal: 'Patrón de Movimiento Regular', confidence: 93 },
+    { thought: '¡Patrullando mi área! Todo despejado', behavior: 'Paseo de Patrulla · Revisión', signal: 'Patrón de Movimiento Regular', confidence: 93 },
     { thought: '¡Olor divertido! ¡Vamos! 🎾', behavior: 'Movimiento Espontáneo · Juego', signal: 'Movimiento Rápido + Orejas Adelante', confidence: 96 },
     { thought: '¡Quiero correr! A toda velocidad 🏃', behavior: 'Exceso de Energía · Ejercicio', signal: 'Tensión Corporal + Movimiento', confidence: 97 },
     { thought: '¡Revisaré todo! Tan ocupado 👀', behavior: 'Atención Multidireccional', signal: 'Cambio Rápido de Mirada', confidence: 91 }
