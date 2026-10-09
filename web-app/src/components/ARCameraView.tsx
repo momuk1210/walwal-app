@@ -70,19 +70,6 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
   const [focusTarget, setFocusTarget] = useState<{ x: number; y: number; active: boolean; dogName: string }>({ x: 50, y: 50, active: false, dogName: '' });
   const orientationStateRef = useRef<{ isLandscape: boolean; rotation: number }>({ isLandscape: false, rotation: 0 });
   const [isLandscapeMode, setIsLandscapeMode] = useState<boolean>(false);
-  const userOverrideRef = useRef<boolean | null>(null);
-
-  const toggleAspectRatio = (forced?: boolean) => {
-    setIsLandscapeMode(prev => {
-      const next = forced !== undefined ? forced : !prev;
-      userOverrideRef.current = next;
-      orientationStateRef.current = {
-        isLandscape: next,
-        rotation: orientationStateRef.current.rotation || -90
-      };
-      return next;
-    });
-  };
   const lastAccRef = useRef<{ ax: number; ay: number } | null>(null);
   const lastGyroRef = useRef<{ gamma: number; beta: number } | null>(null);
   const [behaviorState, setBehaviorState] = useState<DogBehaviorState>('calm');
@@ -194,18 +181,20 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       }
 
       // 폰을 가로로 돌려 쥐었을 때: x축 중력이 y축 중력보다 큼
-      if (Math.abs(ax) > Math.abs(ay)) {
+      if (Math.abs(ax) > Math.abs(ay) + 1.2) {
         orientationStateRef.current = {
           isLandscape: true,
           rotation: ax > 0 ? -90 : 90
         };
+        setIsLandscapeMode(true);
       }
       // 폰을 세로로 세워 쥐었을 때: y축 중력이 x축 중력보다 큼
-      else {
+      else if (Math.abs(ay) > Math.abs(ax) + 1.2) {
         orientationStateRef.current = {
           isLandscape: false,
           rotation: 0
         };
+        setIsLandscapeMode(false);
       }
     };
 
@@ -220,20 +209,23 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
                                           (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(orientation: landscape)').matches);
       if (isWindowCurrentlyLandscape) {
         orientationStateRef.current = { isLandscape: true, rotation: -90 };
+        setIsLandscapeMode(true);
         return;
       }
 
       // 좌우 기울기(gamma)가 크면 가로
-      if (Math.abs(gamma) > 28) {
+      if (Math.abs(gamma) > 35) {
         orientationStateRef.current = {
           isLandscape: true,
           rotation: gamma > 0 ? 90 : -90
         };
-      } else if (Math.abs(gamma) < 20 && Math.abs(beta) > 20) {
+        setIsLandscapeMode(true);
+      } else if (Math.abs(gamma) < 18 && Math.abs(beta) > 25) {
         orientationStateRef.current = {
           isLandscape: false,
           rotation: 0
         };
+        setIsLandscapeMode(false);
       }
     };
 
@@ -253,7 +245,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
         }
         orientationStateRef.current = { isLandscape: true, rotation: rot };
         setIsLandscapeMode(true);
-      } else if (userOverrideRef.current === null) {
+      } else {
         orientationStateRef.current = { isLandscape: false, rotation: 0 };
         setIsLandscapeMode(false);
       }
@@ -917,15 +909,15 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
                                   (typeof window.orientation !== 'undefined' && Math.abs(Number(window.orientation)) === 90) ||
                                   Boolean(typeof window !== 'undefined' && window.screen?.orientation?.type?.includes('landscape'));
 
-      if (isLandscape && isVideoVertical && isPhysicalLandscape) {
-        // 스마트폰이 실제로 가로로 누운 상태에서 세로 비디오 스트림을 받을 때: 회전 각도로 똑바로 세워 채움
+      if (isLandscape && isVideoVertical) {
+        // 스마트폰을 가로로 돌려 찍었을 때: 세로 카메라 비디오(720x1280) 전체를 90도 회전시켜 1280x720 가로 전체 화면에 시원하게 꽉 채움
         context.save();
         context.translate(cWidth / 2, cHeight / 2);
         let rot = orientationStateRef.current.rotation;
         if (!rot || rot === 0) {
           if (typeof window.orientation !== 'undefined' && Math.abs(Number(window.orientation)) === 90) {
             rot = Number(window.orientation) === 90 ? -90 : 90;
-          } else if (typeof window.screen?.orientation?.angle === 'number') {
+          } else if (typeof window.screen?.orientation?.angle === 'number' && window.screen.orientation.angle !== 0) {
             rot = window.screen.orientation.angle === 90 ? -90 : 90;
           } else {
             rot = -90;
@@ -1169,90 +1161,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       {/* 둥근 카드 스타일의 카메라 컨테이너 */}
       <div className="ar-camera-container" onClick={handleViewfinderTap}>
 
-        {/* 가로 / 세로 비율 원터치 수동 전환 & 자동 감지 캡슐 버튼 */}
-        <div style={{
-          position: 'absolute',
-          top: '12px',
-          left: '12px',
-          zIndex: 35,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px'
-        }}>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleAspectRatio();
-            }}
-            style={{
-              background: isLandscapeMode ? 'rgba(255, 179, 32, 0.95)' : 'rgba(15, 23, 42, 0.85)',
-              color: isLandscapeMode ? '#0F172A' : '#FFFFFF',
-              border: isLandscapeMode ? '1.5px solid #FFB320' : '1px solid rgba(255, 255, 255, 0.3)',
-              borderRadius: '20px',
-              padding: '6px 14px',
-              fontSize: '0.78rem',
-              fontWeight: 800,
-              backdropFilter: 'blur(8px)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              boxShadow: '0 4px 14px rgba(0,0,0,0.3)',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease'
-            }}
-            title="화면 비율 전환 (16:9 가로 ↔ 9:16 세로)"
-          >
-            {isLandscapeMode ? (
-              <>
-                <span>🖥️ 16:9 가로</span>
-                <span style={{ fontSize: '0.68rem', opacity: 0.85, fontWeight: 600 }}>• 탭하여 세로</span>
-              </>
-            ) : (
-              <>
-                <span>📱 9:16 세로</span>
-                <span style={{ fontSize: '0.68rem', opacity: 0.85, fontWeight: 600 }}>• 탭하여 가로</span>
-              </>
-            )}
-          </button>
-        </div>
 
-        {/* 16:9 가로 모드 시 뷰파인더 16:9 가이드라인 오버레이 (피사체 구도 확인용) */}
-        {isLandscapeMode && (
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            pointerEvents: 'none',
-            zIndex: 10,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}>
-            <div style={{
-              width: '94%',
-              aspectRatio: '16 / 9',
-              maxHeight: '85%',
-              border: '2px dashed rgba(255, 179, 32, 0.75)',
-              borderRadius: '16px',
-              boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.22)',
-              position: 'relative'
-            }}>
-              <span style={{
-                position: 'absolute',
-                top: '8px',
-                right: '10px',
-                fontSize: '0.68rem',
-                color: '#FFB320',
-                fontWeight: 700,
-                background: 'rgba(0,0,0,0.6)',
-                padding: '2px 8px',
-                borderRadius: '8px'
-              }}>
-                16:9 촬영 영역
-              </span>
-            </div>
-          </div>
-        )}
 
         {/* 3초 녹화 중 상태 배지 */}
         {isCapturingVideo && (
