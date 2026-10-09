@@ -1001,14 +1001,11 @@ textarea {
   background: #FFFFFF;
   width: 100%;
   max-width: 440px;
-  max-height: calc(100dvh - 50px);
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: auto;
-  position: absolute;
-  bottom: 0;
-  border-radius: 24px 24px 0 0;
-  box-shadow: 0 4px 14px rgba(255, 179, 32, 0.4);
+  border-radius: 0;
 }
 
 .snaps-modal-header {
@@ -1169,7 +1166,6 @@ textarea {
 }
 
 .snaps-modal-body {
-  flex: 1;
   min-height: 0;
   max-width: 400px;
   overflow-y: auto;
@@ -1178,7 +1174,7 @@ textarea {
   flex-direction: column;
   align-items: center;
   flex-shrink: 0;
-  margin: 0 auto;
+  margin: 0 auto 12px;
 }
 
 .snaps-modal-body::-webkit-scrollbar {
@@ -1854,35 +1850,6 @@ textarea {
   left: 2px;
 }
 
-/* Community View Classes */
-.community-filter-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.community-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  z-index: 10005;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
-}
-
-.community-modal-content {
-  position: absolute;
-  bottom: 0;
-  background: #fff;
-  border-radius: 24px 24px 0 0;
-  padding: 24px;
-  width: 100%;
-  max-width: 440px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-}
 
 /* ========================================================
    Snaps Photo Album Grid & Detail View
@@ -1932,7 +1899,6 @@ textarea {
 .snaps-album-thumb-container {
   position: relative;
   width: 100%;
-  aspect-ratio: 3 / 4;
   overflow: hidden;
   display: block;
   background: #0f172a;
@@ -1941,8 +1907,8 @@ textarea {
 
 .snaps-album-thumb {
   width: 100%;
-  height: 100%;
-  aspect-ratio: 3 / 4;
+  height: auto;
+  max-height: 280px;
   object-fit: cover;
   display: block;
   pointer-events: none;
