@@ -155,18 +155,6 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
     return () => clearInterval(turnInterval);
   }, [language]);
 
-  // iOS Safari 모션 센서 권한 활성화 (사용자 제스처 시 1회 요청)
-  const requestMotionPermissionIfNeeded = () => {
-    try {
-      if (typeof (DeviceOrientationEvent as any)?.requestPermission === 'function') {
-        (DeviceOrientationEvent as any).requestPermission().catch(() => {});
-      }
-      if (typeof (DeviceMotionEvent as any)?.requestPermission === 'function') {
-        (DeviceMotionEvent as any).requestPermission().catch(() => {});
-      }
-    } catch (e) {}
-  };
-
   // 스마트폰 하드웨어 가속도/자이로 센서 실시간 감지 (중력 가속도로 폰의 회전 100% 자동 감지)
   useEffect(() => {
     // 1. 중력 가속도 센서 (어떤 각도로 쥐고 있든 x, y 중력 비교로 즉시 감지)
@@ -571,9 +559,8 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
     return () => clearInterval(liveLoop);
   }, [isCameraLive, language]);
 
-  // 뷰파인더 탭 시 해당 위치로 포커스 이동 & 모션 센서 활성화
+  // 뷰파인더 탭 시 해당 위치로 포커스 이동
   const handleViewfinderTap = (e: React.MouseEvent<HTMLDivElement>) => {
-    requestMotionPermissionIfNeeded();
     const rect = e.currentTarget.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
@@ -1378,7 +1365,6 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
           <div className="ar-capture-btn-group">
             <button className={`bottom-bar-btn ${!isCapturingVideo ? 'shot' : ''}`}
               onClick={() => {
-                requestMotionPermissionIfNeeded();
                 if (isCapturingVideo) return;
 
                 confetti({
@@ -1568,7 +1554,6 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
 
           <button className="bottom-bar-btn"
             onClick={() => {
-              requestMotionPermissionIfNeeded();
               confetti({
                 particleCount: 16,
                 spread: 35,
