@@ -1926,7 +1926,6 @@ textarea {
   z-index: 15;
   width: 30px;
   height: 30px;
-  background: #fff;
   border: none;
   border-radius: 50%;
   backdrop-filter: blur(8px);

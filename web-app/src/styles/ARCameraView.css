@@ -1022,10 +1022,12 @@ button.ar-offline-turn-on-btn svg {
   pointer-events: auto;
 }
 
-.ar-audio-level-container.offline,
+.ar-audio-level-container.offline {
+  opacity: 0.5;
+}
+
 .ar-bottom-control-bar.offline {
-  filter: blur(8px) brightness(0.6);
-  pointer-events: none;
+  opacity: 0.85;
 }
 
 .ar-audio-level-bar:nth-child(even) {

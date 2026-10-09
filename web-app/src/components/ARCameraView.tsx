@@ -716,7 +716,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
   };
 
   const toggleRealCamera = async () => {
-    if (isCameraLive) {
+    if (isCameraLive && hasLiveStream) {
       setIsCameraLive(false);
       localStorage.setItem('WALWAL_PERM_CAMERA', 'false');
       stopLiveCamera();
@@ -1334,9 +1334,8 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
           })()}
         </div> {/* 카메라 + AR 오버레이 통합 래퍼 끝 */}
 
-        {/* 오프라인 상태 (블러 처리된 화면 위에 선명하게 표시) */}
-        {/* 오프라인 상태 (블러 처리된 화면 위에 선명하게 표시) */}
-        {!isCameraLive && (
+        {/* 오프라인 상태 (카메라 미연결 시 원터치 켜기 버튼 선명하게 노출) */}
+        {(!isCameraLive || !hasLiveStream) && (
           <div className="ar-offline-overlay">
             <div className="ar-offline-walking-container">
               <img src={walwalWalking} className='ar-offline-walking-img' />
@@ -1346,7 +1345,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
               className="ar-offline-turn-on-btn"
               title={t.ar.turnOnCamera || "카메라 켜기"}
             >
-              <ScanFace size={34} />
+              <Camera size={38} color="#FFFFFF" />
             </button>
           </div>
         )}
@@ -1599,7 +1598,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
             }}
             title={t.ar.capturePhotoTitle || "스냅샷 추가"}
           >
-            <ScanFace size={30} strokeWidth={2} />
+            <Camera size={30} strokeWidth={2} />
           </button>
         </div>
 
