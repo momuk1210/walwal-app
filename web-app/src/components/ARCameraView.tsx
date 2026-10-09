@@ -69,6 +69,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
   const [audioLevel, setAudioLevel] = useState<number>(52);
   const [focusTarget, setFocusTarget] = useState<{ x: number; y: number; active: boolean; dogName: string }>({ x: 50, y: 50, active: false, dogName: '' });
   const orientationStateRef = useRef<{ isLandscape: boolean; rotation: number }>({ isLandscape: false, rotation: 0 });
+  const [isLandscapeMode, setIsLandscapeMode] = useState<boolean>(false);
   const lastAccRef = useRef<{ ax: number; ay: number } | null>(null);
   const lastGyroRef = useRef<{ gamma: number; beta: number } | null>(null);
   const [behaviorState, setBehaviorState] = useState<DogBehaviorState>('calm');
@@ -215,8 +216,10 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       if (isWindowLandscape || isOrientationLandscape || isScreenLandscape) {
         const rot = typeof window.orientation !== 'undefined' && Number(window.orientation) === 90 ? -90 : 90;
         orientationStateRef.current = { isLandscape: true, rotation: rot };
-      } else if (typeof window !== 'undefined' && window.innerWidth < window.innerHeight && orientationStateRef.current.rotation === 0) {
+        setIsLandscapeMode(true);
+      } else {
         orientationStateRef.current = { isLandscape: false, rotation: 0 };
+        setIsLandscapeMode(false);
       }
     };
 
@@ -823,7 +826,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       typeof window.screen !== 'undefined' &&
       Boolean(window.screen.orientation?.type?.includes('landscape'));
 
-    if (isLandscapeBySensor || isScreenLandscape || isWindowOrientationLandscape || isScreenOrientationLandscape) {
+    if (isLandscapeMode || isLandscapeBySensor || isScreenLandscape || isWindowOrientationLandscape || isScreenOrientationLandscape) {
       return { width: 1280, height: 720, isLandscape: true };
     }
 
@@ -1099,6 +1102,31 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
 
       {/* 둥근 카드 스타일의 카메라 컨테이너 */}
       <div className="ar-camera-container" onClick={handleViewfinderTap}>
+
+        {/* 가로 모드 자동 감지 시 배지 피드백 */}
+        {isLandscapeMode && (
+          <div style={{
+            position: 'absolute',
+            top: '12px',
+            left: '12px',
+            zIndex: 25,
+            background: 'rgba(15, 23, 42, 0.82)',
+            color: '#FFB320',
+            border: '1px solid rgba(255, 179, 32, 0.35)',
+            borderRadius: '20px',
+            padding: '4px 10px',
+            fontSize: '0.72rem',
+            fontWeight: 700,
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            pointerEvents: 'none'
+          }}>
+            <span>🖥️ 16:9 가로 자동 인식</span>
+          </div>
+        )}
 
         {/* 3초 녹화 중 상태 배지 */}
         {isCapturingVideo && (
