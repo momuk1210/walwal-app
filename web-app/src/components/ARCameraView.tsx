@@ -154,27 +154,44 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
     return () => clearInterval(turnInterval);
   }, [language]);
 
-  // 스마트폰 하드웨어 자이로 센서 실시간 감지 (화면 회전 잠금 상태에서도 가로/세로 촬영 자동 감지)
+  // 스마트폰 하드웨어 가속도/자이로 센서 실시간 감지 (중력 가속도로 폰의 회전 100% 자동 감지)
   useEffect(() => {
+    // 1. 중력 가속도 센서 (모바일 브라우저 권한 불필요, 가장 정확함)
+    const handleDeviceMotion = (e: DeviceMotionEvent) => {
+      const acc = e.accelerationIncludingGravity;
+      if (!acc || acc.x === null || acc.y === null) return;
+
+      const ax = acc.x;
+      const ay = acc.y;
+
+      // 평평하게 바닥에 놓은 경우 (|ax| < 2.5 && |ay| < 2.5)는 무시
+      if (Math.abs(ax) < 2.5 && Math.abs(ay) < 2.5) return;
+
+      // 폰을 가로로 돌려 쥐었을 때 (|ax| > |ay|)
+      if (Math.abs(ax) > 4.5 && Math.abs(ax) > Math.abs(ay) * 1.1) {
+        setCaptureAspect('landscape');
+        setPhotoRotation(ax > 0 ? 90 : -90);
+      }
+      // 폰을 세로로 세워 쥐었을 때 (|ay| > |ax|)
+      else if (Math.abs(ay) > 4.5 && Math.abs(ay) > Math.abs(ax) * 1.1) {
+        setCaptureAspect('portrait');
+        setPhotoRotation(0);
+      }
+    };
+
+    // 2. orientation 이벤트 보조 감지
     const handleDeviceOrientation = (event: DeviceOrientationEvent) => {
       const { gamma, beta } = event;
       if (gamma === null || beta === null) return;
-
-      // 폰을 바닥에 완전히 눕힌 상태(|beta| < 15 && |gamma| < 15)는 무시
       if (Math.abs(beta) < 15 && Math.abs(gamma) < 15) return;
 
-      // 스마트폰을 왼쪽으로 돌려 가로로 쥐었을 때 (gamma < -35)
       if (gamma < -35 && Math.abs(beta) < 65) {
         setCaptureAspect('landscape');
         setPhotoRotation(90);
-      }
-      // 스마트폰을 오른쪽으로 돌려 가로로 쥐었을 때 (gamma > 35)
-      else if (gamma > 35 && Math.abs(beta) < 65) {
+      } else if (gamma > 35 && Math.abs(beta) < 65) {
         setCaptureAspect('landscape');
         setPhotoRotation(-90);
-      }
-      // 스마트폰을 세로로 세워 쥐었을 때 (|gamma| < 25 && beta > 25)
-      else if (Math.abs(gamma) < 25 && beta > 25) {
+      } else if (Math.abs(gamma) < 25 && beta > 25) {
         setCaptureAspect('portrait');
         setPhotoRotation(0);
       }
@@ -184,17 +201,17 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       if (window.innerWidth > window.innerHeight) {
         setCaptureAspect('landscape');
         setPhotoRotation(0);
-      } else if (window.innerWidth < window.innerHeight) {
-        // 화면 리사이즈가 세로면 세로 기본값 유지 (센서 이벤트 우선)
       }
     };
 
     handleScreenResize();
+    window.addEventListener('devicemotion', handleDeviceMotion, true);
     window.addEventListener('deviceorientation', handleDeviceOrientation, true);
     window.addEventListener('resize', handleScreenResize);
     window.addEventListener('orientationchange', handleScreenResize);
 
     return () => {
+      window.removeEventListener('devicemotion', handleDeviceMotion, true);
       window.removeEventListener('deviceorientation', handleDeviceOrientation, true);
       window.removeEventListener('resize', handleScreenResize);
       window.removeEventListener('orientationchange', handleScreenResize);
@@ -1010,30 +1027,90 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       {/* 둥근 카드 스타일의 카메라 컨테이너 */}
       <div className="ar-camera-container" onClick={handleViewfinderTap}>
 
-        {/* 가로 모드 인디케이터 배지 */}
-        {captureAspect === 'landscape' && (
-          <div style={{
-            position: 'absolute',
-            top: '12px',
-            left: '12px',
-            zIndex: 15,
-            background: 'rgba(15, 23, 42, 0.75)',
-            border: '1px solid rgba(255, 179, 32, 0.5)',
-            color: '#FFB320',
-            padding: '4px 10px',
-            borderRadius: '20px',
-            fontSize: '0.72rem',
-            fontWeight: 700,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '5px',
-            backdropFilter: 'blur(6px)',
-            boxShadow: '0 2px 10px rgba(0,0,0,0.3)'
-          }}>
-            <span>16:9 가로 촬영</span>
-            <span style={{ color: '#94A3B8', fontSize: '0.65rem' }}>({photoRotation}°)</span>
-          </div>
-        )}
+        {/* 가로/세로 촬영 모드 토글 (센서 자동 감지 + 수동 원터치 선택) */}
+        <div style={{
+          position: 'absolute',
+          top: '12px',
+          left: '12px',
+          zIndex: 25,
+          background: 'rgba(15, 23, 42, 0.85)',
+          border: '1px solid rgba(255, 255, 255, 0.15)',
+          borderRadius: '24px',
+          padding: '2px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '2px',
+          backdropFilter: 'blur(8px)',
+          boxShadow: '0 4px 14px rgba(0,0,0,0.35)'
+        }}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setCaptureAspect('portrait');
+              setPhotoRotation(0);
+            }}
+            style={{
+              background: captureAspect === 'portrait' ? '#FFB320' : 'transparent',
+              color: captureAspect === 'portrait' ? '#0F172A' : '#94A3B8',
+              border: 'none',
+              borderRadius: '20px',
+              padding: '4px 10px',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            <span>📱 세로</span>
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setCaptureAspect('landscape');
+              if (photoRotation === 0) setPhotoRotation(90);
+            }}
+            style={{
+              background: captureAspect === 'landscape' ? '#FFB320' : 'transparent',
+              color: captureAspect === 'landscape' ? '#0F172A' : '#94A3B8',
+              border: 'none',
+              borderRadius: '20px',
+              padding: '4px 10px',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            <span>🖥️ 가로</span>
+          </button>
+          {captureAspect === 'landscape' && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setPhotoRotation(prev => prev === 90 ? -90 : prev === -90 ? 0 : 90);
+              }}
+              title="회전 각도 보정"
+              style={{
+                background: 'rgba(255,255,255,0.1)',
+                color: '#FFB320',
+                border: 'none',
+                borderRadius: '20px',
+                padding: '4px 8px',
+                fontSize: '0.68rem',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              🔄 {photoRotation}°
+            </button>
+          )}
+        </div>
 
         {/* 3초 녹화 중 상태 배지 */}
         {isCapturingVideo && (

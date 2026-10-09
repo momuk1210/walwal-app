@@ -1102,7 +1102,7 @@ textarea {
 .share-icon-btn.feed {
   background: #FFB320;
   box-shadow: 0 4px 14px rgba(255, 179, 32, 0.4);
-  transform: scale(1);
+  transform: rotate(45deg);
 }
 
 .share-icon-btn.retake {

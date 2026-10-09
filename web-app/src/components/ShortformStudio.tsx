@@ -653,7 +653,7 @@ export const ShortformStudio: React.FC<ShortformStudioProps> = ({
           {/* 6. 스냅샷 (노란색 #FFB320 + 북마크 아이콘) */}
           <button onClick={handlePostToSnaps}>
             <div className="share-icon-btn snaps">
-              <Bookmark size={22} color="#fff" />
+              <Bone size={22} color="#fff" />
             </div>
             <span className="share-label-snaps share-label-feed">{language === 'ko' ? '저장' : language === 'ja' ? '保存' : 'Save'}</span>
           </button>
