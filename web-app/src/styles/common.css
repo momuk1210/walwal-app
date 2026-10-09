@@ -1101,8 +1101,6 @@ textarea {
 .share-icon-btn.snaps,
 .share-icon-btn.feed {
   background: #FFB320;
-  box-shadow: 0 4px 14px rgba(255, 179, 32, 0.4);
-  transform: rotate(45deg);
 }
 
 .share-icon-btn.retake {
@@ -1110,7 +1108,8 @@ textarea {
   box-shadow: 0 4px 14px rgba(245, 158, 11, 0.45);
 }
 
-.share-icon-btn.feed .bone-icon {
+.share-icon-btn.snaps svg,
+.share-icon-btn.feed svg {
   transform: rotate(45deg);
 }
 

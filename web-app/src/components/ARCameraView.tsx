@@ -61,15 +61,14 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
   }, [turnIndex]);
   const [isRecording, setIsRecording] = useState<boolean>(true);
   const [recordTime, setRecordTime] = useState<number>(7);
-  // 접속 시 자동 권한 팝업 방지: 기본값 false(오프라인/시뮬레이션), 사용자가 버튼 클릭 시에만 켬
-  const [isCameraLive, setIsCameraLive] = useState<boolean>(false);
+  // 카메라 탭 및 재촬영 진입 시 바로 라이브 카메라 활성화
+  const [isCameraLive, setIsCameraLive] = useState<boolean>(true);
   const [hasLiveStream, setHasLiveStream] = useState<boolean>(false);
   const [cameraFacingMode, setCameraFacingMode] = useState<'environment' | 'user'>('environment');
   const [zoomLevel, setZoomLevel] = useState<'0.5x' | '1x' | '2x'>('1x');
   const [audioLevel, setAudioLevel] = useState<number>(52);
   const [focusTarget, setFocusTarget] = useState<{ x: number; y: number; active: boolean; dogName: string }>({ x: 50, y: 50, active: false, dogName: '' });
-  const [captureAspect, setCaptureAspect] = useState<'portrait' | 'landscape'>('portrait');
-  const [photoRotation, setPhotoRotation] = useState<number>(90);
+  const orientationStateRef = useRef<{ isLandscape: boolean; rotation: number }>({ isLandscape: false, rotation: 0 });
   const [behaviorState, setBehaviorState] = useState<DogBehaviorState>('calm');
   const [scenarioIdx, setScenarioIdx] = useState<number>(0);
   const [isCapturingVideo, setIsCapturingVideo] = useState<boolean>(false);
@@ -164,18 +163,22 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       const ax = acc.x;
       const ay = acc.y;
 
-      // 평평하게 바닥에 놓은 경우 (|ax| < 2.5 && |ay| < 2.5)는 무시
+      // 평평하게 바닥에 놓은 경우 (|ax| < 2.5 && |ay| < 2.5)는 기존 상태 유지
       if (Math.abs(ax) < 2.5 && Math.abs(ay) < 2.5) return;
 
       // 폰을 가로로 돌려 쥐었을 때 (|ax| > |ay|)
-      if (Math.abs(ax) > 4.5 && Math.abs(ax) > Math.abs(ay) * 1.1) {
-        setCaptureAspect('landscape');
-        setPhotoRotation(ax > 0 ? 90 : -90);
+      if (Math.abs(ax) > 4.0 && Math.abs(ax) > Math.abs(ay) * 1.05) {
+        orientationStateRef.current = {
+          isLandscape: true,
+          rotation: ax > 0 ? 90 : -90
+        };
       }
       // 폰을 세로로 세워 쥐었을 때 (|ay| > |ax|)
-      else if (Math.abs(ay) > 4.5 && Math.abs(ay) > Math.abs(ax) * 1.1) {
-        setCaptureAspect('portrait');
-        setPhotoRotation(0);
+      else if (Math.abs(ay) > 4.0 && Math.abs(ay) > Math.abs(ax) * 1.05) {
+        orientationStateRef.current = {
+          isLandscape: false,
+          rotation: 0
+        };
       }
     };
 
@@ -186,21 +189,19 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       if (Math.abs(beta) < 15 && Math.abs(gamma) < 15) return;
 
       if (gamma < -35 && Math.abs(beta) < 65) {
-        setCaptureAspect('landscape');
-        setPhotoRotation(90);
+        orientationStateRef.current = { isLandscape: true, rotation: 90 };
       } else if (gamma > 35 && Math.abs(beta) < 65) {
-        setCaptureAspect('landscape');
-        setPhotoRotation(-90);
+        orientationStateRef.current = { isLandscape: true, rotation: -90 };
       } else if (Math.abs(gamma) < 25 && beta > 25) {
-        setCaptureAspect('portrait');
-        setPhotoRotation(0);
+        orientationStateRef.current = { isLandscape: false, rotation: 0 };
       }
     };
 
     const handleScreenResize = () => {
       if (window.innerWidth > window.innerHeight) {
-        setCaptureAspect('landscape');
-        setPhotoRotation(0);
+        orientationStateRef.current = { isLandscape: true, rotation: 0 };
+      } else if (window.innerWidth < window.innerHeight && orientationStateRef.current.rotation === 0) {
+        orientationStateRef.current = { isLandscape: false, rotation: 0 };
       }
     };
 
@@ -590,8 +591,8 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
         return;
       }
 
-      const isCameraAllowed = localStorage.getItem('WALWAL_PERM_CAMERA') === 'true';
-      if (!isCameraAllowed) {
+      const isCameraBlocked = localStorage.getItem('WALWAL_PERM_CAMERA') === 'false';
+      if (isCameraBlocked) {
         stopLiveCamera();
         setIsCameraLive(false);
         return;
@@ -706,14 +707,15 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
     };
   }, [cameraFacingMode, isCameraLive]);
 
-  // 컴포넌트 마운트 및 facingMode 변경 시 처리 (기본 항상 켬)
+  // 컴포넌트 마운트 및 facingMode 변경 시 처리 (즉시 라이브 카메라 시작)
   useEffect(() => {
     isMountedRef.current = true;
     if (interactionPair) {
       setAnglePreset('pack3');
     }
-    // 마운트 시 자동 카메라 시작 원천 차단 (오직 이미 켜진 상태에서 전면/후면 전환 시에만 재시작)
-    if (isCameraLive && liveStreamRef.current) {
+    const isCameraBlocked = localStorage.getItem('WALWAL_PERM_CAMERA') === 'false';
+    if (!isCameraBlocked) {
+      setIsCameraLive(true);
       startLiveCamera();
     }
 
@@ -733,16 +735,18 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
         audioCtxRef.current = null;
       }
     };
-  }, [cameraFacingMode, isCameraLive]);
+  }, [cameraFacingMode]);
 
-  // 하단 탭(AR톡) 클릭 시 이미 켜져 있는 카메라 스트림만 복원
+  // 하단 탭(AR톡) 또는 재촬영(Retake) 클릭 시 카메라 즉시 시작
   useEffect(() => {
-    if (isActiveTrigger && isActiveTrigger > 0 && isCameraLive && liveStreamRef.current) {
-      if (!hasLiveStream || !videoRef.current?.srcObject) {
+    if (isActiveTrigger && isActiveTrigger > 0) {
+      const isCameraBlocked = localStorage.getItem('WALWAL_PERM_CAMERA') === 'false';
+      if (!isCameraBlocked) {
+        setIsCameraLive(true);
         startLiveCamera();
       }
     }
-  }, [isActiveTrigger, isCameraLive]);
+  }, [isActiveTrigger]);
 
   const formatRecordTime = (sec: number) => {
     const mins = Math.floor(sec / 60);
@@ -753,14 +757,14 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
   const currentTurn = packTurns[turnIndex % packTurns.length] || packTurns[0];
   // 화면 및 카메라 실제 앵글에 따른 동적 가로/세로 해상도 계산 (1280x720 vs 720x1280)
   const getCaptureDimensions = () => {
-    // 1. 가로 모드 수동 선택 또는 화면이 가로인 경우 -> 16:9 가로 고정
+    // 1. 중력 센서 또는 기기 방향이 가로인 경우
+    const isPhysicalLandscape = orientationStateRef.current.isLandscape;
     const isScreenLandscape = typeof window !== 'undefined' && window.innerWidth > window.innerHeight;
     const isScreenOrientationLandscape = typeof window !== 'undefined' &&
       typeof window.screen !== 'undefined' &&
-      window.screen.orientation &&
-      window.screen.orientation.type.includes('landscape');
+      Boolean(window.screen.orientation?.type?.includes('landscape'));
 
-    if (captureAspect === 'landscape' || isScreenLandscape || isScreenOrientationLandscape) {
+    if (isPhysicalLandscape || isScreenLandscape || isScreenOrientationLandscape) {
       return { width: 1280, height: 720, isLandscape: true };
     }
 
@@ -788,10 +792,11 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       const isVideoVertical = v.videoHeight > v.videoWidth;
 
       if (isLandscape && isVideoVertical) {
-        // 모바일 화면 세로 잠금 상태에서 기기를 가로로 눕혀 찍었을 때: 90도 회전 보정하여 똑바로 세움
+        // 스마트폰을 가로로 돌려 찍었을 때: 센서가 감지한 회전 각도로 똑바로 세워서 1280x720 가로 화면에 채움
         context.save();
         context.translate(cWidth / 2, cHeight / 2);
-        context.rotate((photoRotation || 90) * Math.PI / 180);
+        const rot = orientationStateRef.current.rotation || 90;
+        context.rotate(rot * Math.PI / 180);
         const scale = Math.max(cWidth / v.videoHeight, cHeight / v.videoWidth);
         const dw = v.videoWidth * scale;
         const dh = v.videoHeight * scale;
@@ -1027,91 +1032,6 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       {/* 둥근 카드 스타일의 카메라 컨테이너 */}
       <div className="ar-camera-container" onClick={handleViewfinderTap}>
 
-        {/* 가로/세로 촬영 모드 토글 (센서 자동 감지 + 수동 원터치 선택) */}
-        <div style={{
-          position: 'absolute',
-          top: '12px',
-          left: '12px',
-          zIndex: 25,
-          background: 'rgba(15, 23, 42, 0.85)',
-          border: '1px solid rgba(255, 255, 255, 0.15)',
-          borderRadius: '24px',
-          padding: '2px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '2px',
-          backdropFilter: 'blur(8px)',
-          boxShadow: '0 4px 14px rgba(0,0,0,0.35)'
-        }}>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setCaptureAspect('portrait');
-              setPhotoRotation(0);
-            }}
-            style={{
-              background: captureAspect === 'portrait' ? '#FFB320' : 'transparent',
-              color: captureAspect === 'portrait' ? '#0F172A' : '#94A3B8',
-              border: 'none',
-              borderRadius: '20px',
-              padding: '4px 10px',
-              fontSize: '0.72rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}
-          >
-            <span>📱 세로</span>
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setCaptureAspect('landscape');
-              if (photoRotation === 0) setPhotoRotation(90);
-            }}
-            style={{
-              background: captureAspect === 'landscape' ? '#FFB320' : 'transparent',
-              color: captureAspect === 'landscape' ? '#0F172A' : '#94A3B8',
-              border: 'none',
-              borderRadius: '20px',
-              padding: '4px 10px',
-              fontSize: '0.72rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px'
-            }}
-          >
-            <span>🖥️ 가로</span>
-          </button>
-          {captureAspect === 'landscape' && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setPhotoRotation(prev => prev === 90 ? -90 : prev === -90 ? 0 : 90);
-              }}
-              title="회전 각도 보정"
-              style={{
-                background: 'rgba(255,255,255,0.1)',
-                color: '#FFB320',
-                border: 'none',
-                borderRadius: '20px',
-                padding: '4px 8px',
-                fontSize: '0.68rem',
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
-            >
-              🔄 {photoRotation}°
-            </button>
-          )}
-        </div>
-
         {/* 3초 녹화 중 상태 배지 */}
         {isCapturingVideo && (
           <div className="ar-recording-badge">
@@ -1138,11 +1058,6 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
             autoPlay
             playsInline
             muted
-            style={
-              captureAspect === 'landscape' && videoRef.current && videoRef.current.videoHeight > videoRef.current.videoWidth
-                ? { transform: `rotate(${photoRotation}deg) scale(1.4)`, transition: 'transform 0.3s ease' }
-                : undefined
-            }
             onLoadedMetadata={() => {
               videoRef.current?.play().catch(() => { });
             }}
@@ -1562,28 +1477,6 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
                 </button>
               ))}
 
-
-              {/* 가로(16:9) / 세로(9:16) 촬영 모드 토글 */}
-              <button
-                className={`button ${captureAspect === 'landscape' ? 'active' : ''}`}
-                title={captureAspect === 'landscape' ? "가로 모드 (16:9)" : "세로 모드 (9:16)"}
-                onClick={() => setCaptureAspect(prev => prev === 'landscape' ? 'portrait' : 'landscape')}
-                style={{ fontSize: '0.74rem', fontWeight: 700 }}
-              >
-                {captureAspect === 'landscape' ? '16:9' : '9:16'}
-              </button>
-
-              {/* 가로 모드 시 90도 회전 보정 토글 버튼 */}
-              {captureAspect === 'landscape' && (
-                <button
-                  className="button"
-                  title="가로 촬영 90도 회전 보정 (스마트폰 회전 방향)"
-                  onClick={() => setPhotoRotation(prev => (prev === 90 ? -90 : prev === -90 ? 0 : 90))}
-                  style={{ fontSize: '0.68rem', fontWeight: 600 }}
-                >
-                  {photoRotation === 90 ? '90°' : photoRotation === -90 ? '-90°' : '0°'}
-                </button>
-              )}
 
               {/* 카메라 전환 버튼 */}
               <button className="button" title={t.ar.switchCamera || "카메라 전환"} onClick={() => setCameraFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}>

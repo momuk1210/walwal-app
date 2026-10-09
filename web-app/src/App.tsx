@@ -266,6 +266,7 @@ function WalWalMain() {
             onClearFeedDraft={() => setFeedDraft(null)}
             onRetake={() => {
               setFeedDraft(null);
+              localStorage.setItem('WALWAL_PERM_CAMERA', 'true');
               setArKey(k => k + 1);
               setCurrentTab('ar');
             }}
