@@ -178,11 +178,11 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       // 평평하게 바닥에 놓은 경우 (|ax| < 2.5 && |ay| < 2.5)는 기존 상태 유지
       if (Math.abs(ax) < 2.5 && Math.abs(ay) < 2.5) return;
 
-      // 폰을 가로로 돌려 쥐었을 때 (|ax| > |ay|)
+      // 폰을 가로로 돌려 쥐었을 때 (|ax| > |ay|) - 부호 반전하여 똑바로 세움
       if (Math.abs(ax) > 3.8 && Math.abs(ax) > Math.abs(ay) * 1.05) {
         orientationStateRef.current = {
           isLandscape: true,
-          rotation: ax > 0 ? 90 : -90
+          rotation: ax > 0 ? -90 : 90
         };
       }
       // 폰을 세로로 세워 쥐었을 때 (|ay| > |ax|)
@@ -201,9 +201,9 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       if (Math.abs(beta) < 15 && Math.abs(gamma) < 15) return;
 
       if (gamma < -35 && Math.abs(beta) < 65) {
-        orientationStateRef.current = { isLandscape: true, rotation: 90 };
-      } else if (gamma > 35 && Math.abs(beta) < 65) {
         orientationStateRef.current = { isLandscape: true, rotation: -90 };
+      } else if (gamma > 35 && Math.abs(beta) < 65) {
+        orientationStateRef.current = { isLandscape: true, rotation: 90 };
       } else if (Math.abs(gamma) < 25 && beta > 25) {
         orientationStateRef.current = { isLandscape: false, rotation: 0 };
       }
@@ -216,7 +216,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       const isScreenLandscape = typeof window.screen !== 'undefined' && Boolean(window.screen.orientation?.type?.includes('landscape'));
 
       if (isWindowLandscape || isOrientationLandscape || isScreenLandscape) {
-        const rot = Number(window.orientation) === -90 ? -90 : 90;
+        const rot = Number(window.orientation) === 90 ? -90 : 90;
         orientationStateRef.current = { isLandscape: true, rotation: rot };
       } else if (window.innerWidth < window.innerHeight && orientationStateRef.current.rotation === 0) {
         orientationStateRef.current = { isLandscape: false, rotation: 0 };
@@ -814,7 +814,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
         // 스마트폰을 가로로 돌려 찍었을 때: 센서가 감지한 회전 각도로 똑바로 세워서 1280x720 가로 화면에 채움
         context.save();
         context.translate(cWidth / 2, cHeight / 2);
-        const rot = orientationStateRef.current.rotation || 90;
+        const rot = orientationStateRef.current.rotation || -90;
         context.rotate(rot * Math.PI / 180);
         const scale = Math.max(cWidth / v.videoHeight, cHeight / v.videoWidth);
         const dw = v.videoWidth * scale;
