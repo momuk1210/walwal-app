@@ -1,15 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Send, MapPin, Users, Clock, Sparkles } from 'lucide-react';
+import { X, Send, MapPin, Users, Clock, Sparkles, MoreVertical, Edit3, Trash2, Flag, ShieldAlert } from 'lucide-react';
 import { WalkMeetup } from './CommunityView';
 import { getMockDogs, getDefaultDogAvatar, isSameDogName, getLiveDogAvatar, getLiveDogProfile, localizeBreed, localizePersonalityTags } from '../data/mockDogs';
 import { TRANSLATIONS, Language } from '../i18n/translations';
+import { formatChatTime } from '../utils/timeUtils';
 import { DogProfileModal } from './DogProfileModal';
+import { ReportModal, ReportModalTarget } from './ReportModal';
+import { isUserBlocked, blockUser } from '../services/moderationService';
+import { validateUserContent, maskProfanity } from '../utils/profanityFilter';
 import '../styles/OwnerNoteModal.css';
 
 interface MeetupChatModalProps {
   meetup: WalkMeetup;
   onClose: () => void;
   language?: Language;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  isHost?: boolean;
 }
 
 const getStoredChatHistory = (meetupId: string): any[] | null => {
@@ -36,18 +43,40 @@ const saveChatHistory = (meetupId: string, msgs: any[]) => {
   }
 };
 
-export const MeetupChatModal: React.FC<MeetupChatModalProps> = ({ meetup, onClose, language = 'ko' }) => {
+export const MeetupChatModal: React.FC<MeetupChatModalProps> = ({ meetup, onClose, language = 'ko', onEdit, onDelete, isHost }) => {
   const t = TRANSLATIONS[language] || TRANSLATIONS['ko'];
   const [petUpdateTrigger, setPetUpdateTrigger] = useState(0);
+  const [showMenu, setShowMenu] = useState(false);
+  const [reportTarget, setReportTarget] = useState<ReportModalTarget | null>(null);
+  const [blockedVersion, setBlockedVersion] = useState(0);
+  const [activeMsgMenuId, setActiveMsgMenuId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('.meetup-chat-menu-wrapper')) {
+        setShowMenu(false);
+      }
+      if (!(e.target as HTMLElement).closest('.msg-options-wrapper')) {
+        setActiveMsgMenuId(null);
+      }
+    };
+    window.addEventListener('click', handleClickOutside);
+    return () => window.removeEventListener('click', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const handlePetsUpdated = () => {
       setPetUpdateTrigger(prev => prev + 1);
     };
+    const handleBlockedUpdated = () => {
+      setBlockedVersion(prev => prev + 1);
+    };
     window.addEventListener('walwal_pets_updated', handlePetsUpdated);
+    window.addEventListener('walwal_blocked_users_updated', handleBlockedUpdated);
     window.addEventListener('storage', handlePetsUpdated);
     return () => {
       window.removeEventListener('walwal_pets_updated', handlePetsUpdated);
+      window.removeEventListener('walwal_blocked_users_updated', handleBlockedUpdated);
       window.removeEventListener('storage', handlePetsUpdated);
     };
   }, []);
@@ -58,54 +87,37 @@ export const MeetupChatModal: React.FC<MeetupChatModalProps> = ({ meetup, onClos
       const saved = localStorage.getItem('WALWAL_PETS');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const isInitialMockDump = parsed.length === 4 && parsed[0]?.id === 'dog-1' && parsed[1]?.id === 'dog-2' && parsed[2]?.id === 'dog-3' && parsed[3]?.id === 'dog-4';
+          const listToUse = isInitialMockDump ? [parsed[0]] : parsed;
+          return listToUse;
+        }
       }
     } catch (e) { }
-    return getMockDogs(language);
+    return [getMockDogs(language)[0]];
   }, [language, petUpdateTrigger]);
 
-  // 이 모임에 실제로 참여하고 있는 내 반려견 목록만 필터링
-  const myParticipatingPets = React.useMemo(() => {
-    // 1. 모임에 명시적으로 참여 신청된 내 반려견 목록이 있는 경우
-    if (meetup.userJoinedPets && meetup.userJoinedPets.length > 0) {
-      return meetup.userJoinedPets;
-    }
-    // 2. 참여 반려견 ID 목록이 있는 경우
-    if (meetup.joinedPetIds && meetup.joinedPetIds.length > 0) {
-      const matched = allMyPets.filter(p => meetup.joinedPetIds!.includes(p.id || p.name));
-      if (matched.length > 0) return matched;
-    }
-    // 3. 참여자 목록(participants) 중 내 반려견과 매칭되는 아이들
-    const participants = meetup.participants || [];
-    const matched = allMyPets.filter(myPet =>
-      participants.some(p =>
-        (p.id && myPet.id && p.id === myPet.id) ||
-        (p.name && myPet.name && p.name.trim().toLowerCase() === myPet.name.trim().toLowerCase())
-      )
-    );
-    return matched.length > 0 ? matched : [allMyPets[0]];
-  }, [allMyPets, meetup.userJoinedPets, meetup.joinedPetIds, meetup.participants]);
-
-  const [selectedPetId, setSelectedPetId] = useState<string>(() => myParticipatingPets[0]?.id || myParticipatingPets[0]?.name || '');
-
-  useEffect(() => {
-    if (!myParticipatingPets.some(p => (p.id === selectedPetId || p.name === selectedPetId))) {
-      setSelectedPetId(myParticipatingPets[0]?.id || myParticipatingPets[0]?.name || '');
-    }
-  }, [myParticipatingPets]);
-
-  const activePet = myParticipatingPets.find(p => (p.id === selectedPetId || p.name === selectedPetId)) || myParticipatingPets[0];
+  const activePet = allMyPets[0] || getMockDogs(language)[0];
 
   const hostLiveAvatar = getLiveDogAvatar(meetup.hostDog, meetup.avatar);
 
   const [selectedProfileDog, setSelectedProfileDog] = useState<any | null>(null);
   const [inputText, setInputText] = useState('');
+  const [, setTimeTick] = useState(0);
+
+  // Live timer to update relative time (e.g. from '방금' to exact clock time)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeTick(t => t + 1);
+    }, 10000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Load chat messages from localStorage or create initial dummy messages
-  const [messages, setMessages] = useState<Array<{ id: string; sender: any; text: string; time: string }>>(() => {
+  const [messages, setMessages] = useState<Array<{ id: string; sender: any; text: string; time?: string; timestamp?: number }>>(() => {
     const stored = getStoredChatHistory(meetup.id);
     if (stored && Array.isArray(stored) && stored.length > 0) {
-      return stored;
+      return stored.filter((m: any) => !m.id || !m.id.startsWith('reply_'));
     }
 
     const participants = meetup.participants || [];
@@ -115,26 +127,8 @@ export const MeetupChatModal: React.FC<MeetupChatModalProps> = ({ meetup, onClos
       dummyMessages.push({
         id: 'msg1',
         sender: participants[0],
-        text: `안녕하세요! 다들 ${meetup.time}에 뵐 수 있는거죠? 🐶`,
+        text: `안녕하세요! 다들 ${meetup.time}에 뵐 수 있는거죠?`,
         time: '오후 1:00'
-      });
-    }
-
-    if (participants.length > 1) {
-      dummyMessages.push({
-        id: 'msg2',
-        sender: participants[1],
-        text: `네네! 저희 애가 너무 기대하고 있어요ㅎㅎ 장소는 ${meetup.location} 맞죠?`,
-        time: '오후 1:05'
-      });
-    }
-
-    if (participants.length > 0) {
-      dummyMessages.push({
-        id: 'msg3',
-        sender: participants[0],
-        text: `맞습니다! 도착하시면 톡방에 말씀해주세요~`,
-        time: '오후 1:10'
       });
     }
 
@@ -152,16 +146,26 @@ export const MeetupChatModal: React.FC<MeetupChatModalProps> = ({ meetup, onClos
     if (e) e.preventDefault();
     if (!inputText.trim()) return;
 
+    const validation = validateUserContent(inputText.trim());
+    if (!validation.isValid) {
+      alert(validation.message);
+      return;
+    }
+
+    const now = Date.now();
+    const currentText = inputText.trim();
     const newMessage = {
-      id: `msg_${Date.now()}`,
+      id: `my_msg_${now}`,
+      timestamp: now,
+      isMyMessage: true,
       sender: {
         name: activePet.name,
-        ownerName: activePet.ownerName || `${activePet.name} 맘`,
+        ownerName: activePet.ownerName || `${activePet.name} 엄마`,
         avatar: getLiveDogAvatar(activePet.name, activePet.avatar),
         breed: activePet.breed
       },
-      text: inputText.trim(),
-      time: language === 'ko' ? '방금' : (language === 'ja' ? 'たった今' : 'Just now')
+      text: currentText,
+      time: formatChatTime(now, language)
     };
 
     setMessages(prev => {
@@ -267,7 +271,7 @@ export const MeetupChatModal: React.FC<MeetupChatModalProps> = ({ meetup, onClos
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: '10px',
+            gap: '8px',
             fontSize: '0.76rem',
             color: '#4A5568',
             borderBottom: '1px solid #E2E8F0',
@@ -281,89 +285,272 @@ export const MeetupChatModal: React.FC<MeetupChatModalProps> = ({ meetup, onClos
             </span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
-            <Clock size={13} color="#718096" style={{ flexShrink: 0 }} />
-            <span style={{ fontWeight: 500, color: '#4A5568', whiteSpace: 'nowrap' }}>
-              {meetup.time}
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Clock size={13} color="#718096" style={{ flexShrink: 0 }} />
+              <span style={{ fontWeight: 500, color: '#4A5568', whiteSpace: 'nowrap' }}>
+                {meetup.time}
+              </span>
+            </div>
+            <div className="meetup-chat-menu-wrapper" style={{ position: 'relative' }}>
+              <button
+                type="button"
+                onClick={() => setShowMenu(prev => !prev)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '50%',
+                  background: showMenu ? '#E2E8F0' : 'transparent',
+                  border: 'none',
+                  color: '#718096',
+                  cursor: 'pointer',
+                  padding: 0,
+                  transition: 'background 0.2s, color 0.2s'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = '#E2E8F0';
+                  e.currentTarget.style.color = '#1E293B';
+                }}
+                onMouseLeave={e => {
+                  if (!showMenu) e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = '#718096';
+                }}
+                title={isHost ? "모임 관리" : "더보기"}
+              >
+                <MoreVertical size={15} />
+              </button>
+
+              {showMenu && (
+                <div className="snaps-dropdown-menu feed-dropdown-menu">
+                  {isHost ? (
+                    <>
+                      {onEdit && (
+                        <button
+                          className="snaps-dropdown-item feed-dropdown-item"
+                          type="button"
+                          onClick={() => {
+                            setShowMenu(false);
+                            onEdit();
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = '#F7FAFC')}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                        >
+                          <Edit3 size={15} />
+                          <span>{t.community?.editMeetup || (language === 'ko' ? '수정' : language === 'ja' ? '集まりを編集' : 'Edit Meetup')}</span>
+                        </button>
+                      )}
+                      {onDelete && (
+                        <button
+                          className="snaps-dropdown-item feed-dropdown-item"
+                          type="button"
+                          onClick={() => {
+                            setShowMenu(false);
+                            onDelete();
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = '#FFF5F5')}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                        >
+                          <Trash2 size={15} />
+                          <span>{t.community?.deleteMeetup || (language === 'ko' ? '모임 삭제' : language === 'ja' ? '集まりを削除' : 'Delete Meetup')}</span>
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        className="snaps-dropdown-item feed-dropdown-item"
+                        type="button"
+                        onClick={() => {
+                          setShowMenu(false);
+                          setReportTarget({
+                            type: 'meetup',
+                            id: meetup.id,
+                            author: meetup.hostDog || meetup.hostOwner,
+                            content: meetup.title
+                          });
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = '#FFF5F5')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                      >
+                        <Flag size={15} color="#E53E3E" />
+                        <span style={{ color: '#E53E3E' }}>모임 신고하기</span>
+                      </button>
+                      <button
+                        className="snaps-dropdown-item feed-dropdown-item"
+                        type="button"
+                        onClick={() => {
+                          setShowMenu(false);
+                          const targetUser = meetup.hostDog || meetup.hostOwner;
+                          if (window.confirm(`'${targetUser}' 사용자를 차단하시겠습니까? 이 사용자의 모임과 글이 숨겨집니다.`)) {
+                            blockUser(targetUser);
+                            alert('사용자가 차단되었습니다.');
+                          }
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = '#F7FAFC')}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                      >
+                        <ShieldAlert size={15} color="#718096" />
+                        <span>호스트 차단하기</span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Message Stream */}
         <div className="own-message-modal-body">
-          {messages.map((msg) => {
-            const isMe = allMyPets.some((p: any) => p.name === msg.sender.name || (msg.sender.ownerName && p.ownerName === msg.sender.ownerName));
-            return (
-              <div key={msg.id} className={`own-message-row ${isMe ? 'is-me' : 'is-target'}`}>
-                {!isMe && (
-                  <img
-                    src={getLiveDogAvatar(msg.sender.name, msg.sender.avatar)}
-                    alt="avatar"
-                    className="own-message-avatar"
-                    onClick={() => setSelectedProfileDog(getLiveDogProfile(msg.sender.name, language) || msg.sender)}
-                    style={{ cursor: 'pointer' }}
-                    title={`${msg.sender.name}`}
-                  />
-                )}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start', maxWidth: '75%' }}>
+          {messages
+            .filter((msg: any) => {
+              const sName = msg.sender?.name || '';
+              const oName = msg.sender?.ownerName || '';
+              return !isUserBlocked(sName) && !isUserBlocked(oName);
+            })
+            .map((msg: any) => {
+              const isMe = Boolean(
+                msg.isMyMessage === true ||
+                (msg.id && typeof msg.id === 'string' && msg.id.startsWith('my_msg_')) ||
+                allMyPets.some((p: any) => isSameDogName(p.name, msg.sender?.name))
+              );
+              return (
+                <div key={msg.id} className={`own-message-row ${isMe ? 'is-me' : 'is-target'}`}>
                   {!isMe && (
-                    <span style={{ fontSize: '0.75rem', color: '#718096', marginBottom: '4px', marginLeft: '4px', fontWeight: 600 }}>
-                      {msg.sender.name} <span style={{ opacity: 0.7, fontWeight: 400 }}>{msg.sender.ownerName ? msg.sender.ownerName.replace(msg.sender.name, '').trim() : ''}</span>
-                    </span>
+                    <img
+                      src={getLiveDogAvatar(msg.sender.name, msg.sender.avatar)}
+                      alt="avatar"
+                      className="own-message-avatar"
+                      onClick={() => setSelectedProfileDog(getLiveDogProfile(msg.sender.name, language) || msg.sender)}
+                      style={{ cursor: 'pointer' }}
+                      title={`${msg.sender.name}`}
+                    />
                   )}
-                  <div className={`own-message-bubble ${isMe ? 'is-me' : 'is-target'}`} style={{ maxWidth: '100%' }}>
-                    {msg.text && (
-                      <div className={`own-message-text ${isMe ? 'is-me' : 'is-target'}`}>
-                        {msg.text}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start', maxWidth: '75%', position: 'relative' }}>
+                    {!isMe && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '0.75rem', color: '#718096', marginLeft: '4px', fontWeight: 600 }}>
+                          {msg.sender.name} <span style={{ opacity: 0.7, fontWeight: 400 }}>{msg.sender.ownerName ? msg.sender.ownerName.replace(msg.sender.name, '').replace(/맘/g, '엄마').trim() : ''}</span>
+                        </span>
+                        <div className="msg-options-wrapper" style={{ position: 'relative' }}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveMsgMenuId(prev => prev === msg.id ? null : msg.id);
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#A0AEC0',
+                              cursor: 'pointer',
+                              padding: '2px 4px',
+                              display: 'flex',
+                              alignItems: 'center'
+                            }}
+                            title="신고/차단"
+                          >
+                            <MoreVertical size={13} />
+                          </button>
+                          {activeMsgMenuId === msg.id && (
+                            <div
+                              className="snaps-dropdown-menu"
+                              style={{
+                                position: 'absolute',
+                                top: '100%',
+                                right: 0,
+                                zIndex: 100,
+                                minWidth: '130px',
+                                background: '#FFFFFF',
+                                borderRadius: '8px',
+                                boxShadow: '0 4px 14px rgba(0,0,0,0.12)',
+                                border: '1px solid #E2E8F0',
+                                padding: '4px 0'
+                              }}
+                            >
+                              <button
+                                className="snaps-dropdown-item"
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveMsgMenuId(null);
+                                  setReportTarget({
+                                    type: 'chat',
+                                    id: msg.id,
+                                    author: msg.sender?.name || 'unknown',
+                                    content: msg.text || ''
+                                  });
+                                }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  width: '100%',
+                                  padding: '8px 12px',
+                                  border: 'none',
+                                  background: 'none',
+                                  fontSize: '0.8rem',
+                                  color: '#E53E3E',
+                                  cursor: 'pointer',
+                                  textAlign: 'left'
+                                }}
+                              >
+                                <Flag size={13} />
+                                <span>메시지 신고</span>
+                              </button>
+                              <button
+                                className="snaps-dropdown-item"
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveMsgMenuId(null);
+                                  const targetUser = msg.sender?.name || msg.sender?.ownerName;
+                                  if (window.confirm(`'${targetUser}' 사용자를 차단하시겠습니까? 이 사용자의 모든 글과 메시지가 숨겨집니다.`)) {
+                                    blockUser(targetUser);
+                                    alert('사용자가 차단되었습니다.');
+                                  }
+                                }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  width: '100%',
+                                  padding: '8px 12px',
+                                  border: 'none',
+                                  background: 'none',
+                                  fontSize: '0.8rem',
+                                  color: '#718096',
+                                  cursor: 'pointer',
+                                  textAlign: 'left'
+                                }}
+                              >
+                                <ShieldAlert size={13} />
+                                <span>작성자 차단</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
-                    <div className={`own-message-time ${isMe ? 'is-me' : 'is-target'}`}>
-                      {msg.time}
+                    <div className={`own-message-bubble ${isMe ? 'is-me' : 'is-target'}`} style={{ maxWidth: '100%' }}>
+                      {msg.text && (
+                        <div className={`own-message-text ${isMe ? 'is-me' : 'is-target'}`}>
+                          {msg.text}
+                        </div>
+                      )}
+                      <div className={`own-message-time ${isMe ? 'is-me' : 'is-target'}`}>
+                        {formatChatTime(msg.timestamp, language, msg.time)}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Multi-Pet Sender Switcher (이 모임에 2마리 이상 함께 참여했을 때만 전환 탭 표시) */}
-        {myParticipatingPets.length > 1 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 16px', background: '#F8FAFC', borderTop: '1px solid #E2E8F0', overflowX: 'auto' }}>
-            <span style={{ fontSize: '0.73rem', color: '#64748B', fontWeight: 600, flexShrink: 0 }}>
-              {t.community?.senderProfile || '발신 프로필:'}
-            </span>
-            {myParticipatingPets.map((pet: any) => {
-              const isSelected = (activePet.id === pet.id || activePet.name === pet.name);
-              const petAvatar = getLiveDogAvatar(pet.name, pet.avatar);
-              return (
-                <button
-                  key={pet.id || pet.name}
-                  type="button"
-                  onClick={() => setSelectedPetId(pet.id || pet.name)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    border: isSelected ? '1.5px solid #FFB320' : '1px solid #E2E8F0',
-                    background: isSelected ? 'rgba(255, 179, 32, 0.15)' : '#FFFFFF',
-                    color: isSelected ? '#D97706' : '#64748B',
-                    fontSize: '0.75rem',
-                    fontWeight: isSelected ? 700 : 500,
-                    cursor: 'pointer',
-                    flexShrink: 0
-                  }}
-                >
-                  <img src={petAvatar} alt={pet.name} style={{ width: '14px', height: '14px', borderRadius: '50%', objectFit: 'cover' }} />
-                  <span>{pet.name}</span>
-                </button>
               );
             })}
-          </div>
-        )}
+          <div ref={messagesEndRef} />
+        </div>
 
         {/* Input */}
         <div className="own-message-input-wrapper" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -391,6 +578,12 @@ export const MeetupChatModal: React.FC<MeetupChatModalProps> = ({ meetup, onClos
         dog={selectedProfileDog}
         onClose={() => setSelectedProfileDog(null)}
       />
-    </div>
+
+      {/* Report Modal */}
+      <ReportModal
+        target={reportTarget}
+        onClose={() => setReportTarget(null)}
+      />
+    </div >
   );
 };

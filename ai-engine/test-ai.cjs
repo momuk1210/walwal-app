@@ -53,7 +53,7 @@ function fuseAndGenerate(audioRes, poseRes, tags) {
 
   let speech = '산책 참 좋다 멍!';
   if (compositeEmotion === 'SUPER_EXCITED') {
-    speech = isInssa ? '야호! 온 동네 댕댕이들아 다 나와라! 오늘 파티는 내가 주최한다 왈왈! 🚀' : '심장이 콩닥콩닥! 저기 날아가는 나비 잡으러 출동한다 멍! ✨';
+    speech = isInssa ? '야호! 온 동네 댕댕이들아 다 나와라! 오늘 파티는 내가 주최한다 왈왈! 🚀' : '심장이 콩닥콩닥! 저기 날아가는 나비 잡으러 출동한다 멍!';
   } else if (compositeEmotion === 'CURIOUS_INVESTIGATOR') {
     speech = isFoodie ? '이 냄새는... 30분 전 지나간 핫도그 트럭의 기름진 잔향이다! 수사 착수 🌭' : '옆 동네 뽀삐가 어제 다녀간 방명록 발견! 답글 남기고 간다 치이익-';
   }

@@ -14,6 +14,7 @@ dependencies:
   provider: ^6.1.1
   http: ^1.2.0
   image_picker: ^1.0.7
+  image: ^4.3.0
   screenshot: ^2.1.0
   path_provider: ^2.1.2
   url_launcher: ^6.2.2

@@ -62,9 +62,9 @@ class WalWalMultimodalEngine:
         is_inssa = any("인싸" in t for t in tags)
         
         if emotion == "SUPER_EXCITED":
-            if lang == 'en': return "Yoo-hoo! Calling all the doggos in the hood! I'm hosting a paw-ty today, bark! 🚀" if is_inssa else "My heart's going thump-thump! I'm off to catch that flying butterfly, woof! ✨"
+            if lang == 'en': return "Yoo-hoo! Calling all the doggos in the hood! I'm hosting a paw-ty today, bark! 🚀" if is_inssa else "My heart's going thump-thump! I'm off to catch that flying butterfly, woof!"
             elif lang == 'ja': return "ヤッホー！近所のワンちゃんたち、みんな集まれ！今日は僕がパーティーの主催者だ、ワン！🚀" if is_inssa else "ドキドキ！あそこ飛んでる蝶々捕まえに出動するワン！✨"
-            elif lang == 'es': return "¡Yuhu! ¡Llamando a todos los perritos del barrio! ¡Hoy yo organizo la fiesta, guau! 🚀" if is_inssa else "¡Mi corazón hace pum-pum! Voy a atrapar esa mariposa voladora, ¡guau! ✨"
-            else: return "야호! 온 동네 댕댕이들아 다 나와라! 오늘 파티는 내가 주최한다 왈왈! 🚀" if is_inssa else "심장이 콩닥콩닥! 저기 날아가는 나비 잡으러 출동한다 멍! ✨"
+            elif lang == 'es': return "¡Yuhu! ¡Llamando a todos los perritos del barrio! ¡Hoy yo organizo la fiesta, guau! 🚀" if is_inssa else "¡Mi corazón hace pum-pum! Voy a atrapar esa mariposa voladora, ¡guau!"
+            else: return "야호! 온 동네 댕댕이들아 다 나와라! 오늘 파티는 내가 주최한다 왈왈! 🚀" if is_inssa else "심장이 콩닥콩닥! 저기 날아가는 나비 잡으러 출동한다 멍!"
             
-        return "햇살 따스하고 잔디 푹신하고~ 오늘 산책 코스 10점 만점에 100점이다 멍! ☀️"
+        return "햇살 따스하고 잔디 푹신하고~ 오늘 산책 코스 10점 만점에 100점이다 멍!"

@@ -74,7 +74,7 @@
 .dog-profile-modal-name {
   margin: 0 0 4px 0;
   font-size: 1.2rem;
-  font-weight: 800;
+  font-weight: 600;
   color: #1A202C;
 }
 
@@ -97,6 +97,7 @@
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -107,6 +108,7 @@
     opacity: 0;
     transform: translateY(16px) scale(0.96);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);

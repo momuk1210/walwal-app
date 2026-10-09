@@ -1,0 +1,468 @@
+/* ServiceFeedbackModal.css - WalWal Service Improvement / Feedback Stylesheet */
+
+.feedback-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.feedback-modal-container {
+  width: 100%;
+  max-width: 480px;
+  height: 92vh;
+  background: #FFFBF7;
+  /* Warm creamy background like user screenshot */
+  border-radius: 24px 24px 0 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.25);
+  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* Header */
+.feedback-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 14px;
+  background: #FFFBF7;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+  flex-shrink: 0;
+}
+
+.feedback-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.feedback-back-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: #0F172A;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.feedback-back-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.feedback-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #0F172A;
+  letter-spacing: -0.02em;
+}
+
+/* Scroll Content */
+.feedback-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 20px 40px;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Subtitle */
+.feedback-subtitle {
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: #64748B;
+  margin: 0 0 16px 0;
+}
+
+/* Big Trigger Button: + 개선 요청하기 */
+.feedback-open-btn {
+  width: 100%;
+  background: #000000;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 9999px;
+  padding: 14px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+  margin-bottom: 20px;
+}
+
+.feedback-open-btn * {
+  color: #fff;
+}
+
+.feedback-open-btn:hover {
+  background: #1E293B;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+}
+
+.feedback-open-btn:active {
+  transform: scale(0.98);
+}
+
+/* Form Card (Collapsible) */
+.feedback-form-card {
+  background: #FFFFFF;
+  border-radius: 20px;
+  padding: 18px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  margin-bottom: 24px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.feedback-textarea {
+  width: 100%;
+  min-height: 110px;
+  border: 1px solid #E2E8F0;
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: #1E293B;
+  outline: none;
+  resize: vertical;
+  background: #FFFFFF;
+  font-family: inherit;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease;
+}
+
+.feedback-textarea:focus {
+  border-color: #94A3B8;
+  box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.15);
+}
+
+.feedback-textarea::placeholder {
+  color: #94A3B8;
+  font-size: 13.5px;
+}
+
+/* Photo Attach Button */
+.feedback-attach-btn {
+  width: 100%;
+  margin-top: 10px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.feedback-attach-btn:hover {
+  background: #F8FAFC;
+  border-color: #CBD5E1;
+}
+
+.feedback-preview-wrap {
+  position: relative;
+  margin-top: 10px;
+  display: inline-block;
+}
+
+.feedback-preview-img {
+  width: 90px;
+  height: 90px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 1px solid #E2E8F0;
+}
+
+.feedback-preview-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #0F172A;
+  color: #FFFFFF;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* Form Action Buttons: 취소 & 등록하기 */
+.feedback-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.feedback-cancel-btn {
+  background: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  color: #0F172A;
+  border-radius: 9999px;
+  padding: 9px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.feedback-cancel-btn:hover {
+  background: #F1F5F9;
+}
+
+.feedback-submit-btn {
+  background: #000000;
+  border: none;
+  color: #FFFFFF;
+  border-radius: 9999px;
+  padding: 10px 26px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.feedback-submit-btn:hover {
+  background: #1E293B;
+}
+
+.feedback-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Feedback List Accordions */
+.feedback-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.feedback-card {
+  background: #FFFFFF;
+  border-radius: 18px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+  overflow: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.feedback-card:hover {
+  border-color: #CBD5E1;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+}
+
+.feedback-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  cursor: pointer;
+  gap: 12px;
+}
+
+.feedback-card-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+/* Status Badge: 접수됨 (Teal) / 답변완료 (Neutral/Dark) */
+.feedback-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.feedback-badge.pending {
+  background: #FFFFFF;
+  border: 1px solid #14B8A6;
+  color: #0D9488;
+}
+
+.feedback-badge.answered {
+  background: #FFFFFF;
+  border: 1px solid #94A3B8;
+  color: #1E293B;
+}
+
+.feedback-item-title-box {
+  min-width: 0;
+  flex: 1;
+}
+
+.feedback-item-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1E293B;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+.feedback-item-meta {
+  font-size: 11.5px;
+  color: #94A3B8;
+  margin-top: 3px;
+  display: flex;
+  gap: 8px;
+}
+
+/* Card Expanded Body */
+.feedback-card-body {
+  padding: 0 16px 16px;
+  border-top: 1px solid #F1F5F9;
+  background: #FFFFFF;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.feedback-card-text {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: #334155;
+  white-space: pre-wrap;
+  margin-top: 12px;
+}
+
+.feedback-card-attached-img {
+  width: 100%;
+  max-width: 240px;
+  border-radius: 12px;
+  margin-top: 10px;
+  object-fit: cover;
+  border: 1px solid #E2E8F0;
+}
+
+/* Admin Reply Box */
+.feedback-reply-box {
+  margin-top: 14px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+
+.feedback-reply-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.feedback-reply-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: #FFB320;
+  background: #FEF3C7;
+  padding: 2px 7px;
+  border-radius: 6px;
+}
+
+.feedback-reply-time {
+  font-size: 11px;
+  color: #94A3B8;
+}
+
+.feedback-reply-text {
+  font-size: 13px;
+  color: #1E293B;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+/* Admin Reply Input for Daisynara */
+.feedback-admin-write-box {
+  margin-top: 14px;
+}
+
+.feedback-admin-write-title {
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+
+.feedback-admin-textarea {
+  width: 100%;
+  min-height: 60px;
+  background: #FFFFFF;
+  border: 1px solid #FCD34D;
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 13px;
+  box-sizing: border-box;
+  outline: none;
+  font-family: inherit;
+}
+
+.feedback-admin-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.feedback-admin-btn {
+  background: #FFB320;
+  color: #FFFFFF;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.feedback-delete-btn {
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  padding: 4px;
+}

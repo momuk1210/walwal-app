@@ -86,7 +86,7 @@ export const ShareExportModal: React.FC<ShareExportModalProps> = ({
         // Top Header
         ctx.font = '900 52px sans-serif';
         ctx.fillStyle = templateType === 'webtoon' ? '#FFB320' : '#38c5b7';
-        ctx.fillText(`🐶 ${t.share.watermarkTop} ${breedKr} ${t.share.watermarkTopSuffix}`, 90, 180);
+        ctx.fillText(`${t.share.watermarkTop} ${breedKr} ${t.share.watermarkTopSuffix}`, 90, 180);
 
         // 3. Speech Bubble
         ctx.fillStyle = '#FFFFFF';
@@ -99,7 +99,7 @@ export const ShareExportModal: React.FC<ShareExportModalProps> = ({
 
         ctx.font = 'bold 44px sans-serif';
         ctx.fillStyle = '#FFB320';
-        ctx.fillText(`💬 ${dogName} (${breedKr} ${t.share.speechTitleSuffix})`, 130, 1450);
+        ctx.fillText(`${dogName} (${breedKr} ${t.share.speechTitleSuffix})`, 130, 1450);
 
         ctx.font = 'bold 50px sans-serif';
         ctx.fillStyle = '#2D3748';
@@ -124,7 +124,7 @@ export const ShareExportModal: React.FC<ShareExportModalProps> = ({
         ctx.font = '600 32px sans-serif';
         ctx.fillStyle = '#94A3B8';
         ctx.textAlign = 'center';
-        ctx.fillText(isProUser ? t.studio.watermarkFree : t.share.watermarkFooter, 540, 1820);
+        ctx.fillText(isProUser ? (t.snaps || t.studio).watermarkFree : t.share.watermarkFooter, 540, 1820);
 
         resolve(canvas.toDataURL('image/png'));
       };
@@ -280,10 +280,10 @@ export const ShareExportModal: React.FC<ShareExportModalProps> = ({
           <X size={20} />
         </button>
 
-        <h2 className="title-lg" style={{ fontSize: '1.25rem', margin: '0 0 6px 0' }}>
+        <h2 className="title-lg">
           {t.share.title}
         </h2>
-        <p className="text-sub" style={{ margin: '0', lineHeight: 1.4, padding: '0 30px' }}>
+        <p className="text-sub" >
           {platformSubtitles[selectedPlatform] || platformSubtitles.instagram}
         </p>
       </div>
@@ -321,7 +321,7 @@ export const ShareExportModal: React.FC<ShareExportModalProps> = ({
         }}>
           <div>
             <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#FFB320', marginBottom: '3px' }}>
-              💬 {dogName}
+              {dogName}
             </div>
             <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#2D3748', lineHeight: 1.35, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
               "{thought}"

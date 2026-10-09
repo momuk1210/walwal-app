@@ -1,12 +1,17 @@
-export type Language = 'ko' | 'en' | 'ja' | 'es';
+import { frTranslation } from './fr';
+import { zhTranslation } from './zh';
+
+export type Language = 'ko' | 'en' | 'ja' | 'es' | 'fr' | 'zh';
 
 export interface TranslationSchema {
   appTitle: string;
   subtitle: string;
   tabs: any;
   ar: any;
-  studio: any;
-  radar: any;
+  snaps?: any;
+  studio?: any;
+  nearby?: any;
+  radar?: any;
   pro: {
     title?: string;
     subtitle?: string;
@@ -30,6 +35,28 @@ export interface TranslationSchema {
     continueApple: string;
     continueGoogle: string;
     continueGuest?: string;
+    tabLogin: string;
+    tabSignUp: string;
+    emailLabel: string;
+    emailPlaceholder: string;
+    passwordLabel: string;
+    passwordPlaceholder: string;
+    confirmPasswordLabel: string;
+    confirmPasswordPlaceholder: string;
+    loginButton: string;
+    signUpButton: string;
+    orDivider: string;
+    noAccountPrompt: string;
+    hasAccountPrompt: string;
+    quickDemoTitle: string;
+    quickStandardUser: string;
+    quickAdminUser: string;
+    quickNotice: string;
+    passwordMismatch: string;
+    invalidEmail: string;
+    shortPassword: string;
+    signUpSuccess: string;
+    loginFailed: string;
   };
   paywall: {
     title: string;
@@ -46,7 +73,7 @@ export interface TranslationSchema {
   community: any;
   feed?: any;
   share: any;
-  breedQuips: any;
+  breedQuips?: any;
   settings: any;
   legal: any;
   common: any;
@@ -62,11 +89,13 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "gpsReceiving": " 실시간 GPS 신호 수신 중..."
     },
     "tabs": {
-      "ar": "펫톡",
-      "radar": "레이더",
+      "ar": "AR톡",
+      "nearby": "동네친구",
+      "radar": "동네친구",
+      "snaps": "스냅",
+      "feed": "스냅",
       "studio": "펫스튜디오",
       "community": "산책",
-      "feed": "피드",
       "profile": "마이펫"
     },
     "feed": {
@@ -75,7 +104,8 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "noComments": "아직 댓글이 없습니다",
       "beFirstComment": "댓글을 남겨보세요.",
       "commentPlaceholder": "댓글 달기...",
-      "deleteComment": "댓글 삭제"
+      "deleteComment": "댓글 삭제",
+      "loadingVideo": "동영상 불러오는 중..."
     },
     "legal": {
       "faqTitle": "자주 묻는 질문",
@@ -96,7 +126,7 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "preferences": "앱 설정",
       "language": "언어 (Language)",
       "notifications": "알림 설정",
-      "radarAlert": "근처 반려견 등장 (레이더)",
+      "radarAlert": "근처 반려견 등장 (동네친구)",
       "meetupAlert": "번개 모임",
       "feedAlert": "피드 소식",
       "permissions": "권한 관리",
@@ -116,10 +146,10 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
     "profile": {
       "greetingLabel": "인사말",
       "greetingPlaceholder": "예: 안녕하세요! 우리 강아지는 간식을 좋아해요.",
-      "greetingEmpty": "반갑습니다! 인사말을 등록해주세요 😊",
+      "greetingEmpty": "반갑습니다! 인사말을 등록해주세요",
       "genderLabel": "성별",
-      "genderMale": "수컷 (Male)",
-      "genderFemale": "암컷 (Female)",
+      "genderMale": "수컷",
+      "genderFemale": "암컷",
       "ownerTitleSelect": "호칭 선택",
       "mom": "엄마",
       "dad": "아빠",
@@ -133,14 +163,14 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "noteIntro": "안녕하세요! {ownerName}입니다. {dogName}({breed})와 함께 산책 중이에요!",
       "noteReply1": "반가워요! 저희 지금 {distance} 근처 잔디밭 쪽으로 걷고 있어요. 천천히 오세요!",
       "noteReply2": "네 좋아요! 저희 {dogName}도 친구 만나는 거 엄청 좋아해요 ㅎㅎ 지금 인사 나눠요!",
-      "noteReply3": "메세지 감사해요! 마침 간식 챙겨 나왔는데 같이 나눠먹어요 😊",
+      "noteReply3": "메세지 감사해요! 마침 간식 챙겨 나왔는데 같이 나눠먹어요",
       "notePlaceholder": "{ownerName} 님께 메세지 보내기...",
       "noteSend": "보내기",
       "noteSending": "전송 중...",
       "noteTemplate1": "안녕하세요! 산책 코스가 겹치네요, 혹시 댕댕이 인사 나눌 수 있을까요?",
-      "noteTemplate2": "강아지가 너무 예뻐요! 저희 애랑 성향이 잘 맞을 것 같아요 😊",
+      "noteTemplate2": "강아지가 너무 예뻐요! 저희 애랑 성향이 잘 맞을 것 같아요",
       "noteTemplate3": "지금 어느 쪽으로 산책 중이신가요? 냄새 교환하러 가겠습니다! ",
-      "noteTemplate4": "혹시 오늘 산책 번개 모임 같이 참여하실 생각 있으신가요? ✨",
+      "noteTemplate4": "혹시 오늘 산책 번개 모임 같이 참여하실 생각 있으신가요?",
       "edit": "수정하기",
       "owner": "엄마/아빠",
       "proActiveSub": "워터마크 없는 4K 카드 & 무제한 번역 활성화",
@@ -219,11 +249,19 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "petTokOff": "펫톡",
       "aiDetection": "[AI 탐지] 반려견 · 신뢰도 97.8%",
       "realtimeAI": "실시간 AI 행동 분석",
-      "behaviorBark": " 짖음",
-      "behaviorGrowl": " 그로울",
-      "behaviorWhine": " 낑낑",
-      "behaviorActive": " 활발",
-      "behaviorCalm": " 안정",
+      "behaviorBark": "짖음",
+      "behaviorGrowl": "그로울",
+      "behaviorWhine": "낑낑",
+      "behaviorActive": "활발",
+      "behaviorCalm": "안정",
+      "recordingVideo": "3초 비디오 녹화 중... ({sec}초)",
+      "behaviors": {
+        "bark": { "detail": "경계 짖음 · 영역 방어 반응", "signal": "고음량 짖음 감지" },
+        "growl": { "detail": "경고 신호 · 자원 방어 반응", "signal": "저주파 지속 그로울" },
+        "whine": { "detail": "애착 표현 · 관심 요구 신호", "signal": "고주파 낑낑 감지" },
+        "active": { "detail": "무성 탐색 · 후각 주도 이동", "signal": "고모션 + 저음량 · 탐색 행동" },
+        "calm": { "detail": "이완 안정 · 신뢰 유대 신호", "signal": "낮은 모션 + 정상 호흡" }
+      },
       "freqAnalyzing": "실시간 짖음 주파수 분석 중",
       "nextTurn": "대사 이어가기",
       "analyzing": "분석 중",
@@ -237,173 +275,7 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "mockDogCenterName": "인절미",
       "mockDogLeftName": "초코",
       "mockDogRightName": "뭉치",
-      "mockGolden": "골든 리트리버",
-      "mockBori": "보리",
-      "mockBoriThought": "\"저기 형아 주머니에 소시지 100%!! 꼬리 프로펠러 가동? \"",
-      "mockBoriBasis": "95% 순수한 호의와 반가움 (놀이 유혹)",
-      "afLock": "오토포커스",
-      "liveScenarios": {
-        "bark": [
-          {
-            "thought": "누구야!! 내 영역에서 당장 나가!! 😠",
-            "behavior": "경계성 짖음 · 영역 방어",
-            "signal": "지속적 짖음 감지",
-            "confidence": 98
-          },
-          {
-            "thought": "빨리 문 열어! 나가고 싶다 멍!!",
-            "behavior": "요구 짖음 · 행동 촉구",
-            "signal": "간헐적 요구 짖음 감지",
-            "confidence": 98
-          },
-          {
-            "thought": "집사 온다!! 나 여기 있어 멍!!",
-            "behavior": "환영 짖음 · 재회 흥분",
-            "signal": "반복 짖음 패턴 감지",
-            "confidence": 99
-          },
-          {
-            "thought": "냄새가 이상해! 조심해 멍멍!!",
-            "behavior": "경보 짖음 · 위협 인식",
-            "signal": "연속 짖음 버스트 감지",
-            "confidence": 94
-          },
-          {
-            "thought": "저 소리 들었어?! 나한테 맡겨 멍!!",
-            "behavior": "탐지 짖음 · 청각 자극 반응",
-            "signal": "외부 자극 반응 짖음",
-            "confidence": 96
-          }
-        ],
-        "whine": [
-          {
-            "thought": "집사 어디 가... 나 혼자 두고 가지마 🥺",
-            "behavior": "분리 불안 신호 · 애착 표현",
-            "signal": "고주파 낑낑 감지",
-            "confidence": 96
-          },
-          {
-            "thought": "배고파... 고기 줘... 꼬르륵",
-            "behavior": "식욕 호소 신호 · 요구 표현",
-            "signal": "지속 고주파 발성 감지",
-            "confidence": 94
-          },
-          {
-            "thought": "발바닥이 이상해... 아픈 거 같아 😢",
-            "behavior": "통증/불편 신호 · 주의 필요",
-            "signal": "낮은 낑낑 + 자세 변화",
-            "confidence": 88
-          },
-          {
-            "thought": "너무 신나! 빨리 산책 가자 낑낑!",
-            "behavior": "흥분 억제 신호 · 기대감",
-            "signal": "흥분성 고주파 발성",
-            "confidence": 95
-          },
-          {
-            "thought": "무서운 냄새... 집사 옆에 딱 붙어있어야지 😰",
-            "behavior": "불안 카밍 신호 · 보호 요청",
-            "signal": "불안성 낑낑 발성",
-            "confidence": 91
-          }
-        ],
-        "growl": [
-          {
-            "thought": "가까이 오지 마. 여긴 내 구역이야 😤",
-            "behavior": "경고 그로울 · 영역 주장",
-            "signal": "저주파 지속 그로울 감지",
-            "confidence": 98
-          },
-          {
-            "thought": "저거 내 거야! 건들지 마 👀",
-            "behavior": "자원 방어 그로울 · 소유 반응",
-            "signal": "자원 앞 저주파 발성",
-            "confidence": 95
-          },
-          {
-            "thought": "나 지금 사냥 놀이 모드다! 어흥",
-            "behavior": "플레이 그로울 · 놀이 초대",
-            "signal": "플레이 중 저주파 발성",
-            "confidence": 89
-          },
-          {
-            "thought": "뭔가 맘에 안 들어... 지켜보고 있다 🤨",
-            "behavior": "불만 그로울 · 불쾌 신호",
-            "signal": "간헐적 저주파 그로울",
-            "confidence": 93
-          }
-        ],
-        "active": [
-          {
-            "thought": "뭔가 있다 킁킁! 냄새 추적 시작!",
-            "behavior": "무성 탐색 · 후각 주도 이동",
-            "signal": "고모션 + 저음량 · 탐색 행동",
-            "confidence": 95
-          },
-          {
-            "thought": "내 구역 순찰 중! 이상 무",
-            "behavior": "순찰 보행 · 영역 확인 행동",
-            "signal": "규칙적 이동 패턴 감지",
-            "confidence": 93
-          },
-          {
-            "thought": "저기 꿀잼 냄새! 빨리 가보자 🎾",
-            "behavior": "자발적 이동 · 놀이 탐색",
-            "signal": "빠른 이동 + 귀 전방 직립",
-            "confidence": 96
-          },
-          {
-            "thought": "달리고 싶어! 전속력으로 고고",
-            "behavior": "과잉 에너지 · 운동 욕구",
-            "signal": "전신 근육 긴장 + 이동 반복",
-            "confidence": 97
-          },
-          {
-            "thought": "여기도 저기도 다 볼 거야! 바쁘다 바빠 👀",
-            "behavior": "다방향 주의 · 활발 탐색",
-            "signal": "빠른 시선 이동 + 체중 전방",
-            "confidence": 91
-          }
-        ],
-        "calm": [
-          {
-            "thought": "집사 옆이 최고야~ 행복해 ☀️",
-            "behavior": "이완 안정 · 신뢰 유대 신호",
-            "signal": "낮은 모션 + 정상 호흡",
-            "confidence": 98
-          },
-          {
-            "thought": "킁킁... 집사 오늘 고기 먹었네? ",
-            "behavior": "후각 환경 분석 · 이완 탐색",
-            "signal": "비강 확장 · 느린 이동",
-            "confidence": 92
-          },
-          {
-            "thought": "졸려... 눈이 자꾸 감긴다 😴",
-            "behavior": "수면 전 이완 · 경계 완화",
-            "signal": "순막 이완 + 호흡 느림",
-            "confidence": 96
-          },
-          {
-            "thought": "오늘 산책도 밥도 완벽했다",
-            "behavior": "만족 이완 · 세로토닌 상태",
-            "signal": "꼬리 낮은 와깅 + 눈 부드러움",
-            "confidence": 99
-          },
-          {
-            "thought": "누구 냄새지? 기다려볼까",
-            "behavior": "수동 대기 · 자극 기다림",
-            "signal": "귀 측면 경청 + 저모션",
-            "confidence": 90
-          },
-          {
-            "thought": "집사 기분 좋아보이네! 나도 좋다 ",
-            "behavior": "정서 동기화 · 공감 반응",
-            "signal": "시선 추적 + 꼬리 서행 와깅",
-            "confidence": 94
-          }
-        ]
-      }
+      "afLock": "오토포커스"
     },
     "studio": {
       "title": "펫스튜디오",
@@ -417,8 +289,8 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
     },
     "radar": {
       "greetingLabel": "인사말",
-      "greetingEmpty": "안녕하세요! 반가워요 😊",
-      "title": "댕댕이 레이더",
+      "greetingEmpty": "안녕하세요! 반가워요",
+      "title": "동네친구",
       "dogsNearby": "주변 반경 산책 중인 댕댕이",
       "startVirtualChat": "펫톡",
       "sendNote": "메세지",
@@ -449,11 +321,33 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "storeNotice": "Google Play & App Store 안심 정기구독 · 7일 이내 해지 시 0원 청구"
     },
     "auth": {
-      "welcomeTitle": "반려견과의 소통",
-      "welcomeSub": "WalWal과 함께 특별한 소통을 경험하세요",
+      "welcomeTitle": "AI 실시간 번역기 왈왈",
+      "welcomeSub": "우리 아이의 마음을 소리와 몸짓으로 들려드려요",
       "continueApple": "Apple로 계속하기",
       "continueGoogle": "Google로 계속하기",
-      "continueGuest": "게스트로 시작하기"
+      "continueGuest": "게스트로 시작하기",
+      "tabLogin": "이메일 로그인",
+      "tabSignUp": "회원가입",
+      "emailLabel": "이메일",
+      "emailPlaceholder": "이메일 주소 (예: user@walwal.app)",
+      "passwordLabel": "비밀번호",
+      "passwordPlaceholder": "비밀번호 (6자 이상)",
+      "confirmPasswordLabel": "비밀번호 확인",
+      "confirmPasswordPlaceholder": "비밀번호 재입력",
+      "loginButton": "로그인",
+      "signUpButton": "회원가입 완료",
+      "orDivider": "또는 소셜 계정으로 계속",
+      "noAccountPrompt": "아직 계정이 없으신가요? 회원가입",
+      "hasAccountPrompt": "이미 계정이 있으신가요? 로그인",
+      "quickDemoTitle": "심사관 / 테스트 계정 빠른 입력",
+      "quickStandardUser": "일반 사용자 계정",
+      "quickAdminUser": "관리자 계정",
+      "quickNotice": "클릭 시 콘솔에 등록된 테스트 계정 정보가 자동 입력됩니다.",
+      "passwordMismatch": "비밀번호가 일치하지 않습니다.",
+      "invalidEmail": "올바른 이메일 주소를 입력해 주세요.",
+      "shortPassword": "비밀번호는 최소 6자 이상이어야 합니다.",
+      "signUpSuccess": "회원가입이 완료되었습니다!",
+      "loginFailed": "로그인에 실패했습니다. 이메일과 비밀번호를 확인해 주세요."
     },
     "paywall": {
       "title": "WalWal Pro",
@@ -540,116 +434,6 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
         "download": "단말기에 원본 무손실 4K 화질로 안전하게 저장됩니다.",
         "more": "카카오톡, 메시지, 에어드롭 등 원하는 플랫폼으로 바로 전송합니다."
       }
-    },
-    "breedQuips": {
-      "golden": {
-        "ko": [
-          "앗! 새로운 친구다! 나랑 당장 놀자!!",
-          "저기 형아 주머니에 소시지 냄새! 꼬리 흔들기 300% 가동!!"
-        ],
-        "en": [
-          "OMG a new friend! Play with me right now! I love everyone!!",
-          "I smell sausages in your pocket! Tail propeller at 300%!!"
-        ],
-        "ja": [
-          "わぁ！新しいお友達だ！今すぐ一緒に遊ぼう！！",
-          "あのお兄さんのポケットからソーセージの匂いがする！尻尾全開！！"
-        ],
-        "es": [
-          "¡Un nuevo amigo! ¡Juega conmigo ahora mismo! ¡Los amo a todos!",
-          "¡Huelo salchichas en tu bolsillo! ¡Cola a máxima velocidad!"
-        ]
-      },
-      "shiba": {
-        "ko": [
-          "너 나한테 관심 갖지 마라. 꼬리 흔든 건 기분 좋아서가 아니라 반동 추진력이다.",
-          "눈 마주쳤다고 친구 먹을 생각 마. 내 퍼스널 스페이스 2미터 유지해라."
-        ],
-        "en": [
-          "Do not look at me. Wiggling my tail was just recoil propulsion.",
-          "Keep your 6-foot distance. We are not friends just because we made eye contact."
-        ],
-        "ja": [
-          "私に関わるな。尻尾を振ったのは反動の推進力だ。",
-          "目が合ったからって友達気取りするな。2mの距離を保て。"
-        ],
-        "es": [
-          "No me mires. Mover la cola fue solo propulsión de retroceso.",
-          "Mantén tu distancia de 2 metros. No somos amigos solo por cruzar miradas."
-        ]
-      },
-      "maltese": {
-        "ko": [
-          "말티즈는 참지 않아! 집사야 나한테 집중해! 다른 개 쳐다보지 마 앙앙!!",
-          "내가 귀엽다고 만만하게 보지 마라! 내 안에 맹수의 피가 흔른다! 🦁"
-        ],
-        "en": [
-          "Maltese never holds back! Human, focus on ME! Stop looking at other dogs!",
-          "Do not underestimate my cuteness! The blood of a fierce beast runs in me! 🦁"
-        ],
-        "ja": [
-          "マルチーズは我慢しない！ご主人様、私だけに集中して！他の犬を見ないで！",
-          "可愛いからって甘く見るな！私の中には猛獣の血が流れている！🦁"
-        ],
-        "es": [
-          "¡El Maltés no se guarda nada! ¡Humano, mírame solo a mí!",
-          "¡No subestimes mi ternura! ¡Por mis venas corre sangre de fiera! 🦁"
-        ]
-      },
-      "corgi": {
-        "ko": [
-          "다리는 짧아도 내 앉덩이 모터 회전수는 분당 3000RPM이다 씨룩씨룩! ",
-          "다리 길다고 유세 떨지 마라! 내 무게중심이 지구상에서 제일 안정적이다 컹컹!"
-        ],
-        "en": [
-          "My legs may be short, but my booty RPM is 3000 per minute! ",
-          "Do not brag about your long legs! My center of gravity is superior!"
-        ],
-        "ja": [
-          "足は短くてもお尻の回転数は毎分3000回だワン！プリプリ！",
-          "足が長いからって威張るな！私の重心の低さこそ至高！"
-        ],
-        "es": [
-          "¡Mis patas serán cortas, pero mi cola gira a 3000 RPM! ",
-          "¡No presumas de patas largas! ¡Mi centro de gravedad es invencible!"
-        ]
-      },
-      "pome": {
-        "ko": [
-          "나 솜사탕 아니다! 맹수다! 어흥! 비둘기 너 내 구역에서 당장 꺼져 앙앙! 🦁",
-          "내 털 120% 부풀었다! 이 압도적인 사자 갈기에 다들 기절하겠지?! "
-        ],
-        "en": [
-          "I am not cotton candy! I am an apex predator! Pigeon, get off my lawn! 🦁",
-          "My fur expanded by 120%! Kneel before my majestic lion mane! "
-        ],
-        "ja": [
-          "私は綿あめじゃない！猛獣だ！ハトよ、私の縄張りから出て行け！🦁",
-          "毛量が120%膨らんだ！この圧倒的なライオンの鬣にひれ伏すがいい！"
-        ],
-        "es": [
-          "¡No soy un algodón de azúcar! ¡Soy un depredador! ¡Paloma, vete de mi territorio! 🦁",
-          "¡Mi pelaje se infló un 120%! ¡Arrodíllense ante mi melena de león! "
-        ]
-      },
-      "poodle": {
-        "ko": [
-          "집사야 표정보니 지금 죄책감 드는 타이밍이다? 고개 45도 간식 득템 ",
-          "인간들이 날 귀여워하는 패턴을 완벽히 데이터화했다. 완벽한 애교 출력 중!"
-        ],
-        "en": [
-          "Human looks guilty right now. Perfect time for the 45-degree head tilt! Treat acquired ",
-          "I have fully calculated human psychology. Executing optimal cuteness algorithm!"
-        ],
-        "ja": [
-          "ご主人様、今罪悪感を感じてるな？首を45度かしげる技を発動！おやつゲット",
-          "人間が私を可愛いと思うパターンを完全データ化。完璧な愛嬍bを出力中！"
-        ],
-        "es": [
-          "El humano parece culpable. ¡Momento perfecto para inclinar la cabeza 45 grados! Premio conseguido ",
-          "He calculado la psicología humana. ¡Ejecutando algoritmo de ternura!"
-        ]
-      }
     }
   },
   "en": {
@@ -658,15 +442,17 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
     "common": {
       "genderShortMale": "M",
       "genderShortFemale": "F",
-      "gpsReceiving": "🛰️ Receiving GPS signal..."
+      "gpsReceiving": "Receiving GPS signal..."
     },
     "tabs": {
-      "ar": "Pet Tok",
-      "radar": "Radar",
+      "ar": "AR talk",
+      "nearby": "Nearby",
+      "radar": "Nearby",
+      "snaps": "Snaps",
+      "feed": "Snaps",
       "studio": "Pet Studio",
-      "community": "Walk",
-      "feed": "Feed",
-      "profile": "My Pet"
+      "community": "Meetup",
+      "profile": "My pet"
     },
     "feed": {
       "subtitle": "All the cuteness in the world, doggy feed",
@@ -674,7 +460,8 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "noComments": "No comments yet",
       "beFirstComment": "Be the first to comment.",
       "commentPlaceholder": "Add a comment...",
-      "deleteComment": "Delete comment"
+      "deleteComment": "Delete comment",
+      "loadingVideo": "Loading video..."
     },
     "legal": {
       "faqTitle": "FAQ",
@@ -715,7 +502,7 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
     "profile": {
       "greetingLabel": "Greeting",
       "greetingPlaceholder": "e.g., Hello! My dog loves treats.",
-      "greetingEmpty": "Hello! Please register a greeting 😊",
+      "greetingEmpty": "Hello! Please register a greeting",
       "genderLabel": "Gender",
       "genderMale": "Male",
       "genderFemale": "Female",
@@ -731,14 +518,14 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "noteIntro": "Hello! I am {ownerName}. I am walking with {dogName}({breed})!",
       "noteReply1": "Nice to meet you! We are walking near {distance}. Take your time!",
       "noteReply2": "Sure! {dogName} loves meeting new friends. Let's say hi!",
-      "noteReply3": "Thanks for the note! I brought some snacks, let's share! 😊",
+      "noteReply3": "Thanks for the note! I brought some snacks, let's share!",
       "notePlaceholder": "Send a note to {ownerName}...",
       "noteSend": "Send",
       "noteSending": "Sending...",
       "noteTemplate1": "Hello! Our walking routes overlap, can our dogs say hi?",
-      "noteTemplate2": "Your dog is so pretty! I think our dogs will get along well 😊",
-      "noteTemplate3": "Which way are you walking? We'll come over to exchange scents! 🐕",
-      "noteTemplate4": "Are you interested in joining a quick meetup today? ✨",
+      "noteTemplate2": "Your dog is so pretty! I think our dogs will get along well",
+      "noteTemplate3": "Which way are you walking? We'll come over to exchange scents!",
+      "noteTemplate4": "Are you interested in joining a quick meetup today?",
       "edit": "Edit",
       "owner": "Mom/Dad",
       "proActiveSub": "No watermark 4K cards & unlimited translation active",
@@ -822,6 +609,14 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "behaviorWhine": "Whine",
       "behaviorActive": "Active",
       "behaviorCalm": "Calm",
+      "recordingVideo": "Recording 3s video... ({sec}s)",
+      "behaviors": {
+        "bark": { "detail": "Alert Bark · Territory Defense", "signal": "High-Volume Bark Detected" },
+        "growl": { "detail": "Warning Signal · Resource Guarding", "signal": "Low-Frequency Growl" },
+        "whine": { "detail": "Affection Expression · Attention Seeking", "signal": "High-Pitch Whine Detected" },
+        "active": { "detail": "Silent Search · Olfactory Movement", "signal": "High Motion + Low Sound · Exploring" },
+        "calm": { "detail": "Relaxed & Calm · Trust Bond Signal", "signal": "Low Motion + Normal Breathing" }
+      },
       "freqAnalyzing": "Analyzing bark frequency in real-time",
       "nextTurn": "Continue",
       "analyzing": "Analyzing",
@@ -835,173 +630,7 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "mockDogCenterName": "Injeolmi",
       "mockDogLeftName": "Choco",
       "mockDogRightName": "Moongchi",
-      "mockGolden": "Golden Retriever",
-      "mockBori": "Bori",
-      "mockBoriThought": "\"Sniff sniff... 100% sausage in bro's pocket!! Should I start the tail propeller? \"",
-      "mockBoriBasis": "95% pure goodwill and welcome (play temptation)",
-      "afLock": "Auto Focus",
-      "liveScenarios": {
-        "bark": [
-          {
-            "thought": "Who is it!! Get out of my territory!! 😠",
-            "behavior": "Alert Barking · Territorial",
-            "signal": "Continuous Barking Detected",
-            "confidence": 98
-          },
-          {
-            "thought": "Open the door! I wanna go out!!",
-            "behavior": "Demand Barking · Action Urged",
-            "signal": "Intermittent Demand Barking",
-            "confidence": 98
-          },
-          {
-            "thought": "My human is here!! I'm here!!",
-            "behavior": "Welcome Barking · Excitement",
-            "signal": "Repeated Barking Pattern",
-            "confidence": 99
-          },
-          {
-            "thought": "Strange smell! Be careful!!",
-            "behavior": "Warning Barking · Threat Detected",
-            "signal": "Continuous Bark Burst",
-            "confidence": 94
-          },
-          {
-            "thought": "Did you hear that?! Leave it to me!!",
-            "behavior": "Detection Barking · Auditory Response",
-            "signal": "External Stimulus Barking",
-            "confidence": 96
-          }
-        ],
-        "whine": [
-          {
-            "thought": "Where are you going... Don't leave me 🥺",
-            "behavior": "Separation Anxiety · Attachment",
-            "signal": "High-frequency Whine",
-            "confidence": 96
-          },
-          {
-            "thought": "Hungry... give me meat...",
-            "behavior": "Appetite Appeal · Demand",
-            "signal": "Continuous High-freq Vocalization",
-            "confidence": 94
-          },
-          {
-            "thought": "My paw feels weird... I think it hurts 😢",
-            "behavior": "Pain/Discomfort · Attention Needed",
-            "signal": "Low Whine + Posture Change",
-            "confidence": 88
-          },
-          {
-            "thought": "So excited! Let's go for a walk!",
-            "behavior": "Excitement Suppression · Anticipation",
-            "signal": "Excited High-freq Vocalization",
-            "confidence": 95
-          },
-          {
-            "thought": "Scary smell... I should stay close 😰",
-            "behavior": "Anxiety Calming · Protection Request",
-            "signal": "Anxious Whining",
-            "confidence": 91
-          }
-        ],
-        "growl": [
-          {
-            "thought": "Don't come closer. This is my turf 😤",
-            "behavior": "Warning Growl · Territorial",
-            "signal": "Low-freq Continuous Growl",
-            "confidence": 98
-          },
-          {
-            "thought": "That's mine! Don't touch it 👀",
-            "behavior": "Resource Guarding · Ownership",
-            "signal": "Low-freq Vocalization at Resource",
-            "confidence": 95
-          },
-          {
-            "thought": "I'm in hunting play mode! Rawr",
-            "behavior": "Play Growl · Play Invitation",
-            "signal": "Low-freq Vocalization during Play",
-            "confidence": 89
-          },
-          {
-            "thought": "I don't like this... I'm watching you 🤨",
-            "behavior": "Displeasure Growl · Uncomfortable",
-            "signal": "Intermittent Low-freq Growl",
-            "confidence": 93
-          }
-        ],
-        "active": [
-          {
-            "thought": "Something's here sniff sniff! Tracking!",
-            "behavior": "Silent Search · Olfactory Driven",
-            "signal": "High Motion + Low Vol · Searching",
-            "confidence": 95
-          },
-          {
-            "thought": "Patrolling my area! All clear",
-            "behavior": "Patrol Walk · Area Check",
-            "signal": "Regular Movement Pattern",
-            "confidence": 93
-          },
-          {
-            "thought": "Fun smell over there! Let's go 🎾",
-            "behavior": "Spontaneous Movement · Play Search",
-            "signal": "Fast Movement + Ears Forward",
-            "confidence": 96
-          },
-          {
-            "thought": "I wanna run! Full speed ahead",
-            "behavior": "Excess Energy · Exercise Desire",
-            "signal": "Full Body Tension + Repetitive Move",
-            "confidence": 97
-          },
-          {
-            "thought": "Gonna check everywhere! So busy 👀",
-            "behavior": "Multi-direction Attention · Active Search",
-            "signal": "Fast Gaze Shift + Forward Weight",
-            "confidence": 91
-          }
-        ],
-        "calm": [
-          {
-            "thought": "Next to my human is the best~ So happy ☀️",
-            "behavior": "Relaxed · Trust Bond Signal",
-            "signal": "Low Motion + Normal Breathing",
-            "confidence": 98
-          },
-          {
-            "thought": "Sniff... Did you eat meat today? ",
-            "behavior": "Olfactory Analysis · Relaxed Search",
-            "signal": "Nasal Expansion · Slow Move",
-            "confidence": 92
-          },
-          {
-            "thought": "Sleepy... My eyes are closing 😴",
-            "behavior": "Pre-sleep Relaxation · Guard Down",
-            "signal": "Nictitating Membrane Relaxed",
-            "confidence": 96
-          },
-          {
-            "thought": "Today's walk and food were perfect",
-            "behavior": "Satisfied Relaxed · Serotonin State",
-            "signal": "Low Tail Wag + Soft Eyes",
-            "confidence": 99
-          },
-          {
-            "thought": "Whose smell is this? I'll wait",
-            "behavior": "Passive Wait · Stimulus Wait",
-            "signal": "Ears Listening + Low Motion",
-            "confidence": 90
-          },
-          {
-            "thought": "You look happy! I'm happy too ",
-            "behavior": "Emotional Sync · Empathy Response",
-            "signal": "Gaze Tracking + Slow Tail Wag",
-            "confidence": 94
-          }
-        ]
-      }
+      "afLock": "Auto Focus"
     },
     "studio": {
       "title": "Pet Studio",
@@ -1015,9 +644,9 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
     },
     "radar": {
       "greetingLabel": "Greeting",
-      "greetingEmpty": "Hello! Nice to meet you 😊",
-      "title": "Paw Radar",
-      "dogsNearby": "Dogs walking nearby",
+      "greetingEmpty": "Hello! Nice to meet you",
+      "title": "Nearby Friends",
+      "dogsNearby": "Dogs walking Nearby",
       "startVirtualChat": "Pet Tok",
       "sendNote": "Message Mom/Dad",
       "myLocation": "My Current Location",
@@ -1028,7 +657,7 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "generalMap": "Standard Map",
       "meetupLocation": "Meetup Location",
       "realtimeThought": "Real-time Thoughts",
-      "nearby": "nearby"
+      "nearby": "Nearby"
     },
     "pro": {
       "badge": "WalWal Pro",
@@ -1047,11 +676,33 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "storeNotice": "Google Play & App Store Safe Subscription · $0 charged if canceled within 7 days"
     },
     "auth": {
-      "welcomeTitle": "Where conversations with your dog begin",
-      "welcomeSub": "Experience special moments with WalWal",
+      "welcomeTitle": "AI Real-time Pet Translator WalWal",
+      "welcomeSub": "Understand your pet's true feelings through sounds and body gestures",
       "continueApple": "Continue with Apple",
       "continueGoogle": "Continue with Google",
-      "continueGuest": "Start as Guest"
+      "continueGuest": "Continue as Guest",
+      "tabLogin": "Email Login",
+      "tabSignUp": "Sign Up",
+      "emailLabel": "Email",
+      "emailPlaceholder": "Email address (e.g. user@walwal.app)",
+      "passwordLabel": "Password",
+      "passwordPlaceholder": "Password (at least 6 chars)",
+      "confirmPasswordLabel": "Confirm Password",
+      "confirmPasswordPlaceholder": "Re-enter password",
+      "loginButton": "Sign In",
+      "signUpButton": "Complete Sign Up",
+      "orDivider": "OR continue with social",
+      "noAccountPrompt": "Don't have an account? Sign Up",
+      "hasAccountPrompt": "Already have an account? Sign In",
+      "quickDemoTitle": "Reviewer / Demo Test Accounts",
+      "quickStandardUser": "Standard User Account",
+      "quickAdminUser": "Admin Account",
+      "quickNotice": "Click to auto-fill credentials submitted in Google Console.",
+      "passwordMismatch": "Passwords do not match.",
+      "invalidEmail": "Please enter a valid email address.",
+      "shortPassword": "Password must be at least 6 characters.",
+      "signUpSuccess": "Account created successfully!",
+      "loginFailed": "Login failed. Please check your credentials."
     },
     "paywall": {
       "title": "WalWal Pro",
@@ -1066,10 +717,10 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
     },
     "community": {
       "subtitle": "Gather local friends for a walk today!",
-      "alertCreate": "New walk meetup creation popup will open!",
+      "alertCreate": "New meetup creation popup will open!",
       "btnCreate": "Create Meetup",
       "host": "Host",
-      "tabMeetup": "Walk Meetups",
+      "tabMeetup": "Meetups",
       "tabFeed": "Dog Thoughts Feed",
       "hostMom": "Mom",
       "hostDad": "Dad",
@@ -1078,18 +729,18 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "directions": "Directions",
       "participants": "Participants",
       "peopleCount": " people",
-      "filterUpcoming": "Upcoming",
-      "filterJoined": "My Walks",
-      "filterPast": "Past Walks",
+      "filterUpcoming": "Meetups",
+      "filterJoined": "My Meetups",
+      "filterPast": "Past Meetups",
       "joined": "Joined",
       "btnJoin": "Join Meetup",
       "btnPostComment": "Post",
       "placeholderComment": "Add a comment...",
       "btnClose": "Close",
       "modalParticipantsTitle": "Participating Dog Friends",
-      "modalCreateTitle": "Create Walk Meetup",
+      "modalCreateTitle": "Create Meetup",
       "modalTitleLabel": "Meetup Title",
-      "modalTitlePlaceholder": "e.g. Weekend Han River Park Walk!",
+      "modalTitlePlaceholder": "e.g. Weekend Han River Park Meetup!",
       "modalLocationLabel": "Location",
       "modalLocationPlaceholder": "e.g. Central Park",
       "modalTimeLabel": "Time",
@@ -1109,7 +760,7 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "chatPlaceholder": "Type message as {name}...",
       "participantsCountSuffix": "joined",
       "mock": {
-        "m1": { "title": "🌙 Seoul Forest Night Sniffing Walk", "location": "Seoul Forest Central Lawn", "time": "Tonight at 8:30 PM", "tag": "#LargeDogsWelcome" },
+        "m1": { "title": "Seoul Forest Night Sniffing Walk", "location": "Seoul Forest Central Lawn", "time": "Tonight at 8:30 PM", "tag": "#LargeDogsWelcome" },
         "m2": { "title": " Corgi & Short-legged Friends Gather!", "location": "Ttukseom Hangang Park Picnic Zone", "time": "Tomorrow at 3:00 PM", "tag": "#ShortLegsClub" },
         "m3": { "title": " Quiet Healing Walk for Timid Fluffballs", "location": "Salgoji Bridge Promenade", "time": "Sunday at 10:00 AM", "tag": "#SmallDogsOnly" }
       }
@@ -1138,116 +789,6 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
         "download": "Saved locally in original 4K quality.",
         "more": "Send via Messages, AirDrop, etc."
       }
-    },
-    "breedQuips": {
-      "golden": {
-        "ko": [
-          "와! 새로운 친구다! 나랑 당장 놀자! 온못으로 환영해!!",
-          "저기 형아 주머니에 소시지 냄새 난다! 꼬리 모터 300% 가동!!"
-        ],
-        "en": [
-          "OMG a new friend! Play with me right now! I love everyone!!",
-          "I smell sausages in your pocket! Tail propeller at 300%!!"
-        ],
-        "ja": [
-          "わぁ！新しいお友達だ！今すぐ一緒に遊ぼう！！",
-          "あのお兄さんのポケットからソーセージの匂いがする！尻尾全開！！"
-        ],
-        "es": [
-          "¡Un nuevo amigo! ¡Juega conmigo ahora mismo! ¡Los amo a todos!",
-          "¡Huelo salchichas en tu bolsillo! ¡Cola a máxima velocidad!"
-        ]
-      },
-      "shiba": {
-        "ko": [
-          "너 나한테 관심 갖지 마라. 꼬리 흔든 건 기분 좋아서가 아니라 반동 추진력이다.",
-          "눈 마주쳤다고 친구 먹을 생각 마. 내 퍼스널 스페이스 2미터 유지해라."
-        ],
-        "en": [
-          "Do not look at me. Wiggling my tail was just recoil propulsion.",
-          "Keep your 6-foot distance. We are not friends just because we made eye contact."
-        ],
-        "ja": [
-          "私に関わるな。尻尾を振ったのは反動の推進力だ。",
-          "目が合ったからって友達気取りするな。2mの距離を保て。"
-        ],
-        "es": [
-          "No me mires. Mover la cola fue solo propulsión de retroceso.",
-          "Mantén tu distancia de 2 metros. No somos amigos solo por cruzar miradas."
-        ]
-      },
-      "maltese": {
-        "ko": [
-          "말티즈는 참지 않아! 집사야 나한테 집중해! 다른 개 쳐다보지 마 앙앙!!",
-          "내가 귀엽다고 만만하게 보지 마라! 내 안에 맹수의 피가 흔른다! 🦁"
-        ],
-        "en": [
-          "Maltese never holds back! Human, focus on ME! Stop looking at other dogs!",
-          "Do not underestimate my cuteness! The blood of a fierce beast runs in me! 🦁"
-        ],
-        "ja": [
-          "マルチーズは我慢しない！ご主人様、私だけに集中して！他の犬を見ないで！",
-          "可愛いからって甘く見るな！私の中には猛獣の血が流れている！🦁"
-        ],
-        "es": [
-          "¡El Maltés no se guarda nada! ¡Humano, mírame solo a mí!",
-          "¡No subestimes mi ternura! ¡Por mis venas corre sangre de fiera! 🦁"
-        ]
-      },
-      "corgi": {
-        "ko": [
-          "다리는 짧아도 내 앉덩이 모터 회전수는 분당 3000RPM이다 씨룩씨룩! ",
-          "다리 길다고 유세 떨지 마라! 내 무게중심이 지구상에서 제일 안정적이다 컹컹!"
-        ],
-        "en": [
-          "My legs may be short, but my booty RPM is 3000 per minute! ",
-          "Do not brag about your long legs! My center of gravity is superior!"
-        ],
-        "ja": [
-          "足は短くてもお尻の回転数は毎分3000回だワン！プリプリ！",
-          "足が長いからって威張るな！私の重心の低さこそ至高！"
-        ],
-        "es": [
-          "¡Mis patas serán cortas, pero mi cola gira a 3000 RPM! ",
-          "¡No presumas de patas largas! ¡Mi centro de gravedad es invencible!"
-        ]
-      },
-      "pome": {
-        "ko": [
-          "나 솜사탕 아니다! 맹수다! 어흥! 비둘기 너 내 구역에서 당장 꺼져 앙앙! 🦁",
-          "내 털 120% 부풀었다! 이 압도적인 사자 갈기에 다들 기절하겠지?! "
-        ],
-        "en": [
-          "I am not cotton candy! I am an apex predator! Pigeon, get off my lawn! 🦁",
-          "My fur expanded by 120%! Kneel before my majestic lion mane! "
-        ],
-        "ja": [
-          "私は綿あめじゃない！猛獣だ！ハトよ、私の縄張りから出て行け！🦁",
-          "毛量が120%膨らんだ！この圧倒的なライオンの鬣にひれ伏すがいい！"
-        ],
-        "es": [
-          "¡No soy un algodón de azúcar! ¡Soy un depredador! ¡Paloma, vete de mi territorio! 🦁",
-          "¡Mi pelaje se infló un 120%! ¡Arrodíllense ante mi melena de león! "
-        ]
-      },
-      "poodle": {
-        "ko": [
-          "집사야 표정보니 지금 죄책감 드는 타이밍이다? 고개 45도 간식 득템 ",
-          "인간들이 날 귀여워하는 패턴을 완벽히 데이터화했다. 완벽한 애교 출력 중!"
-        ],
-        "en": [
-          "Human looks guilty right now. Perfect time for the 45-degree head tilt! Treat acquired ",
-          "I have fully calculated human psychology. Executing optimal cuteness algorithm!"
-        ],
-        "ja": [
-          "ご主人様、今罪悪感を感じてるな？首を45度かしげる技を発動！おやつゲット",
-          "人間が私を可愛いと思うパターンを完全データ化。完璧な愛嬍bを出力中！"
-        ],
-        "es": [
-          "El humano parece culpable. ¡Momento perfecto para inclinar la cabeza 45 grados! Premio conseguido ",
-          "He calculado la psicología humana. ¡Ejecutando algoritmo de ternura!"
-        ]
-      }
     }
   },
   "ja": {
@@ -1256,14 +797,16 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
     "common": {
       "genderShortMale": "オス",
       "genderShortFemale": "メス",
-      "gpsReceiving": "🛰️ リアルタイムGPS信号を受信中..."
+      "gpsReceiving": "リアルタイムGPS信号を受信中..."
     },
     "tabs": {
-      "ar": "ペットトーク",
-      "radar": "レーダー",
+      "ar": "ARトーク",
+      "nearby": "近所のワン",
+      "radar": "近所のワン",
+      "snaps": "スナップ",
+      "feed": "スナップ",
       "studio": "ペットスタジオ",
-      "community": "散歩",
-      "feed": "フィード",
+      "community": "お散歩",
       "profile": "マイペット"
     },
     "feed": {
@@ -1313,7 +856,7 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
     "profile": {
       "greetingLabel": "挨拶",
       "greetingPlaceholder": "例：こんにちは！うちの犬はおやつが大好きです。",
-      "greetingEmpty": "初めまして！挨拶を登録してください😊",
+      "greetingEmpty": "初めまして！挨拶を登録してください",
       "genderLabel": "性別",
       "genderMale": "オス (Male)",
       "genderFemale": "メス (Female)",
@@ -1363,16 +906,16 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "hostMom": "ママ/パパ",
       "alertNameRequired": "ワンちゃんの名前を入力してください！",
       "noteIntro": "こんにちは！{ownerName}です。{dogName}({breed})と散歩中です！",
-      "noteReply1": "初めまして！今{distance}近くの芝生を歩いています。ゆっくり来てくださいね！🐾",
+      "noteReply1": "初めまして！今{distance}近くの芝生を歩いています。ゆっくり来てくださいね！",
       "noteReply2": "いいですね！{dogName}も友達に会うのが大好きです。挨拶しましょう！",
-      "noteReply3": "メッセージありがとうございます！おやつを持ってきたので一緒に食べましょう😊",
+      "noteReply3": "メッセージありがとうございます！おやつを持ってきたので一緒に食べましょう",
       "notePlaceholder": "{ownerName}さんにメッセージを送る...",
       "noteSend": "送信",
       "noteSending": "送信中...",
-      "noteTemplate1": "こんにちは！散歩コースが重なっていますね。わんちゃん同士挨拶しませんか？🐾",
-      "noteTemplate2": "わんちゃんとても可愛いですね！うちの子と気が合いそうです😊",
-      "noteTemplate3": "今どちらへ向かっていますか？匂い交換に行きます！🐕",
-      "noteTemplate4": "今日のお散歩オフ会に参加する予定はありますか？✨",
+      "noteTemplate1": "こんにちは！散歩コースが重なっていますね。わんちゃん同士挨拶しませんか？",
+      "noteTemplate2": "わんちゃんとても可愛いですね！うちの子と気が合いそうです",
+      "noteTemplate3": "今どちらへ向かっていますか？匂い交換に行きます！",
+      "noteTemplate4": "今日のお散歩オフ会に参加する予定はありますか？",
       "edit": "編集する",
       "owner": "ママ/パパ",
       "proActiveSub": "透かしなし4Kカードと無制限翻訳が有効です",
@@ -1417,6 +960,14 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "behaviorWhine": "鳴く",
       "behaviorActive": "活発",
       "behaviorCalm": "安定",
+      "recordingVideo": "3秒動画を録画中... ({sec}秒)",
+      "behaviors": {
+        "bark": { "detail": "警戒吠え・縄張り防衛反応", "signal": "大音量吠え声を検知" },
+        "growl": { "detail": "警告サイン・所有欲反応", "signal": "低周波持続唸り声" },
+        "whine": { "detail": "愛着表現・構ってサイン", "signal": "高周波クーン声を検知" },
+        "active": { "detail": "無声探索・嗅覚主導の移動", "signal": "高モーション＋低音量・探索行動" },
+        "calm": { "detail": "リラックス安定・信頼の絆サイン", "signal": "低モーション＋正常呼吸" }
+      },
       "freqAnalyzing": "リアルタイム周波数分析中",
       "nextTurn": "次へ",
       "analyzing": "分析中",
@@ -1430,173 +981,7 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "mockDogCenterName": "きなこ",
       "mockDogLeftName": "チョコ",
       "mockDogRightName": "ムンチ",
-      "mockGolden": "ゴールデンレトリバー",
-      "mockBori": "ボリ",
-      "mockBoriThought": "\"クンクン… お兄ちゃんのポケットにソーセージ100%!! しっぽプロペラ、回してみる？ \"",
-      "mockBoriBasis": "95%純粋な好意と歓迎（遊びの誘惑）",
-      "afLock": "オートフォーカス",
-      "liveScenarios": {
-        "bark": [
-          {
-            "thought": "誰だ!! 僕の領域から出て行け!! 😠",
-            "behavior": "警戒吠え · 領域防衛",
-            "signal": "持続的な吠え検知",
-            "confidence": 98
-          },
-          {
-            "thought": "早くドア開けて! 外に出たいワン!!",
-            "behavior": "要求吠え · 行動促し",
-            "signal": "断続的な要求吠え検知",
-            "confidence": 98
-          },
-          {
-            "thought": "ご主人様だ!! 僕ここだよワン!!",
-            "behavior": "歓迎吠え · 再会の興奮",
-            "signal": "反復的な吠えパターン",
-            "confidence": 99
-          },
-          {
-            "thought": "変な匂いがする! 気をつけてワン!!",
-            "behavior": "警報吠え · 脅威認識",
-            "signal": "連続的な吠えバースト",
-            "confidence": 94
-          },
-          {
-            "thought": "あの音聞こえた?! 僕に任せて!!",
-            "behavior": "探知吠え · 聴覚刺激反応",
-            "signal": "外部刺激反応の吠え",
-            "confidence": 96
-          }
-        ],
-        "whine": [
-          {
-            "thought": "どこ行くの... 僕を一人にしないで 🥺",
-            "behavior": "分離不安サイン · 愛着表現",
-            "signal": "高周波のクンクン鳴き",
-            "confidence": 96
-          },
-          {
-            "thought": "お腹すいた... お肉ちょうだい...",
-            "behavior": "食欲アピール · 要求表現",
-            "signal": "持続的な高周波発声",
-            "confidence": 94
-          },
-          {
-            "thought": "足の裏が変... 痛いみたい 😢",
-            "behavior": "痛み/不快サイン · 注意喚起",
-            "signal": "低い鳴き声 + 姿勢変化",
-            "confidence": 88
-          },
-          {
-            "thought": "すごく楽しい! 早く散歩行こう!",
-            "behavior": "興奮抑制サイン · 期待感",
-            "signal": "興奮性高周波発声",
-            "confidence": 95
-          },
-          {
-            "thought": "怖い匂い... ぴったりくっついてよう 😰",
-            "behavior": "不安カーミングサイン · 保護要請",
-            "signal": "不安性のクンクン鳴き",
-            "confidence": 91
-          }
-        ],
-        "growl": [
-          {
-            "thought": "近づかないで。ここは僕の場所だ 😤",
-            "behavior": "警告のうなり声 · 領域主張",
-            "signal": "低周波持続うなり検知",
-            "confidence": 98
-          },
-          {
-            "thought": "それ僕の! 触らないで 👀",
-            "behavior": "資源防衛うなり · 所有反応",
-            "signal": "資源前の低周波発声",
-            "confidence": 95
-          },
-          {
-            "thought": "今狩り遊びモードだぞ! ガオー",
-            "behavior": "遊びうなり · 遊びの誘い",
-            "signal": "遊び中の低周波発声",
-            "confidence": 89
-          },
-          {
-            "thought": "なんか気に入らない... 見張ってるぞ 🤨",
-            "behavior": "不満うなり · 不快サイン",
-            "signal": "断続的な低周波うなり",
-            "confidence": 93
-          }
-        ],
-        "active": [
-          {
-            "thought": "何かあるクンクン! 匂い追跡開始!",
-            "behavior": "無声探索 · 嗅覚主導の移動",
-            "signal": "高モーション+低音量 · 探索",
-            "confidence": 95
-          },
-          {
-            "thought": "僕のエリアパトロール中! 異常なし",
-            "behavior": "パトロール歩行 · 領域確認",
-            "signal": "規則的な移動パターン",
-            "confidence": 93
-          },
-          {
-            "thought": "あっちから面白い匂い! 行ってみよう 🎾",
-            "behavior": "自発的移動 · 遊び探索",
-            "signal": "速い移動 + 耳が前方直立",
-            "confidence": 96
-          },
-          {
-            "thought": "走りたい! 全速力でゴーゴー",
-            "behavior": "過剰エネルギー · 運動欲求",
-            "signal": "全身の筋肉緊張+移動反復",
-            "confidence": 97
-          },
-          {
-            "thought": "あっちもこっちも見なきゃ! 大忙し 👀",
-            "behavior": "多方向注意 · 活発な探索",
-            "signal": "速い視線移動 + 体重前方",
-            "confidence": 91
-          }
-        ],
-        "calm": [
-          {
-            "thought": "隣が一番いいな〜 幸せ ☀️",
-            "behavior": "弛緩安定 · 信頼の絆サイン",
-            "signal": "低モーション + 正常呼吸",
-            "confidence": 98
-          },
-          {
-            "thought": "クンクン... 今日お肉食べたね? ",
-            "behavior": "嗅覚環境分析 · 弛緩探索",
-            "signal": "鼻腔拡張 · ゆっくり移動",
-            "confidence": 92
-          },
-          {
-            "thought": "眠い... 目が閉じちゃう 😴",
-            "behavior": "睡眠前の弛緩 · 警戒緩和",
-            "signal": "瞬膜弛緩 + 呼吸が遅い",
-            "confidence": 96
-          },
-          {
-            "thought": "今日の散歩もご飯も完璧だった",
-            "behavior": "満足弛緩 · セロトニン状態",
-            "signal": "尻尾の低いワギング+柔らかい目",
-            "confidence": 99
-          },
-          {
-            "thought": "誰の匂い? 待ってみよう",
-            "behavior": "受動的待機 · 刺激待ち",
-            "signal": "耳側面の傾聴 + 低モーション",
-            "confidence": 90
-          },
-          {
-            "thought": "機嫌良さそう! 僕も嬉しい ",
-            "behavior": "情動同期 · 共感反応",
-            "signal": "視線追跡 + 尻尾の徐行ワギング",
-            "confidence": 94
-          }
-        ]
-      }
+      "afLock": "オートフォーカス"
     },
     "studio": {
       "title": "ペットスタジオ",
@@ -1605,13 +990,13 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "downloadPng": "4コマPNG保存",
       "downloading": "描画中...",
       "postToFeed": "フィードに投稿",
-      "postSuccess": "フィードに正常に投稿されました！🎉",
-      "downloadComplete": "ファイルがダウンロードされました！🎉"
+      "postSuccess": "フィードに正常に投稿されました！",
+      "downloadComplete": "ファイルがダウンロードされました！"
     },
     "radar": {
       "greetingLabel": "挨拶",
-      "greetingEmpty": "こんにちは！よろしくね😊",
-      "title": "ポーレーダー",
+      "greetingEmpty": "こんにちは！よろしくね",
+      "title": "近所のお友達",
       "dogsNearby": "周辺でお散歩中のワンちゃん",
       "startVirtualChat": "ペットトーク",
       "sendNote": "ママ/パパにメッセージ",
@@ -1640,15 +1025,38 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "trialDesc": "7日間100%無料体験 · その後月額980円（いつでも解約可能）",
       "bannerSub": "月額980円 · 透かしなし無制限AI翻訳",
       "storeNotice": "Google Play & App Store 安心定期購読 · 7日以内の解約で請求0円",
-      "successMsg": "Proプランへのご登録ありがとうございます！🐾",
+      "successMsg": "Proプランへのご登録ありがとうございます！",
       "unlimitedAccess": "プレミアム無制限アクセス",
       "proPremium": "WalWal Pro"
     },
     "auth": {
-      "welcomeTitle": "愛犬との対話が始まる場所",
-      "welcomeSub": "WalWalで特別なコミュニケーションを",
+      "welcomeTitle": "AIリアルタイム翻訳機 WalWal",
+      "welcomeSub": "鳴き声としぐさで愛犬の本当の気持ちを届けます",
       "continueApple": "Appleで続ける",
-      "continueGoogle": "Googleで続ける"
+      "continueGoogle": "Googleで続ける",
+      "continueGuest": "ゲストとして開始",
+      "tabLogin": "メールでログイン",
+      "tabSignUp": "新規登録",
+      "emailLabel": "メールアドレス",
+      "emailPlaceholder": "メールアドレス (例: user@walwal.app)",
+      "passwordLabel": "パスワード",
+      "passwordPlaceholder": "パスワード (6文字以上)",
+      "confirmPasswordLabel": "パスワード確認",
+      "confirmPasswordPlaceholder": "パスワード再入力",
+      "loginButton": "ログイン",
+      "signUpButton": "登録完了",
+      "orDivider": "またはソーシャルアカウントで続行",
+      "noAccountPrompt": "アカウントをお持ちでないですか？ 新規登録",
+      "hasAccountPrompt": "すでにアカウントをお持ちですか？ ログイン",
+      "quickDemoTitle": "審査用・テストアカウント高速入力",
+      "quickStandardUser": "一般ユーザーアカウント",
+      "quickAdminUser": "管理者アカウント",
+      "quickNotice": "クリックすると審査用アカウントが自動入力されます。",
+      "passwordMismatch": "パスワードが一致しません。",
+      "invalidEmail": "有効なメールアドレスを入力してください。",
+      "shortPassword": "パスワードは6文字以上である必要があります。",
+      "signUpSuccess": "登録が完了しました！",
+      "loginFailed": "ログインに失敗しました。認証情報を確認してください。"
     },
     "paywall": {
       "title": "WalWal Pro",
@@ -1706,7 +1114,7 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "chatPlaceholder": "{name}としてメッセージ入力...",
       "participantsCountSuffix": "人参加中",
       "mock": {
-        "m1": { "title": "🌙 ソウルの森 夜のクンクン散歩", "location": "ソウルの森 中央芝生広場", "time": "今日の夜 8:30", "tag": "#大型犬歓迎" },
+        "m1": { "title": "ソウルの森 夜のクンクン散歩", "location": "ソウルの森 中央芝生広場", "time": "今日の夜 8:30", "tag": "#大型犬歓迎" },
         "m2": { "title": " コーギー＆短足仲間集まれ！", "location": "トゥクソム漢江公園 ピクニックゾーン", "time": "明日の午後 3:00", "tag": "#短足クラブ" },
         "m3": { "title": " 臆病なもふもふ達の静かな癒し散歩", "location": "サルゴジ橋 散歩道", "time": "日曜日 午前 10:00", "tag": "#小型犬専用" }
       }
@@ -1735,116 +1143,6 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
         "download": "端末に無損失の4K画質で保存されます。",
         "more": "メッセージ、AirDropなど好きなプラットフォームへ転送します。"
       }
-    },
-    "breedQuips": {
-      "golden": {
-        "ko": [
-          "와! 새로운 친구다! 나랑 당장 놀자! 온못으로 환영해!!",
-          "저기 형아 주머니에 소시지 냄새 난다! 꼬리 모터 300% 가동!!"
-        ],
-        "en": [
-          "OMG a new friend! Play with me right now! I love everyone!!",
-          "I smell sausages in your pocket! Tail propeller at 300%!!"
-        ],
-        "ja": [
-          "わぁ！新しいお友達だ！今すぐ一緒に遊ぼう！！",
-          "あのお兄さんのポケットからソーセージの匂いがする！尻尾全開！！"
-        ],
-        "es": [
-          "¡Un nuevo amigo! ¡Juega conmigo ahora mismo! ¡Los amo a todos!",
-          "¡Huelo salchichas en tu bolsillo! ¡Cola a máxima velocidad!"
-        ]
-      },
-      "shiba": {
-        "ko": [
-          "너 나한테 관심 갖지 마라. 꼬리 흔든 건 기분 좋아서가 아니라 반동 추진력이다.",
-          "눈 마주쳤다고 친구 먹을 생각 마. 내 퍼스널 스페이스 2미터 유지해라."
-        ],
-        "en": [
-          "Do not look at me. Wiggling my tail was just recoil propulsion.",
-          "Keep your 6-foot distance. We are not friends just because we made eye contact."
-        ],
-        "ja": [
-          "私に関わるな。尻尾を振ったのは反動の推進力だ。",
-          "目が合ったからって友達気取りするな。2mの距離を保て。"
-        ],
-        "es": [
-          "No me mires. Mover la cola fue solo propulsión de retroceso.",
-          "Mantén tu distancia de 2 metros. No somos amigos solo por cruzar miradas."
-        ]
-      },
-      "maltese": {
-        "ko": [
-          "말티즈는 참지 않아! 집사야 나한테 집중해! 다른 개 쳐다보지 마 앙앙!!",
-          "내가 귀엽다고 만만하게 보지 마라! 내 안에 맹수의 피가 흔른다! 🦁"
-        ],
-        "en": [
-          "Maltese never holds back! Human, focus on ME! Stop looking at other dogs!",
-          "Do not underestimate my cuteness! The blood of a fierce beast runs in me! 🦁"
-        ],
-        "ja": [
-          "マルチーズは我慢しない！ご主人様、私だけに集中して！他の犬を見ないで！",
-          "可愛いからって甘く見るな！私の中には猛獣の血が流れている！🦁"
-        ],
-        "es": [
-          "¡El Maltés no se guarda nada! ¡Humano, mírame solo a mí!",
-          "¡No subestimes mi ternura! ¡Por mis venas corre sangre de fiera! 🦁"
-        ]
-      },
-      "corgi": {
-        "ko": [
-          "다리는 짧아도 내 앉덩이 모터 회전수는 분당 3000RPM이다 씨룩씨룩! ",
-          "다리 길다고 유세 떨지 마라! 내 무게중심이 지구상에서 제일 안정적이다 컹컹!"
-        ],
-        "en": [
-          "My legs may be short, but my booty RPM is 3000 per minute! ",
-          "Do not brag about your long legs! My center of gravity is superior!"
-        ],
-        "ja": [
-          "足は短くてもお尻の回転数は毎分3000回だワン！プリプリ！",
-          "足が長いからって威張るな！私の重心の低さこそ至高！"
-        ],
-        "es": [
-          "¡Mis patas serán cortas, pero mi cola gira a 3000 RPM! ",
-          "¡No presumas de patas largas! ¡Mi centro de gravedad es invencible!"
-        ]
-      },
-      "pome": {
-        "ko": [
-          "나 솜사탕 아니다! 맹수다! 어흥! 비둘기 너 내 구역에서 당장 꺼져 앙앙! 🦁",
-          "내 털 120% 부풀었다! 이 압도적인 사자 갈기에 다들 기절하겠지?! "
-        ],
-        "en": [
-          "I am not cotton candy! I am an apex predator! Pigeon, get off my lawn! 🦁",
-          "My fur expanded by 120%! Kneel before my majestic lion mane! "
-        ],
-        "ja": [
-          "私は綿あめじゃない！猛獣だ！ハトよ、私の縄張りから出て行け！🦁",
-          "毛量が120%膨らんだ！この圧倒的なライオンの鬣にひれ伏すがいい！"
-        ],
-        "es": [
-          "¡No soy un algodón de azúcar! ¡Soy un depredador! ¡Paloma, vete de mi territorio! 🦁",
-          "¡Mi pelaje se infló un 120%! ¡Arrodíllense ante mi melena de león! "
-        ]
-      },
-      "poodle": {
-        "ko": [
-          "집사야 표정보니 지금 죄책감 드는 타이밍이다? 고개 45도 간식 득템 ",
-          "인간들이 날 귀여워하는 패턴을 완벽히 데이터화했다. 완벽한 애교 출력 중!"
-        ],
-        "en": [
-          "Human looks guilty right now. Perfect time for the 45-degree head tilt! Treat acquired ",
-          "I have fully calculated human psychology. Executing optimal cuteness algorithm!"
-        ],
-        "ja": [
-          "ご主人様、今罪悪感を感じてるな？首を45度かしげる技を発動！おやつゲット",
-          "人間が私を可愛いと思うパターンを完全データ化。完璧な愛嬍bを出力中！"
-        ],
-        "es": [
-          "El humano parece culpable. ¡Momento perfecto para inclinar la cabeza 45 grados! Premio conseguido ",
-          "He calculado la psicología humana. ¡Ejecutando algoritmo de ternura!"
-        ]
-      }
     }
   },
   "es": {
@@ -1853,14 +1151,16 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
     "common": {
       "genderShortMale": "M",
       "genderShortFemale": "H",
-      "gpsReceiving": "🛰️ Recibiendo señal GPS..."
+      "gpsReceiving": "Recibiendo señal GPS..."
     },
     "tabs": {
-      "ar": "Pet Tok",
-      "radar": "Radar",
+      "ar": "AR Chat",
+      "nearby": "Cerca",
+      "radar": "Cerca",
+      "snaps": "Fotos",
+      "feed": "Fotos",
       "studio": "Pet Studio",
-      "community": "Paseo",
-      "feed": "Feed",
+      "community": "Encuentros",
       "profile": "Mi Mascota"
     },
     "feed": {
@@ -1869,7 +1169,8 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "noComments": "Aún no hay comentarios",
       "beFirstComment": "Sé el primero en comentar.",
       "commentPlaceholder": "Añadir un comentario...",
-      "deleteComment": "Eliminar comentario"
+      "deleteComment": "Eliminar comentario",
+      "loadingVideo": "Cargando video..."
     },
     "legal": {
       "faqTitle": "Preguntas frecuentes",
@@ -1910,7 +1211,7 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
     "profile": {
       "greetingLabel": "Saludo",
       "greetingPlaceholder": "Ej. ¡Hola! A mi perro le encantan los premios.",
-      "greetingEmpty": "¡Hola! Por favor, registra un saludo 😊",
+      "greetingEmpty": "¡Hola! Por favor, registra un saludo",
       "genderLabel": "Género",
       "genderMale": "Macho (Male)",
       "genderFemale": "Hembra (Female)",
@@ -1963,14 +1264,14 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "noteIntro": "¡Hola! Soy {ownerName}. Estoy paseando con {dogName}({breed}).",
       "noteReply1": "¡Mucho gusto! Estamos caminando cerca de {distance}. ¡Tómate tu tiempo!",
       "noteReply2": "¡Claro! A {dogName} le encanta hacer nuevos amigos. ¡Vamos a saludarnos!",
-      "noteReply3": "¡Gracias por el mensaje! Traje algunos snacks, ¡vamos a compartirlos! 😊",
+      "noteReply3": "¡Gracias por el mensaje! Traje algunos snacks, ¡vamos a compartirlos!",
       "notePlaceholder": "Enviar un mensaje a {ownerName}...",
       "noteSend": "Enviar",
       "noteSending": "Enviando...",
       "noteTemplate1": "¡Hola! Nuestras rutas coinciden, ¿pueden nuestros perros saludarse?",
-      "noteTemplate2": "¡Tu perro es hermoso! Creo que se llevará bien con el mío 😊",
-      "noteTemplate3": "¿Hacia dónde caminan? ¡Iremos a intercambiar olores! 🐕",
-      "noteTemplate4": "¿Te interesa unirte a un encuentro rápido hoy? ✨",
+      "noteTemplate2": "¡Tu perro es hermoso! Creo que se llevará bien con el mío",
+      "noteTemplate3": "¿Hacia dónde caminan? ¡Iremos a intercambiar olores!",
+      "noteTemplate4": "¿Te interesa unirte a un encuentro rápido hoy?",
       "edit": "Editar",
       "owner": "Mamá/Papá",
       "proActiveSub": "Tarjetas 4K sin marca de agua y traducción ilimitada activa",
@@ -2015,6 +1316,14 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "behaviorWhine": "Gemido",
       "behaviorActive": "Activo",
       "behaviorCalm": "Tranquilo",
+      "recordingVideo": "Grabando video de 3s... ({sec}s)",
+      "behaviors": {
+        "bark": { "detail": "Ladrido de Alerta · Defensa Territorial", "signal": "Ladrido de Alto Volumen" },
+        "growl": { "detail": "Señal de Advertencia · Protección", "signal": "Gruñido de Baja Frecuencia" },
+        "whine": { "detail": "Expresión de Afecto · Búsqueda de Atención", "signal": "Gimoteo Agudo Detectado" },
+        "active": { "detail": "Búsqueda Silenciosa · Rastreo Olfativo", "signal": "Alto Movimiento + Bajo Sonido" },
+        "calm": { "detail": "Relajado y Tranquilo · Vínculo de Confianza", "signal": "Bajo Movimiento + Respiración Normal" }
+      },
       "freqAnalyzing": "Analizando frecuencia del ladrido",
       "nextTurn": "Continuar",
       "analyzing": "Analizando",
@@ -2028,173 +1337,7 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "mockDogCenterName": "Injeolmi",
       "mockDogLeftName": "Choco",
       "mockDogRightName": "Moongchi",
-      "mockGolden": "Golden Retriever",
-      "mockBori": "Bori",
-      "mockBoriThought": "\"¡Sniff sniff! ¡100% salchichas en el bolsillo de mi hermano! ¿Enciendo la hélice de la cola? \"",
-      "mockBoriBasis": "95% pura buena voluntad y bienvenida (tentación de juego)",
-      "afLock": "Enfoque Automático",
-      "liveScenarios": {
-        "bark": [
-          {
-            "thought": "¡¿Quién es?! ¡Fuera de mi territorio! 😠",
-            "behavior": "Ladrido de Alerta · Defensa",
-            "signal": "Ladrido Continuo Detectado",
-            "confidence": 98
-          },
-          {
-            "thought": "¡Abre la puerta! ¡Quiero salir!",
-            "behavior": "Ladrido de Demanda · Urgencia",
-            "signal": "Ladrido de Demanda Intermitente",
-            "confidence": 98
-          },
-          {
-            "thought": "¡Mi humano está aquí! ¡Estoy aquí!",
-            "behavior": "Ladrido de Bienvenida · Emoción",
-            "signal": "Patrón de Ladridos Repetidos",
-            "confidence": 99
-          },
-          {
-            "thought": "¡Olor extraño! ¡Cuidado!",
-            "behavior": "Ladrido de Advertencia · Amenaza",
-            "signal": "Ráfaga de Ladridos Continuos",
-            "confidence": 94
-          },
-          {
-            "thought": "¡¿Escuchaste eso?! ¡Déjamelo a mí!",
-            "behavior": "Ladrido de Detección · Respuesta",
-            "signal": "Respuesta a Estímulo Externo",
-            "confidence": 96
-          }
-        ],
-        "whine": [
-          {
-            "thought": "¿A dónde vas...? No me dejes solo 🥺",
-            "behavior": "Ansiedad por Separación",
-            "signal": "Lloriqueo de Alta Frecuencia",
-            "confidence": 96
-          },
-          {
-            "thought": "Hambriento... dame carne...",
-            "behavior": "Apelación de Apetito · Demanda",
-            "signal": "Vocalización Continua Alta",
-            "confidence": 94
-          },
-          {
-            "thought": "Mi pata se siente rara... creo que duele 😢",
-            "behavior": "Dolor/Incomodidad · Atención",
-            "signal": "Lloriqueo Bajo + Cambio Postura",
-            "confidence": 88
-          },
-          {
-            "thought": "¡Qué emoción! ¡Vamos a pasear!",
-            "behavior": "Supresión de Emoción · Anticipación",
-            "signal": "Vocalización Emocionada Alta",
-            "confidence": 95
-          },
-          {
-            "thought": "Olor asustadizo... me quedaré cerca 😰",
-            "behavior": "Calmar Ansiedad · Protección",
-            "signal": "Lloriqueo Ansioso",
-            "confidence": 91
-          }
-        ],
-        "growl": [
-          {
-            "thought": "No te acerques. Este es mi territorio 😤",
-            "behavior": "Gruñido de Advertencia · Territorial",
-            "signal": "Gruñido Continuo Bajo",
-            "confidence": 98
-          },
-          {
-            "thought": "¡Eso es mío! No lo toques 👀",
-            "behavior": "Defensa de Recursos",
-            "signal": "Vocalización Baja en Recurso",
-            "confidence": 95
-          },
-          {
-            "thought": "¡Modo caza activado! Grrr",
-            "behavior": "Gruñido de Juego · Invitación",
-            "signal": "Vocalización Baja en Juego",
-            "confidence": 89
-          },
-          {
-            "thought": "No me gusta esto... te vigilo 🤨",
-            "behavior": "Gruñido de Disgusto · Incómodo",
-            "signal": "Gruñido Bajo Intermitente",
-            "confidence": 93
-          }
-        ],
-        "active": [
-          {
-            "thought": "¡Sniff sniff! ¡Rastreando olor!",
-            "behavior": "Búsqueda Silenciosa · Olfato",
-            "signal": "Alto Movimiento + Bajo Vol",
-            "confidence": 95
-          },
-          {
-            "thought": "¡Patrullando mi área! Todo despejado",
-            "behavior": "Paseo de Patrulla · Revisión",
-            "signal": "Patrón de Movimiento Regular",
-            "confidence": 93
-          },
-          {
-            "thought": "¡Olor divertido! ¡Vamos! 🎾",
-            "behavior": "Movimiento Espontáneo · Juego",
-            "signal": "Movimiento Rápido + Orejas Adelante",
-            "confidence": 96
-          },
-          {
-            "thought": "¡Quiero correr! A toda velocidad",
-            "behavior": "Exceso de Energía · Ejercicio",
-            "signal": "Tensión Corporal + Movimiento",
-            "confidence": 97
-          },
-          {
-            "thought": "¡Revisaré todo! Tan ocupado 👀",
-            "behavior": "Atención Multidireccional",
-            "signal": "Cambio Rápido de Mirada",
-            "confidence": 91
-          }
-        ],
-        "calm": [
-          {
-            "thought": "Junto a ti es lo mejor~ Tan feliz ☀️",
-            "behavior": "Relajado · Señal de Confianza",
-            "signal": "Bajo Movimiento + Respiración Normal",
-            "confidence": 98
-          },
-          {
-            "thought": "Sniff... ¿Comiste carne hoy? ",
-            "behavior": "Análisis Olfativo · Búsqueda",
-            "signal": "Expansión Nasal · Mov Lento",
-            "confidence": 92
-          },
-          {
-            "thought": "Sueño... Mis ojos se cierran 😴",
-            "behavior": "Relajación Pre-sueño",
-            "signal": "Membrana Nictitante Relajada",
-            "confidence": 96
-          },
-          {
-            "thought": "El paseo y comida fueron perfectos",
-            "behavior": "Satisfecho Relajado · Serotonina",
-            "signal": "Movimiento de Cola Bajo + Ojos Suaves",
-            "confidence": 99
-          },
-          {
-            "thought": "¿De quién es este olor? Esperaré",
-            "behavior": "Espera Pasiva · Estímulo",
-            "signal": "Orejas Escuchando + Mov Bajo",
-            "confidence": 90
-          },
-          {
-            "thought": "¡Te ves feliz! Yo también lo estoy ",
-            "behavior": "Sincronización Emocional",
-            "signal": "Seguimiento de Mirada + Cola",
-            "confidence": 94
-          }
-        ]
-      }
+      "afLock": "Enfoque Automático"
     },
     "studio": {
       "title": "Pet Studio",
@@ -2208,8 +1351,8 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
     },
     "radar": {
       "greetingLabel": "Saludo",
-      "greetingEmpty": "¡Hola! Encantado de conocerte 😊",
-      "title": "Paw Radar",
+      "greetingEmpty": "¡Hola! Encantado de conocerte",
+      "title": "Amigos Cercanos",
       "dogsNearby": "Perritos paseando cerca",
       "startVirtualChat": "Pet Tok",
       "sendNote": "Mensaje a Mamá/Papá",
@@ -2240,10 +1383,33 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "storeNotice": "Suscripción segura en Google Play y App Store · 0 € si cancelas en 7 días"
     },
     "auth": {
-      "welcomeTitle": "Donde comienzan las conversaciones",
-      "welcomeSub": "Experimenta momentos especiales con WalWal",
+      "welcomeTitle": "Traductor de IA en Tiempo Real WalWal",
+      "welcomeSub": "Entiende las verdaderas emociones de tu perro con sonidos y gestos",
       "continueApple": "Continuar con Apple",
-      "continueGoogle": "Continuar con Google"
+      "continueGoogle": "Continuar con Google",
+      "continueGuest": "Continuar como Invitado",
+      "tabLogin": "Iniciar sesión con email",
+      "tabSignUp": "Registrarse",
+      "emailLabel": "Correo electrónico",
+      "emailPlaceholder": "Correo (ej: user@walwal.app)",
+      "passwordLabel": "Contraseña",
+      "passwordPlaceholder": "Contraseña (mín. 6 caracteres)",
+      "confirmPasswordLabel": "Confirmar contraseña",
+      "confirmPasswordPlaceholder": "Repetir contraseña",
+      "loginButton": "Iniciar Sesión",
+      "signUpButton": "Completar Registro",
+      "orDivider": "O continuar con red social",
+      "noAccountPrompt": "¿No tienes cuenta? Regístrate",
+      "hasAccountPrompt": "¿Ya tienes cuenta? Inicia sesión",
+      "quickDemoTitle": "Cuentas de prueba para el revisor",
+      "quickStandardUser": "Cuenta de Usuario Estándar",
+      "quickAdminUser": "Cuenta de Administrador",
+      "quickNotice": "Haz clic para autocompletar credenciales enviadas a Google.",
+      "passwordMismatch": "Las contraseñas no coinciden.",
+      "invalidEmail": "Introduce un correo válido.",
+      "shortPassword": "La contraseña debe tener al menos 6 caracteres.",
+      "signUpSuccess": "¡Cuenta creada con éxito!",
+      "loginFailed": "Error de inicio de sesión. Revisa tus credenciales."
     },
     "paywall": {
       "title": "WalWal Pro",
@@ -2257,11 +1423,11 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "terms": "Cancela en cualquier momento."
     },
     "community": {
-      "subtitle": "¡Reúnete con amigos del barrio para un paseo!",
+      "subtitle": "¡Reúnete con amigos del barrio para un encuentro!",
       "alertCreate": "¡Se abrirá la ventana para crear un encuentro!",
       "btnCreate": "Crear Encuentro",
       "host": "Anfitrión",
-      "tabMeetup": "Encuentros de Paseo",
+      "tabMeetup": "Encuentros",
       "tabFeed": "Pensamientos de Perros",
       "hostMom": "Mamá",
       "hostDad": "Papá",
@@ -2270,18 +1436,18 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "directions": "Direcciones",
       "participants": "Participantes",
       "peopleCount": " personas",
-      "filterUpcoming": "Próximos",
-      "filterJoined": "Mis Paseos",
-      "filterPast": "Paseos Pasados",
+      "filterUpcoming": "Encuentros",
+      "filterJoined": "Mis Encuentros",
+      "filterPast": "Encuentros Pasados",
       "joined": "Confirmado",
-      "btnJoin": "Unirse al Paseo",
+      "btnJoin": "Unirse al Encuentro",
       "btnPostComment": "Publicar",
       "placeholderComment": "Añadir un comentario...",
       "btnClose": "Cerrar",
       "modalParticipantsTitle": "Amigos Perros Participantes",
-      "modalCreateTitle": "Crear Reunión de Paseo",
-      "modalTitleLabel": "Título de la Reunión",
-      "modalTitlePlaceholder": "ej. ¡Paseo de fin de semana!",
+      "modalCreateTitle": "Crear Encuentro",
+      "modalTitleLabel": "Título del Encuentro",
+      "modalTitlePlaceholder": "ej. ¡Encuentro en el parque el fin de semana!",
       "modalLocationLabel": "Lugar",
       "modalLocationPlaceholder": "ej. Parque Central",
       "modalTimeLabel": "Fecha y hora",
@@ -2289,8 +1455,8 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "modalTagLabel": "Etiqueta",
       "modalTagPlaceholder": "#PerrosGrandesBienvenidos",
       "modalMaxLabel": "Personas máximas",
-      "modalBtnSubmit": "Crear Reunión",
-      "selectPetTitle": "Seleccionar Perros para el Paseo",
+      "modalBtnSubmit": "Crear Encuentro",
+      "selectPetTitle": "Seleccionar Perros para el Encuentro",
       "selectPetDesc": "Selecciona qué perro(s) participarán en este encuentro. (Selección múltiple)",
       "allPetsBtn": "Todos los perros ({count} en total)",
       "btnJoinWithCount": "Unirse con {count} perro(s)",
@@ -2301,7 +1467,7 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "chatPlaceholder": "Mensaje como {name}...",
       "participantsCountSuffix": "participando",
       "mock": {
-        "m1": { "title": "🌙 Paseo Nocturno Bosque de Seúl", "location": "Césped Central Bosque de Seúl", "time": "Hoy a las 8:30 PM", "tag": "#PerrosGrandesBienvenidos" },
+        "m1": { "title": "Paseo Nocturno Bosque de Seúl", "location": "Césped Central Bosque de Seúl", "time": "Hoy a las 8:30 PM", "tag": "#PerrosGrandesBienvenidos" },
         "m2": { "title": " ¡Club de Patas Cortas!", "location": "Zona de Picnic Río Han", "time": "Mañana a las 3:00 PM", "tag": "#PatasCortas" },
         "m3": { "title": " Paseo Tranquilo para Peludos", "location": "Puente Salgoji", "time": "Domingo a las 10:00 AM", "tag": "#SoloPerrosPequeños" }
       }
@@ -2330,118 +1496,10 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
         "download": "Guardado en el dispositivo en 4K.",
         "more": "Enviar por Mensajes, AirDrop, etc."
       }
-    },
-    "breedQuips": {
-      "golden": {
-        "ko": [
-          "와! 새로운 친구다! 나랑 당장 놀자! 온못으로 환영해!!",
-          "저기 형아 주머니에 소시지 냄새 난다! 꼬리 모터 300% 가동!!"
-        ],
-        "en": [
-          "OMG a new friend! Play with me right now! I love everyone!!",
-          "I smell sausages in your pocket! Tail propeller at 300%!!"
-        ],
-        "ja": [
-          "わぁ！新しいお友達だ！今すぐ一緒に遊ぼう！！",
-          "あのお兄さんのポケットからソーセージの匂いがする！尻尾全開！！"
-        ],
-        "es": [
-          "¡Un nuevo amigo! ¡Juega conmigo ahora mismo! ¡Los amo a todos!",
-          "¡Huelo salchichas en tu bolsillo! ¡Cola a máxima velocidad!"
-        ]
-      },
-      "shiba": {
-        "ko": [
-          "너 나한테 관심 갖지 마라. 꼬리 흔든 건 기분 좋아서가 아니라 반동 추진력이다.",
-          "눈 마주쳤다고 친구 먹을 생각 마. 내 퍼스널 스페이스 2미터 유지해라."
-        ],
-        "en": [
-          "Do not look at me. Wiggling my tail was just recoil propulsion.",
-          "Keep your 6-foot distance. We are not friends just because we made eye contact."
-        ],
-        "ja": [
-          "私に関わるな。尻尾を振ったのは反動の推進力だ。",
-          "目が合ったからって友達気取りするな。2mの距離を保て。"
-        ],
-        "es": [
-          "No me mires. Mover la cola fue solo propulsión de retroceso.",
-          "Mantén tu distancia de 2 metros. No somos amigos solo por cruzar miradas."
-        ]
-      },
-      "maltese": {
-        "ko": [
-          "말티즈는 참지 않아! 집사야 나한테 집중해! 다른 개 쳐다보지 마 앙앙!!",
-          "내가 귀엽다고 만만하게 보지 마라! 내 안에 맹수의 피가 흔른다! 🦁"
-        ],
-        "en": [
-          "Maltese never holds back! Human, focus on ME! Stop looking at other dogs!",
-          "Do not underestimate my cuteness! The blood of a fierce beast runs in me! 🦁"
-        ],
-        "ja": [
-          "マルチーズは我慢しない！ご主人様、私だけに集中して！他の犬を見ないで！",
-          "可愛いからって甘く見るな！私の中には猛獣の血が流れている！🦁"
-        ],
-        "es": [
-          "¡El Maltés no se guarda nada! ¡Humano, mírame solo a mí!",
-          "¡No subestimes mi ternura! ¡Por mis venas corre sangre de fiera! 🦁"
-        ]
-      },
-      "corgi": {
-        "ko": [
-          "다리는 짧아도 내 앉덩이 모터 회전수는 분당 3000RPM이다 씨룩씨룩! ",
-          "다리 길다고 유세 떨지 마라! 내 무게중심이 지구상에서 제일 안정적이다 컹컹!"
-        ],
-        "en": [
-          "My legs may be short, but my booty RPM is 3000 per minute! ",
-          "Do not brag about your long legs! My center of gravity is superior!"
-        ],
-        "ja": [
-          "足は短くてもお尻の回転数は毎分3000回だワン！プリプリ！",
-          "足が長いからって威張るな！私の重心の低さこそ至高！"
-        ],
-        "es": [
-          "¡Mis patas serán cortas, pero mi cola gira a 3000 RPM! ",
-          "¡No presumas de patas largas! ¡Mi centro de gravedad es invencible!"
-        ]
-      },
-      "pome": {
-        "ko": [
-          "나 솜사탕 아니다! 맹수다! 어흥! 비둘기 너 내 구역에서 당장 꺼져 앙앙! 🦁",
-          "내 털 120% 부풀었다! 이 압도적인 사자 갈기에 다들 기절하겠지?! "
-        ],
-        "en": [
-          "I am not cotton candy! I am an apex predator! Pigeon, get off my lawn! 🦁",
-          "My fur expanded by 120%! Kneel before my majestic lion mane! "
-        ],
-        "ja": [
-          "私は綿あめじゃない！猛獣だ！ハトよ、私の縄張りから出て行け！🦁",
-          "毛量が120%膨らんだ！この圧倒的なライオンの鬣にひれ伏すがいい！"
-        ],
-        "es": [
-          "¡No soy un algodón de azúcar! ¡Soy un depredador! ¡Paloma, vete de mi territorio! 🦁",
-          "¡Mi pelaje se infló un 120%! ¡Arrodíllense ante mi melena de león! "
-        ]
-      },
-      "poodle": {
-        "ko": [
-          "집사야 표정보니 지금 죄책감 드는 타이밍이다? 고개 45도 간식 득템 ",
-          "인간들이 날 귀여워하는 패턴을 완벽히 데이터화했다. 완벽한 애교 출력 중!"
-        ],
-        "en": [
-          "Human looks guilty right now. Perfect time for the 45-degree head tilt! Treat acquired ",
-          "I have fully calculated human psychology. Executing optimal cuteness algorithm!"
-        ],
-        "ja": [
-          "ご主人様、今罪悪感を感じてるな？首を45度かしげる技を発動！おやつゲット",
-          "人間が私を可愛いと思うパターンを完全データ化。完璧な愛嬍bを出力中！"
-        ],
-        "es": [
-          "El humano parece culpable. ¡Momento perfecto para inclinar la cabeza 45 grados! Premio conseguido ",
-          "He calculado la psicología humana. ¡Ejecutando algoritmo de ternura!"
-        ]
-      }
     }
-  }
+  },
+  fr: frTranslation,
+  zh: zhTranslation
 };
 
 export function detectUserLanguage(): Language {
@@ -2450,5 +1508,7 @@ export function detectUserLanguage(): Language {
   if (browserLang.startsWith('en')) return 'en';
   if (browserLang.startsWith('ja')) return 'ja';
   if (browserLang.startsWith('es')) return 'es';
+  if (browserLang.startsWith('fr')) return 'fr';
+  if (browserLang.startsWith('zh')) return 'zh';
   return 'ko';
 }

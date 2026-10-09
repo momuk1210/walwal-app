@@ -1,0 +1,639 @@
+/* ==========================================================================
+   CommunityView.css - Community & Walk Meetups Stylesheet
+   ========================================================================== */
+
+/* Top Tab Bar & Filter Row */
+.community-filter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.community-tab-group {
+  display: flex;
+  gap: 8px;
+}
+
+.community-tab-btn {
+  border-radius: 99px;
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+  background: #E2E8F0;
+  color: #4A5568;
+}
+
+.community-tab-btn.active {
+  background: #3b4a5d;
+  color: #FFFFFF;
+}
+
+/* Empty State Card */
+.community-empty-card {
+  padding: 44px 20px;
+  text-align: center;
+  background: #FFFFFF;
+  border-radius: 24px;
+  border: 1px solid #E2E8F0;
+  margin-top: 8px;
+}
+
+.community-empty-icon-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.community-empty-icon-circle {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.community-empty-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #1E293B;
+  margin: 0 0 6px 0;
+}
+
+.community-empty-desc {
+  font-size: 0.85rem;
+  color: #64748B;
+  margin: 0 0 18px 0;
+  line-height: 1.5;
+}
+
+.community-empty-btn-group {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.community-empty-reset-btn {
+  background: #F1F5F9;
+  color: #475569;
+  border: 1px solid #CBD5E1;
+}
+
+.community-empty-create-btn {
+  padding: 8px 16px;
+  font-size: 0.85rem;
+}
+
+/* Meetup Card */
+.meetup-card-top {
+  align-items: flex-start;
+}
+
+.meetup-card-left {
+  align-items: flex-start;
+  flex: 1;
+}
+
+.meetup-host-avatar {
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.2s ease;
+}
+
+.meetup-host-avatar:hover {
+  border-color: #FFB320;
+}
+
+.meetup-host-info-wrap {
+  cursor: pointer;
+}
+
+.meetup-tag-row {
+  align-items: center;
+  width: 100%;
+}
+
+.meetup-badge-group {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.meetup-closed-badge {
+  background: #94A3B8 !important;
+  color: #FFFFFF !important;
+  border: none !important;
+  padding: 2px 8px !important;
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+}
+
+.meetup-host-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.meetup-host-text {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 0;
+}
+
+.meetup-crown-icon {
+  color: #FFB320;
+}
+
+.meetup-menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  color: #718096;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.2s, color 0.2s;
+  background: transparent;
+}
+
+.meetup-menu-btn:hover,
+.meetup-menu-btn.active {
+  background: #F1F5F9;
+  color: #1E293B;
+}
+
+.meetup-card-title {
+  transition: color 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.meetup-card-title:hover {
+  color: #38c5b7;
+}
+
+.meetup-location-time-col {
+  font-size: 0.8rem;
+  color: #4A5568;
+}
+
+.meetup-location-link {
+  text-decoration: underline;
+}
+
+.meetup-card-bottom {
+  align-items: flex-end;
+}
+
+.meetup-facepile-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.meetup-facepile-row {
+  display: flex;
+  cursor: pointer;
+  align-items: center;
+}
+
+.meetup-participant-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #FFFFFF;
+  position: relative;
+}
+
+.meetup-participant-avatar.stacked {
+  margin-left: -10px;
+}
+
+.meetup-participant-more {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid #FFFFFF;
+  margin-left: -10px;
+  z-index: 0;
+  background: #EDF2F7;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #4A5568;
+  position: relative;
+}
+
+.meetup-join-btn {
+  height: fit-content;
+}
+
+.meetup-join-btn.closed {
+  background: #bfc4c9 !important;
+  cursor: not-allowed !important;
+  color: #FFFFFF !important;
+}
+
+/* Modals Shared Styles */
+.modal-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.modal-title-text {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #2D3748;
+  font-weight: 600;
+}
+
+.modal-close-icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modal-label {
+  display: block;
+  font-size: 0.85rem;
+  color: #4A5568;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.modal-input {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #E2E8F0;
+  outline: none;
+  font-size: 0.9rem;
+  color: #2D3748;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.modal-input:focus {
+  border-color: #FFB320;
+}
+
+.modal-datetime-row {
+  display: flex;
+  gap: 8px;
+}
+
+.modal-date-input {
+  flex: 1.2;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #E2E8F0;
+  outline: none;
+  font-size: 0.88rem;
+  background: #FFFFFF;
+  color: #2D3748;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.modal-time-input {
+  flex: 1;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #E2E8F0;
+  outline: none;
+  font-size: 0.88rem;
+  background: #FFFFFF;
+  color: #2D3748;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.modal-datetime-preview {
+  font-size: 0.78rem;
+  color: #FFB320;
+  margin-top: 6px;
+  font-weight: 600;
+}
+
+.modal-two-col {
+  display: flex;
+  gap: 12px;
+}
+
+.modal-two-col>div {
+  flex: 1;
+}
+
+.modal-pet-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.modal-pet-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+  min-width: 56px;
+}
+
+.modal-pet-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid transparent;
+  transition: border-color 0.2s ease;
+}
+
+.modal-pet-avatar.selected {
+  border-color: #FFB320;
+}
+
+.modal-pet-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748B;
+}
+
+.modal-pet-name.selected {
+  color: #1E293B;
+}
+
+.modal-submit-btn {
+  background: #FFB320;
+  color: #FFFFFF;
+  border: none;
+  padding: 14px;
+  border-radius: 14px;
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 8px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.modal-submit-btn:hover {
+  background: #e59f17;
+}
+
+/* Participants Modal Facepile List */
+.participants-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 280px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.participant-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: #F8FAFC;
+  border-radius: 12px;
+}
+
+.participant-avatar-lg {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.participant-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.participant-name-text {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #2D3748;
+}
+
+.participant-breed-text {
+  font-size: 0.75rem;
+  color: #718096;
+}
+
+/* Pet Join Selection Modal */
+.pet-select-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  z-index: 10000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  backdrop-filter: blur(5px);
+}
+
+.pet-select-modal-card {
+  background: #FFFFFF;
+  border-radius: 24px;
+  padding: 24px;
+  width: 100%;
+  max-width: 360px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.pet-select-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.pet-select-title {
+  margin: 0;
+  font-size: 1.15rem;
+  color: #1E293B;
+  font-weight: 600;
+}
+
+.pet-select-subtitle {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  color: #64748B;
+}
+
+.pet-select-close-btn {
+  background: #F1F5F9;
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #64748B;
+}
+
+.pet-select-desc {
+  font-size: 0.85rem;
+  color: #475569;
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+
+.pet-select-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.pet-select-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1.5px solid #E2E8F0;
+  background: #FFFFFF;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pet-select-item.selected {
+  border: 2px solid #FFB320;
+  background: #FFFDF5;
+}
+
+.pet-select-item-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pet-select-item-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #E2E8F0;
+}
+
+.pet-select-item-avatar.selected {
+  border: 2px solid #FFB320;
+}
+
+.pet-select-item-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1E293B;
+}
+
+.pet-select-item-sub {
+  font-size: 0.7rem;
+  color: #64748B;
+}
+
+.pet-select-check-circle {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #E2E8F0;
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.pet-select-check-circle.selected {
+  background: #FFB320;
+}
+
+.pet-select-toggle-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.pet-select-all-btn {
+  flex: 1;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid #E2E8F0;
+  background: #F8FAFC;
+  color: #64748B;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pet-select-all-btn.active {
+  background: #FFF7E6;
+  color: #FFB320;
+}
+
+.pet-select-submit-btn {
+  width: 100%;
+  background: #FFB320;
+  color: #FFFFFF;
+  border: none;
+  padding: 14px;
+  border-radius: 14px;
+  font-size: 0.98rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(255, 179, 32, 0.35);
+}
+
+.pet-select-submit-btn:disabled {
+  background: #CBD5E1;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.filter-custom-date-input {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid #CBD5E1;
+  font-size: 0.88rem;
+  font-family: inherit;
+  color: #1E293B;
+  background: #FFFFFF;
+  outline: none;
+  box-sizing: border-box;
+}

@@ -37,11 +37,11 @@ export const VirtualChatModal: React.FC<VirtualChatModalProps> = ({
       const turns = [
         {
           dog: dog1,
-          text: `근데 너 집사 가방에 닭가슴살 냄새나는 거 나 다 안다. 나눠먹을 생각 없냐? 🤤`
+          text: `근데 너 집사 가방에 닭가슴살 냄새나는 거 나 다 안다. 나눠먹을 생각 없냐?`
         },
         {
           dog: dog2,
-          text: `꿈 깨시바! 우리 집사가 나 약 먹일 때만 주는 귀한 거다 멍멍! 🍖`
+          text: `꿈 깨시바! 우리 집사가 나 약 먹일 때만 주는 귀한 거다 멍멍!`
         },
         {
           dog: dog1,
@@ -85,7 +85,7 @@ export const VirtualChatModal: React.FC<VirtualChatModalProps> = ({
         <div className="row gap-8">
           <Sparkles size={20} color="#FFB320" />
           <div>
-            <h3 className="title-md">{dog1.name} ⚡ {dog2.name} 가상 티키타카</h3>
+            <h3 className="title-md">{dog1.name} & {dog2.name} 가상 티키타카</h3>
             <p className="text-sub">AI가 두 반려견의 성향을 분석해 시뮬레이션한 대화입니다</p>
           </div>
         </div>

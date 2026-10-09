@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import '../models/dog_profile.dart';
 
 class RadarScreen extends StatefulWidget {
   const RadarScreen({super.key});
@@ -15,7 +14,7 @@ class _RadarScreenState extends State<RadarScreen> {
 
   final Set<Marker> _markers = {};
   final Set<Circle> _circles = {};
-  double _radiusMeters = 500.0;
+  final double _radiusMeters = 500.0;
 
   @override
   void initState() {
@@ -24,7 +23,7 @@ class _RadarScreenState extends State<RadarScreen> {
   }
 
   void _initMapDecorations() {
-    // 500m Radius Circle
+    // 500m ë°˜ê²½ ì›
     _circles.add(
       Circle(
         circleId: const CircleId('radar_range'),
@@ -36,21 +35,24 @@ class _RadarScreenState extends State<RadarScreen> {
       ),
     );
 
-    // My Location Marker
+    // ë‚´ ìœ„ì¹˜ ë§ˆì»¤
     _markers.add(
       const Marker(
         markerId: MarkerId('my_location'),
         position: _seoulForestCenter,
-        infoWindow: InfoWindow(title: '³» À§Ä¡ (¼º¼öµ¿ ¼­¿ï½£)'),
+        infoWindow: InfoWindow(title: 'ë‚´ ìœ„ì¹˜ (ì„œìš¸ìˆ² ê´‘ì¥)'),
       ),
     );
 
-    // Dogs Markers
+    // ì£¼ë³€ ê°•ì•„ì§€ ë§ˆì»¤
     _markers.add(
       const Marker(
         markerId: MarkerId('bori'),
         position: LatLng(37.5452, 127.0570),
-        infoWindow: InfoWindow(title: 'º¸¸® (°ñµç ¸®Æ®¸®¹ö)', snippet: '¿Í! »õ·Î¿î Ä£±¸´Ù! ³ª¶û ´çÀå ³îÀÚ! ??'),
+        infoWindow: InfoWindow(
+          title: 'ë³´ë¦¬ (ê³¨ë“  ë¦¬íŠ¸ë¦¬ë²„)',
+          snippet: 'ì•¼í˜¸! í’€ëƒ„ìƒˆ ìµœê³ ì•¼! ì—¬ê¸°ì„œ ë§¤ì¼ ë›°ë†€ê³  ì‹¶ì–´! ',
+        ),
       ),
     );
 
@@ -58,7 +60,10 @@ class _RadarScreenState extends State<RadarScreen> {
       const Marker(
         markerId: MarkerId('peanut'),
         position: LatLng(37.5438, 127.0550),
-        infoWindow: InfoWindow(title: '¶¥Äá (À£½ÃÄÚ±â)', snippet: '´Ù¸®´Â Âª¾Æµµ ³» ¾ûµ¢ÀÌ ¸ğÅÍ´Â 3000RPM! ??'),
+        infoWindow: InfoWindow(
+          title: 'ë•…ì½©ì´ (í¬ë©”ë¼ë‹ˆì•ˆ)',
+          snippet: 'ë‹¤ë“¤ ë¹„ì¼œ! ë‚´ ê¼¬ë¦¬ëª¨í„°ëŠ” ì§€ê¸ˆ 3000RPMì´ì•¼!',
+        ),
       ),
     );
   }
@@ -67,13 +72,15 @@ class _RadarScreenState extends State<RadarScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('¿Ğ¿Ğ ·¹ÀÌ´õ (Google Maps)'),
+        title: const Text('ë™ë„¤ ë ˆì´ë” (Google Maps)'),
         backgroundColor: const Color(0xFF14171E),
         actions: [
           IconButton(
             icon: const Icon(Icons.my_location, color: Color(0xFFFF7E36)),
             onPressed: () {
-              _mapController.animateCamera(CameraUpdate.newLatLng(_seoulForestCenter));
+              _mapController.animateCamera(
+                CameraUpdate.newLatLng(_seoulForestCenter),
+              );
             },
           )
         ],
@@ -102,13 +109,22 @@ class _RadarScreenState extends State<RadarScreen> {
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: const Color(0xFFFF7E36), width: 2),
               ),
-              child: Column(
+              child: const Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text('?? º¸¸® (°ñµç ¸®Æ®¸®¹ö) ¡¤ 85m ÀÎ±Ù', style: TextStyle(color: Color(0xFFFF7E36), fontWeight: FontWeight.bold)),
+                children: [
+                  Text(
+                    'ê·¼ì²˜ ë³´ë¦¬ (ê³¨ë“  ë¦¬íŠ¸ë¦¬ë²„) ì•½ 85m ì ‘ê·¼',
+                    style: TextStyle(
+                      color: Color(0xFFFF7E36),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   SizedBox(height: 6),
-                  Text('"¿Í! »õ·Î¿î Ä£±¸´Ù! ³ª¶û ´çÀå ³îÀÚ! ¿Â¸öÀ¸·Î È¯¿µÇØ!! ??"', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  Text(
+                    '"ì•¼í˜¸! í’€ëƒ„ìƒˆ ìµœê³ ì•¼! ì¹œêµ¬ ëƒ„ìƒˆê°€ ë‚œë‹¤! ì¸ì‚¬í•˜ëŸ¬ ê°ˆê¹Œ?!"',
+                    style: TextStyle(color: Colors.white, fontSize: 14),
+                  ),
                 ],
               ),
             ),

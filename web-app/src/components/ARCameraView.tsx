@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, RefreshCw, Volume2, Share2, ShieldCheck, Zap, Activity, MessageCircle, Send, Video, Play, Pause, Disc, Layers, PlusSquare, Bone, Scan, ScanFace } from 'lucide-react';
+import { Camera, RefreshCw, Volume2, Share2, ShieldCheck, Zap, Activity, MessageCircle, Send, Video, Play, Pause, Disc, Layers, PlusSquare, Bone, Scan, ScanFace, Menu } from 'lucide-react';
 import { BREED_DEFINITIONS, BreedDefinition } from '../data/breedProfiles';
-import { DogProfile, MOCK_DOGS, getMockDogs } from '../data/mockDogs';
+import { DogProfile, MOCK_DOGS, getMockDogs, sanitizePetList } from '../data/mockDogs';
 import { useTranslation } from '../i18n/LanguageContext';
 import { OwnerNoteModal } from './OwnerNoteModal';
-import { generateDogThought } from '../services/aiTranslator';
+import { generateDogThought, LANG_CONFIG } from '../services/aiTranslator';
+import { ollamaService } from '../services/ollamaService';
 import { blobCache } from '../utils/mediaStore';
 import '../styles/ARCameraView.css';
 import confetti from 'canvas-confetti';
@@ -12,8 +13,9 @@ import walwalLogo from '../assets/walwal.svg';
 import walwalWalking from '../assets/walwal-walking.gif';
 
 interface ARCameraViewProps {
-  onCaptureToStory: (dog: any, thought: string, snapshot?: string) => void;
-  onCaptureToFeed?: (dog: any, thought: string, snapshot?: string) => void;
+  onCaptureToStory: (dog: any, thought: string, snapshot?: string, poster?: string) => void;
+  onCaptureToSnaps?: (dog: any, thought: string, snapshot?: string, poster?: string, isVideo?: boolean) => void;
+  onCaptureToFeed?: (dog: any, thought: string, snapshot?: string, poster?: string, isVideo?: boolean) => void;
   interactionPair?: { dog1: any; dog2: any } | null;
   onClearInteractionPair?: () => void;
   isActiveTrigger?: number;
@@ -36,122 +38,12 @@ interface DetectedDogInFrame {
   accentColor: string;
 }
 
-// 삼형제 실시간 비디오 대화 시나리오 턴
-const PACK3_TURNS: { stage: string; dogs: { thought: string; behavior: string; conf: number }[] }[] = [
-  {
-    stage: '1단계: 시선 고정 & 간식 냄새 포착',
-    dogs: [
-      {
-        thought: '오! 주머니에 간식 냄새 킁킁! 🐶',
-        behavior: '귀 32° 전방 직립 · 호기심 96%',
-        conf: 96
-      },
-      {
-        thought: '형아 폼 미쳤다! 내가 제일 먼저 꼬리친다 멍!',
-        behavior: '가슴 활짝 폄 · 리더십 자세 98%',
-        conf: 98
-      },
-      {
-        thought: '얌전히 있으면 간식 떨어지겠지? 헤헤 🤤',
-        behavior: '고개 15° 갸우뚱 · 애교 신호 97%',
-        conf: 97
-      }
-    ]
-  },
-  {
-    stage: '2단계: 카밍 시그널 & 착한 척하기',
-    dogs: [
-      {
-        thought: '앞발 모았으니까 얼른 찍고 간식 줘!',
-        behavior: '앞발런지 교차 · 대기 신호 95%',
-        conf: 95
-      },
-      {
-        thought: '오늘 산책 완벽했지? 꼬리 살랑~',
-        behavior: '꼬리 수평 3.1Hz 와깅 · 호의 99%',
-        conf: 99
-      },
-      {
-        thought: '손이 주머니로 간다! 드디어 나온다 멍!',
-        behavior: '입술 이완 헐떡임 · 기대감 98%',
-        conf: 98
-      }
-    ]
-  },
-  {
-    stage: '3단계: 간식 쟁탈전 & 합동 애교 발사',
-    dogs: [
-      {
-        thought: '형아들 비켜! 간식은 내가 먼저!',
-        behavior: '체중 전방 이동 · 적극 탐색 97%',
-        conf: 97
-      },
-      {
-        thought: '막내야 줄 서! 하나씩 먹어야 착한 댕댕이지!',
-        behavior: '귀 쫑긋 정렬 · 맏형 모드 98%',
-        conf: 98
-      },
-      {
-        thought: '냠냠 최고다 멍! 다 먹고 뛰자!',
-        behavior: '프로펠러 꼬리 와깅 · 극찬 케미 99%',
-        conf: 99
-      }
-    ]
-  }
-];
+import { getLiveDogScenarios, getPack3Turns, DogBehaviorState, LiveScenario } from '../data/arScenarios';
 
-
-// ===== 실시간 강아지 행동+음성 분석 시나리오 =====
-// 행동 상태: bark(짖음) / whine(낑낑) / growl(그로울) / active(활발 조용) / calm(조용 안정)
-type DogBehaviorState = 'bark' | 'whine' | 'growl' | 'active' | 'calm';
-
-interface LiveScenario { thought: string; behavior: string; signal: string; confidence: number }
-
-const LIVE_DOG_SCENARIOS: Record<DogBehaviorState, LiveScenario[]> = {
-  // 짖음 감지 (고음량 + 중저주파 버스트)
-  bark: [
-    { thought: '야!! 거기 누구야! 내 구역이다 멍멍!!', behavior: '경계 짖음 · 영역 방어 반응 97%', signal: '고음량 짖음 감지', confidence: 97 },
-    { thought: '집사 온다!! 나 여기 있어 멍!!', behavior: '환영 짖음 · 재회 흥분 99%', signal: '반복 짖음 패턴 감지', confidence: 99 },
-    { thought: '냄새가 이상해! 조심해 멍멍!!', behavior: '경보 짖음 · 위협 인식 94%', signal: '연속 짖음 버스트 감지', confidence: 94 },
-    { thought: '저 소리 들었어?! 나한테 맡겨 멍!!', behavior: '탐지 짖음 · 청각 자극 반응 96%', signal: '외부 자극 반응 짖음', confidence: 96 },
-    { thought: '빨리 문 열어! 나가고 싶다 멍!!', behavior: '요구 짖음 · 행동 촉구 98%', signal: '간헐적 요구 짖음 감지', confidence: 98 },
-  ],
-  // 낑낑 감지 (중음량 + 고주파)
-  whine: [
-    { thought: '집사 어디 가... 나 혼자 두고 가지마 🥺', behavior: '분리 불안 신호 · 애착 표현 96%', signal: '고주파 낑낑 감지', confidence: 96 },
-    { thought: '배고파... 고기 줘... 꼬르륵 🍖', behavior: '식욕 호소 신호 · 요구 표현 94%', signal: '지속 고주파 발성 감지', confidence: 94 },
-    { thought: '발바닥이 이상해... 아픈 거 같아 😢', behavior: '통증/불편 신호 · 주의 필요 88%', signal: '낮은 낑낑 + 자세 변화', confidence: 88 },
-    { thought: '너무 신나! 빨리 산책 가자 낑낑!', behavior: '흥분 억제 신호 · 기대감 95%', signal: '흥분성 고주파 발성', confidence: 95 },
-    { thought: '무서운 냄새... 집사 옆에 딱 붙어있어야지 😰', behavior: '불안 카밍 신호 · 보호 요청 91%', signal: '불안성 낑낑 발성', confidence: 91 },
-  ],
-  // 그로울 감지 (저음량 + 저주파 지속)
-  growl: [
-    { thought: '가까이 오지 마. 여긴 내 구역이야 😤', behavior: '경고 그로울 · 영역 주장 98%', signal: '저주파 지속 그로울 감지', confidence: 98 },
-    { thought: '저거 내 거야! 건들지 마 👀', behavior: '자원 방어 그로울 · 소유 반응 95%', signal: '자원 앞 저주파 발성', confidence: 95 },
-    { thought: '나 지금 사냥 놀이 모드다! 어흥 🎮', behavior: '플레이 그로울 · 놀이 초대 89%', signal: '플레이 중 저주파 발성', confidence: 89 },
-    { thought: '뭔가 맘에 안 들어... 지켜보고 있다 🤨', behavior: '불만 그로울 · 불쾌 신호 93%', signal: '간헐적 저주파 그로울', confidence: 93 },
-  ],
-  // 활발하게 움직이지만 조용 (모션 높음 + 음량 낮음)
-  active: [
-    { thought: '뭔가 있다 킁킁! 냄새 추적 시작! 🔍', behavior: '무성 탐색 · 후각 주도 이동 95%', signal: '고모션 + 저음량 · 탐색 행동', confidence: 95 },
-    { thought: '내 구역 순찰 중! 이상 무', behavior: '순찰 보행 · 영역 확인 행동 93%', signal: '규칙적 이동 패턴 감지', confidence: 93 },
-    { thought: '저기 꿀잼 냄새! 빨리 가보자 🎾', behavior: '자발적 이동 · 놀이 탐색 96%', signal: '빠른 이동 + 귀 전방 직립', confidence: 96 },
-    { thought: '달리고 싶어! 전속력으로 고고 🏃', behavior: '과잉 에너지 · 운동 욕구 97%', signal: '전신 근육 긴장 + 이동 반복', confidence: 97 },
-    { thought: '여기도 저기도 다 볼 거야! 바쁘다 바빠 👀', behavior: '다방향 주의 · 활발 탐색 91%', signal: '빠른 시선 이동 + 체중 전방', confidence: 91 },
-  ],
-  // 조용하고 안정적 (모션 낮음 + 음량 낮음)
-  calm: [
-    { thought: '집사 옆이 최고야~ 행복해 ☀️', behavior: '이완 안정 · 신뢰 유대 신호 98%', signal: '낮은 모션 + 정상 호흡', confidence: 98 },
-    { thought: '킁킁... 집사 오늘 고기 먹었네? 👃', behavior: '후각 환경 분석 · 이완 탐색 92%', signal: '비강 확장 · 느린 이동', confidence: 92 },
-    { thought: '졸려... 눈이 자꾸 감긴다 😴', behavior: '수면 전 이완 · 경계 완화 96%', signal: '순막 이완 + 호흡 느림', confidence: 96 },
-    { thought: '오늘 산책도 밥도 완벽했다 🍖', behavior: '만족 이완 · 세로토닌 상태 99%', signal: '꼬리 낮은 와깅 + 눈 부드러움', confidence: 99 },
-    { thought: '누구 냄새지? 기다려볼까 ⏳', behavior: '수동 대기 · 자극 기다림 90%', signal: '귀 측면 경청 + 저모션', confidence: 90 },
-    { thought: '집사 기분 좋아보이네! 나도 좋다 🐶', behavior: '정서 동기화 · 공감 반응 94%', signal: '시선 추적 + 꼬리 서행 와깅', confidence: 94 },
-  ]
-};
 
 export const ARCameraView: React.FC<ARCameraViewProps> = ({
   onCaptureToStory,
+  onCaptureToSnaps,
   onCaptureToFeed,
   interactionPair,
   onClearInteractionPair,
@@ -169,7 +61,8 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
   }, [turnIndex]);
   const [isRecording, setIsRecording] = useState<boolean>(true);
   const [recordTime, setRecordTime] = useState<number>(7);
-  const [isCameraLive, setIsCameraLive] = useState<boolean>(true);
+  // 접속 시 자동 권한 팝업 방지: 기본값 false(오프라인/시뮬레이션), 사용자가 버튼 클릭 시에만 켬
+  const [isCameraLive, setIsCameraLive] = useState<boolean>(false);
   const [hasLiveStream, setHasLiveStream] = useState<boolean>(false);
   const [cameraFacingMode, setCameraFacingMode] = useState<'environment' | 'user'>('environment');
   const [zoomLevel, setZoomLevel] = useState<'0.5x' | '1x' | '2x'>('1x');
@@ -181,17 +74,30 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
   const [captureCountdown, setCaptureCountdown] = useState<number>(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
-  const liveScenarios = (t.ar.liveScenarios || LIVE_DOG_SCENARIOS) as Record<DogBehaviorState, LiveScenario[]>;
-  const liveThought = liveScenarios[behaviorState]?.[scenarioIdx] || LIVE_DOG_SCENARIOS.calm[0];
+  const liveScenarios = getLiveDogScenarios(language);
+  const liveThought = liveScenarios[behaviorState]?.[scenarioIdx] || liveScenarios.calm[0];
   const [focusLocked, setFocusLocked] = useState<boolean>(false);
 
   const [aiAnalyzing, setAiAnalyzing] = useState<boolean>(false);
-  const [aiThoughtText, setAiThoughtText] = useState<string>(liveThought.thought);
-  const aiThoughtTextRef = useRef<string>(liveThought.thought);
+  const isAnalyzingRef = useRef<boolean>(false);
+  const consecutiveMissRef = useRef<number>(0);
+  const [aiThoughtText, setAiThoughtText] = useState<string>(() => (LANG_CONFIG[language] || LANG_CONFIG.ko).noDogThought);
+  const [aiEmotionTag, setAiEmotionTag] = useState<string>(() => (LANG_CONFIG[language] || LANG_CONFIG.ko).noDogTag);
+  const [isDogInView, setIsDogInView] = useState<boolean>(false);
+  const aiThoughtTextRef = useRef<string>(aiThoughtText);
+  const [ollamaConnected, setOllamaConnected] = useState<boolean>(false);
 
   useEffect(() => {
     aiThoughtTextRef.current = aiThoughtText;
   }, [aiThoughtText]);
+
+  useEffect(() => {
+    const cfg = LANG_CONFIG[language] || LANG_CONFIG.ko;
+    if (!isDogInView) {
+      setAiThoughtText(cfg.noDogThought);
+      setAiEmotionTag(cfg.noDogTag);
+    }
+  }, [language, isDogInView]);
   const [ownerNoteTarget, setOwnerNoteTarget] = useState<DogProfile | null>(null);
   const [showTargetSelector, setShowTargetSelector] = useState<boolean>(false);
 
@@ -201,13 +107,19 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       const saved = localStorage.getItem('WALWAL_PETS');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed && parsed.length > 0) return parsed[0];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const list = sanitizePetList(parsed, language);
+          return list[0] || getMockDogs(language)[0];
+        }
       }
     } catch (e) { }
     return getMockDogs(language)[0];
   });
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const liveStreamRef = useRef<MediaStream | null>(null);
+  const isMountedRef = useRef<boolean>(true);
+  const isStartingRef = useRef<boolean>(false);
   const simImgRef = useRef<HTMLImageElement | null>(null);
   const trackingCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const prevFrameDataRef = useRef<Uint8ClampedArray | null>(null);
@@ -234,11 +146,11 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
   // 대화 턴 자동 전환 시뮬레이션 (동영상처럼 대화가 살아 움직임)
   useEffect(() => {
     const turnInterval = setInterval(() => {
-      setTurnIndex(prev => (prev + 1) % PACK3_TURNS.length);
+      setTurnIndex(prev => (prev + 1) % (getPack3Turns(language).length || 6));
     }, 6500);
 
     return () => clearInterval(turnInterval);
-  }, []);
+  }, [language]);
 
 
   // 자동 포커스: 가운데(주피사체) 강아지로 자동 포커싱 후 순환
@@ -250,7 +162,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       setTimeout(() => setFocusLocked(false), 1500);
     }, 800);
 
-    // 포커스 대상을 6.5초마다 순환: 가운데 -> 좌 -> 우 -> 가운데
+    // 포커스 대상을 6.3초마다 순환: 가운데 -> 좌 -> 우 -> 가운데
     const focusTargets = [
       { x: 53, y: 47, dogName: t.ar.mockDogCenter },
       { x: 24, y: 56, dogName: t.ar.mockDogLeft },
@@ -422,39 +334,148 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
   }, [isCameraLive]);
 
 
-  // 라이브 모드: 모션/오디오 강도(behaviorState)가 변경될 때만 멘트 갱신 (AI 연동)
+  // 현재 비디오 화면 프레임 캡처 (360px 경량화 & 0.65 JPEG 압축으로 전송 및 비전 분석 시간 대폭 단축)
+  const captureCurrentFrameBase64 = (): string | undefined => {
+    try {
+      const video = videoRef.current;
+      if (video && video.videoWidth > 0 && video.videoHeight > 0) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 360;
+        canvas.height = Math.round((video.videoHeight / video.videoWidth) * 360) || 270;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          return canvas.toDataURL('image/jpeg', 0.65);
+        }
+      }
+      if (!isCameraLive && simImgRef.current && simImgRef.current.naturalWidth > 0) {
+        const img = simImgRef.current;
+        const canvas = document.createElement('canvas');
+        canvas.width = 360;
+        canvas.height = Math.round((img.naturalHeight / img.naturalWidth) * 360) || 270;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          return canvas.toDataURL('image/jpeg', 0.65);
+        }
+      }
+    } catch (e) {
+      console.warn('Frame capture failed:', e);
+    }
+    return undefined;
+  };
+
+  // 로컬 Ollama AI 서버 연결 상태 주기적 확인 (6초 간격)
+  useEffect(() => {
+    let isMounted = true;
+    ollamaService.checkStatus().then(st => {
+      if (isMounted) setOllamaConnected(st.isConnected);
+    });
+
+    const statusInterval = setInterval(() => {
+      ollamaService.checkStatus().then(st => {
+        if (isMounted) setOllamaConnected(st.isConnected);
+      });
+    }, 6000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(statusInterval);
+    };
+  }, []);
+
+  // 라이브 모드: 카메라가 켜지면 실제 화면 프레임 분석
   useEffect(() => {
     if (!isCameraLive) return;
 
-    const len = LIVE_DOG_SCENARIOS[behaviorState].length;
-    setScenarioIdx(Math.floor(Math.random() * len));
-
-    // Gemini AI 호출 로직
     let isCancelled = false;
+    let warmupTimer: any = null;
+
     const fetchAiThought = async () => {
+      if (isCancelled || isAnalyzingRef.current) return;
+      const frameBase64 = captureCurrentFrameBase64();
+      if (!frameBase64) {
+        // 카메라 스트림 로딩 중인 경우 500ms 후 재시도
+        warmupTimer = setTimeout(fetchAiThought, 500);
+        return;
+      }
+
+      isAnalyzingRef.current = true;
       setAiAnalyzing(true);
-
-      const dogName = myDogProfile?.name || '멍멍이';
-      const breed = myDogProfile?.breed || '말티즈';
-      const age = myDogProfile?.age ? parseInt(myDogProfile.age as string, 10) : 3;
-
-      const generatedText = await generateDogThought(dogName, breed, age, behaviorState, language);
-      if (!isCancelled) {
-        setAiThoughtText(generatedText);
-        setAiAnalyzing(false);
+      try {
+        const result = await generateDogThought(language, frameBase64);
+        if (!isCancelled) {
+          if (result.isDogDetected) {
+            consecutiveMissRef.current = 0;
+            setIsDogInView(true);
+            setAiThoughtText(result.thought);
+            setAiEmotionTag(result.tag);
+          } else {
+            consecutiveMissRef.current += 1;
+            setIsDogInView(false);
+            setAiThoughtText(result.thought || (LANG_CONFIG[language] || LANG_CONFIG.ko).noDogThought);
+            setAiEmotionTag(result.tag || (LANG_CONFIG[language] || LANG_CONFIG.ko).noDogTag);
+          }
+        }
+      } catch (err) {
+        console.error('Initial vision thought failed:', err);
+        if (!isCancelled) {
+          setIsDogInView(false);
+          setAiThoughtText((LANG_CONFIG[language] || LANG_CONFIG.ko).noDogThought);
+          setAiEmotionTag((LANG_CONFIG[language] || LANG_CONFIG.ko).noDogTag);
+        }
+      } finally {
+        isAnalyzingRef.current = false;
+        if (!isCancelled) setAiAnalyzing(false);
       }
     };
 
-    // 딜레이를 주어 너무 잦은 API 호출 방지
-    const timer = setTimeout(() => {
-      fetchAiThought();
-    }, 500);
+    // 카메라 켜지고 400ms 후 첫 프레임 분석 시도
+    warmupTimer = setTimeout(fetchAiThought, 400);
 
     return () => {
       isCancelled = true;
-      clearTimeout(timer);
+      if (warmupTimer) clearTimeout(warmupTimer);
     };
-  }, [isCameraLive, behaviorState, language, myDogProfile]);
+  }, [isCameraLive, language]);
+
+  // 카메라가 켜져 있는 동안 4.2초 주기로 실제 화면 연속 실시간 비전 분석
+  useEffect(() => {
+    if (!isCameraLive) return;
+
+    const liveLoop = setInterval(async () => {
+      if (isAnalyzingRef.current) return;
+      const frameBase64 = captureCurrentFrameBase64();
+      if (!frameBase64) return;
+
+      isAnalyzingRef.current = true;
+      setAiAnalyzing(true);
+      try {
+        const result = await generateDogThought(language, frameBase64);
+        if (result.isDogDetected) {
+          consecutiveMissRef.current = 0;
+          setIsDogInView(true);
+          setAiThoughtText(result.thought);
+          setAiEmotionTag(result.tag);
+        } else {
+          consecutiveMissRef.current += 1;
+          setIsDogInView(false);
+          setAiThoughtText(result.thought || (LANG_CONFIG[language] || LANG_CONFIG.ko).noDogThought);
+          setAiEmotionTag(result.tag || (LANG_CONFIG[language] || LANG_CONFIG.ko).noDogTag);
+        }
+      } catch (e) {
+        console.error('Live loop vision error:', e);
+        setIsDogInView(false);
+        setAiThoughtText((LANG_CONFIG[language] || LANG_CONFIG.ko).noDogThought);
+        setAiEmotionTag((LANG_CONFIG[language] || LANG_CONFIG.ko).noDogTag);
+      } finally {
+        isAnalyzingRef.current = false;
+        setAiAnalyzing(false);
+      }
+    }, 4200);
+
+    return () => clearInterval(liveLoop);
+  }, [isCameraLive, language]);
 
   // 뷰파인더 탭 시 해당 위치로 포커스 이동
   const handleViewfinderTap = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -467,114 +488,286 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
   };
 
 
+  const stopLiveCamera = () => {
+    if (liveStreamRef.current) {
+      liveStreamRef.current.getTracks().forEach(t => {
+        try { t.stop(); } catch (e) { }
+      });
+      liveStreamRef.current = null;
+    }
+    if (videoRef.current && videoRef.current.srcObject) {
+      const s = videoRef.current.srcObject as MediaStream;
+      if (s && s.getTracks) {
+        s.getTracks().forEach(t => {
+          try { t.stop(); } catch (e) { }
+        });
+      }
+      videoRef.current.srcObject = null;
+    }
+    if ((window as any).__WALWAL_CAMERA_STREAM__) {
+      const gStream = (window as any).__WALWAL_CAMERA_STREAM__ as MediaStream;
+      gStream.getTracks().forEach(t => {
+        try { t.stop(); } catch (e) { }
+      });
+      (window as any).__WALWAL_CAMERA_STREAM__ = null;
+    }
+    setHasLiveStream(false);
+  };
+
   const startLiveCamera = async () => {
+    if (isStartingRef.current) return;
+    isStartingRef.current = true;
+
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         setHasLiveStream(false);
         return;
       }
+
+      const isCameraAllowed = localStorage.getItem('WALWAL_PERM_CAMERA') !== 'false';
+      if (!isCameraAllowed) {
+        stopLiveCamera();
+        setIsCameraLive(false);
+        return;
+      }
+
+      const isMicAllowed = localStorage.getItem('WALWAL_PERM_MIC') === 'true';
+
+      // 이전 스트림이 있으면 먼저 트랙 정지하여 디바이스 충돌 방지
+      stopLiveCamera();
+
       let stream: MediaStream | null = null;
+
       try {
-        // 1순위: 모바일 환경 후면 카메라 우선 (ideal)
+        // 1순위: 지정된 facingMode + 마이크(isMicAllowed) 동시 요청 (단 1번의 브라우저 팝업 후 영구 허용)
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: cameraFacingMode } },
-          audio: false
+          video: { facingMode: cameraFacingMode },
+          audio: isMicAllowed
         });
       } catch (e1) {
         try {
-          // 2순위: PC/노트북 웹캠 또는 기본 카메라 폴백
+          // 2순위: 마이크 없는 환경 또는 마이크 거부 시 비디오 단독 (facingMode)
           stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
+            video: { facingMode: cameraFacingMode },
             audio: false
           });
         } catch (e2) {
-          console.log('No physical camera or permission denied:', e2);
+          try {
+            // 3순위: 기본 비디오 폴백 (facingMode 없는 기본 웹캠/카메라)
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: true,
+              audio: false
+            });
+          } catch (e3) {
+            console.log('No physical camera or permission denied:', e3);
+          }
         }
       }
 
+      if (!isMountedRef.current) {
+        if (stream) stream.getTracks().forEach(t => t.stop());
+        return;
+      }
+
       if (stream && videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play().catch(err => console.log('Video play error:', err));
+        liveStreamRef.current = stream;
+        (window as any).__WALWAL_CAMERA_STREAM__ = stream;
+        const v = videoRef.current;
+        v.muted = true;
+        (v as any).defaultMuted = true;
+        v.playsInline = true;
+        v.srcObject = stream;
+
+        try {
+          await v.play();
+        } catch (playErr) {
+          console.log('Video auto-play delayed/prevented:', playErr);
+        }
+
         setHasLiveStream(true);
         setIsCameraLive(true);
+
+        // 오디오 트랙이 있고 마이크 허용 상태이면 실시간 음성 레벨 분석 연결
+        const audioTracks = stream.getAudioTracks();
+        if (audioTracks.length > 0 && isMicAllowed) {
+          try {
+            const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+            if (AudioCtx) {
+              const audioCtx = new AudioCtx();
+              audioCtxRef.current = audioCtx;
+              const source = audioCtx.createMediaStreamSource(stream);
+              const analyser = audioCtx.createAnalyser();
+              analyser.fftSize = 64;
+              analyserRef.current = analyser;
+              source.connect(analyser);
+              const dataArray = new Uint8Array(analyser.frequencyBinCount);
+              const updateAudio = () => {
+                if (!isMountedRef.current || !audioCtxRef.current) return;
+                analyser.getByteFrequencyData(dataArray);
+                let sum = 0;
+                for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+                const avg = sum / dataArray.length;
+                setAudioLevel(Math.min(100, Math.max(10, Math.round(avg * 1.5))));
+                requestAnimationFrame(updateAudio);
+              };
+              updateAudio();
+            }
+          } catch (err) {
+            console.warn('Audio analyzer error:', err);
+          }
+        }
       } else {
         setHasLiveStream(false);
       }
-
-      // 마이크 오디오 분석기 시작
-      try {
-        const micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        audioStreamRef.current = micStream;
-        const ctx = new AudioContext();
-        audioCtxRef.current = ctx;
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 256;
-        analyser.smoothingTimeConstant = 0.6;
-        const src = ctx.createMediaStreamSource(micStream);
-        src.connect(analyser);
-        analyserRef.current = analyser;
-      } catch (micErr) {
-        console.log('Mic not available, motion-only analysis:', micErr);
+    } catch (err: any) {
+      console.log('Camera initialization error:', err);
+      if (isMountedRef.current) {
+        setHasLiveStream(false);
       }
-    } catch (err) {
-      console.log('Camera permission or device not ready, live simulation active:', err);
-      setHasLiveStream(false);
+    } finally {
+      isStartingRef.current = false;
     }
   };
 
   const toggleRealCamera = async () => {
     if (isCameraLive) {
-      // 카메라 트랙을 끄지 않고 상태만 오프라인으로 변경 (블러 처리된 배경 유지를 위함)
       setIsCameraLive(false);
+      localStorage.setItem('WALWAL_PERM_CAMERA', 'false');
+      stopLiveCamera();
     } else {
       setIsCameraLive(true);
-      if (!videoRef.current?.srcObject) {
-        await startLiveCamera();
-      }
+      localStorage.setItem('WALWAL_PERM_CAMERA', 'true');
+      await startLiveCamera();
     }
   };
 
-  // 컴포넌트 마운트 시 실시간 카메라 자동 활성화
+  // 설정(SettingsView)에서 권한 토글 시 즉시 카메라/마이크 제어
   useEffect(() => {
+    const handlePermUpdate = (e: any) => {
+      const permType = e?.detail?.type;
+      const permValue = e?.detail?.value;
+
+      if (permType === 'camera') {
+        const nextLive = permValue !== undefined ? Boolean(permValue) : localStorage.getItem('WALWAL_PERM_CAMERA') === 'true';
+        setIsCameraLive(nextLive);
+        if (!nextLive) {
+          stopLiveCamera();
+        } else {
+          startLiveCamera();
+        }
+      } else if (permType === 'mic') {
+        const micOn = permValue !== undefined ? Boolean(permValue) : localStorage.getItem('WALWAL_PERM_MIC') === 'true';
+        if (!micOn) {
+          // 마이크 즉시 중단 및 레벨 리셋
+          if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+            audioCtxRef.current.close().catch(() => {});
+            audioCtxRef.current = null;
+          }
+          if (audioStreamRef.current) {
+            audioStreamRef.current.getTracks().forEach(t => t.stop());
+            audioStreamRef.current = null;
+          }
+          setAudioLevel(0);
+        } else if (isCameraLive) {
+          // 카메라가 켜져 있을 때 마이크 켜면 스트림 갱신
+          startLiveCamera();
+        }
+      } else {
+        // 일반 storage 이벤트
+        const cameraOn = localStorage.getItem('WALWAL_PERM_CAMERA') === 'true';
+        setIsCameraLive(cameraOn);
+        if (!cameraOn) {
+          stopLiveCamera();
+        } else if (isCameraLive) {
+          startLiveCamera();
+        }
+      }
+    };
+
+    window.addEventListener('walwal_permissions_updated', handlePermUpdate);
+    window.addEventListener('storage', handlePermUpdate);
+
+    return () => {
+      window.removeEventListener('walwal_permissions_updated', handlePermUpdate);
+      window.removeEventListener('storage', handlePermUpdate);
+    };
+  }, [cameraFacingMode, isCameraLive]);
+
+  // 컴포넌트 마운트 및 facingMode 변경 시 처리 (기본 항상 켬)
+  useEffect(() => {
+    isMountedRef.current = true;
     if (interactionPair) {
       setAnglePreset('pack3');
     }
-    startLiveCamera();
+    // 마운트 시 자동 카메라 시작 원천 차단 (오직 이미 켜진 상태에서 전면/후면 전환 시에만 재시작)
+    if (isCameraLive && liveStreamRef.current) {
+      startLiveCamera();
+    }
+
+    window.addEventListener('beforeunload', stopLiveCamera);
 
     // cleanup
     return () => {
-      if (videoRef.current?.srcObject) {
-        const stream = videoRef.current.srcObject as MediaStream;
-        stream.getTracks().forEach(t => t.stop());
+      window.removeEventListener('beforeunload', stopLiveCamera);
+      isMountedRef.current = false;
+      stopLiveCamera();
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getTracks().forEach(t => t.stop());
+        audioStreamRef.current = null;
       }
-      if (audioCtxRef.current) audioCtxRef.current.close();
+      if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+        audioCtxRef.current.close().catch(() => { });
+        audioCtxRef.current = null;
+      }
     };
-  }, [cameraFacingMode]);
+  }, [cameraFacingMode, isCameraLive]);
 
-  // 하단 탭을 다시 클릭했을 때 카메라 상태 토글
+  // 하단 탭(AR톡) 클릭 시 이미 켜져 있는 카메라 스트림만 복원
   useEffect(() => {
-    if (isActiveTrigger && isActiveTrigger > 0) {
-      setIsCameraLive(prev => {
-        const nextState = !prev;
-        if (nextState && !videoRef.current?.srcObject) {
-          setTimeout(() => startLiveCamera(), 0);
-        }
-        return nextState;
-      });
+    if (isActiveTrigger && isActiveTrigger > 0 && isCameraLive && liveStreamRef.current) {
+      if (!hasLiveStream || !videoRef.current?.srcObject) {
+        startLiveCamera();
+      }
     }
-  }, [isActiveTrigger]);
+  }, [isActiveTrigger, isCameraLive]);
 
   const formatRecordTime = (sec: number) => {
     const mins = Math.floor(sec / 60);
     const secs = sec % 60;
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
-  const currentTurn = PACK3_TURNS[turnIndex];
+  const packTurns = getPack3Turns(language);
+  const currentTurn = packTurns[turnIndex % packTurns.length] || packTurns[0];
+  // 화면 및 카메라 실제 앵글에 따른 동적 가로/세로 해상도 계산 (1280x720 vs 720x1280)
+  const getCaptureDimensions = () => {
+    const isScreenLandscape = window.innerWidth > window.innerHeight;
+    const container = typeof document !== 'undefined' ? document.querySelector('.ar-camera-container') : null;
+    const isContainerLandscape = container ? container.clientWidth > container.clientHeight : false;
 
-  // 캔버스에 9:16 영상/사진 배경 + 실시간 AI 행동 분석 말풍선 합성
+    // 모바일 환경 체크 (너비 < 600px 이고 세로 화면인 경우 무조건 세로)
+    const isMobilePortrait = window.innerWidth < 600 && window.innerWidth < window.innerHeight;
+
+    let isLandscape = false;
+    if (isMobilePortrait) {
+      isLandscape = false;
+    } else if (isScreenLandscape || isContainerLandscape) {
+      isLandscape = true;
+    } else if (hasLiveStream && videoRef.current && videoRef.current.videoWidth > 0 && videoRef.current.videoHeight > 0) {
+      const v = videoRef.current;
+      isLandscape = v.videoWidth > v.videoHeight && window.innerWidth >= 600;
+    }
+
+    if (isLandscape) {
+      return { width: 1280, height: 720, isLandscape: true };
+    }
+    return { width: 720, height: 1280, isLandscape: false };
+  };
+
+  // 캔버스에 가로/세로 영상/사진 배경 + 실시간 AI 행동 분석 말풍선 합성
   const drawFrameWithBubble = (context: CanvasRenderingContext2D, cWidth: number, cHeight: number, elapsedSec: number = 0) => {
-    const activeTurn = PACK3_TURNS[turnIndexRef.current] || PACK3_TURNS[0];
-    const s = cWidth / 400;
+    const activeTurn = packTurns[turnIndexRef.current % packTurns.length] || packTurns[0];
+    const isLandscape = cWidth > cHeight;
+    const s = (isLandscape ? cHeight : cWidth) / 400;
 
     // 1. 배경 비디오를 9:16 캔버스에 맞춰 object-fit: cover 비율로 크롭하여 그리기
     if (hasLiveStream && videoRef.current && videoRef.current.readyState >= 2 && videoRef.current.videoWidth > 0) {
@@ -720,7 +913,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       context.textAlign = 'left';
       context.textBaseline = 'top';
       const maxBottomLeftW = maxTextW * 0.55;
-      context.fillText(`🧬 ${behaviorDetail}`, bubbleX + padX, currY, maxBottomLeftW);
+      context.fillText(behaviorDetail, bubbleX + padX, currY, maxBottomLeftW);
 
       context.fillStyle = '#718096';
       context.textAlign = 'right';
@@ -737,33 +930,35 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
 
       // Left Dog (Index 0)
       drawBubble(
-        activeTurn.dogs[0].thought, activeTurn.dogs[0].behavior, activeTurn.dogs[0].behavior, '이완 안정', activeTurn.dogs[0].conf,
+        activeTurn.dogs[0].thought, activeTurn.dogs[0].behavior, activeTurn.dogs[0].behavior, t.ar.behaviorCalm || '이완 안정', activeTurn.dogs[0].conf,
         cWidth * 0.04, cHeight * 0.11 + floatY1, w, '#FFB320', (t.ar.mockDogLeftName || '') + (t.ar.speechSuffix || '')
       );
 
       // Right Dog (Index 2)
       drawBubble(
-        activeTurn.dogs[2].thought, activeTurn.dogs[2].behavior, activeTurn.dogs[2].behavior, '경계 호기심', activeTurn.dogs[2].conf,
+        activeTurn.dogs[2].thought, activeTurn.dogs[2].behavior, activeTurn.dogs[2].behavior, t.ar.behaviorActive || '경계 호기심', activeTurn.dogs[2].conf,
         cWidth * 0.51, cHeight * 0.13 + floatY3, w, '#FFBF00', (t.ar.mockDogRightName || '') + (t.ar.speechSuffix || '')
       );
 
       // Center Dog (Index 1)
       drawBubble(
-        activeTurn.dogs[1].thought, activeTurn.dogs[1].behavior, activeTurn.dogs[1].behavior, '높은 친밀감', activeTurn.dogs[1].conf,
+        activeTurn.dogs[1].thought, activeTurn.dogs[1].behavior, activeTurn.dogs[1].behavior, t.ar.behaviorCalm || '높은 친밀감', activeTurn.dogs[1].conf,
         cWidth * 0.27, cHeight * 0.05 + floatY2, w, '#2EC4B6', (t.ar.mockDogCenterName || '') + (t.ar.speechSuffix || '')
       );
     } else {
       const floatY = elapsedSec > 0 ? Math.sin(elapsedSec * (Math.PI * 2 / 2.8)) * (7 * s) : 0;
       const targetThought = isCameraLive ? aiThoughtTextRef.current : activeTurn.dogs[1].thought;
-      const targetBehavior = isCameraLive ? liveThought.behavior : '이완 안정 · 신뢰 유대 신호';
-      const targetSignal = isCameraLive ? liveThought.signal : '낮은 모션 + 정상 호흡';
-      const targetConfidence = isCameraLive ? liveThought.confidence : 98;
+      const behaviorObj = (t.ar.behaviors as any)?.[behaviorState] || (t.ar.behaviors as any)?.calm;
+      const targetConfidence = isCameraLive ? (liveThought.confidence || 95) : 98;
+      const targetBehavior = behaviorObj ? `${behaviorObj.detail} ${targetConfidence}%` : (isCameraLive ? liveThought.behavior : '이완 안정 · 신뢰 유대 신호');
+      const targetSignal = behaviorObj ? behaviorObj.signal : (isCameraLive ? liveThought.signal : '낮은 모션 + 정상 호흡');
       const behaviorTagText = behaviorState === 'bark' ? t.ar.behaviorBark : behaviorState === 'growl' ? t.ar.behaviorGrowl : behaviorState === 'whine' ? t.ar.behaviorWhine : behaviorState === 'active' ? t.ar.behaviorActive : t.ar.behaviorCalm;
       const behaviorColor = behaviorState === 'bark' ? '#EF4444' : behaviorState === 'growl' ? '#8B5CF6' : behaviorState === 'whine' ? '#3B82F6' : behaviorState === 'active' ? '#EAB308' : '#22C55E';
 
+      const maxBubbleW = isLandscape ? Math.min(cWidth * 0.65, 560 * (s / 1.8)) : cWidth * 0.82;
       drawBubble(
         targetThought, behaviorTagText, targetBehavior, targetSignal, targetConfidence,
-        (cWidth - cWidth * 0.82) / 2, cHeight * 0.08 + floatY, cWidth * 0.82, behaviorColor, t.ar.realtimeAI
+        (cWidth - maxBubbleW) / 2, cHeight * 0.08 + floatY, maxBubbleW, behaviorColor, t.ar.realtimeAI
       );
     }
   };
@@ -786,9 +981,18 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
             />
           </div>
 
-          {/* 우측: Pet Translator & Companion 타이틀 */}
-          <div className="walwal-info">
-            {t.ar.petTranslator}
+          {/* 우측: Pet Translator & Companion 타이틀 & 전체서비스 햄버거 버튼 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="walwal-info">
+              {t.ar.petTranslator}
+            </div>
+            <button
+              className="all-services-header-btn"
+              onClick={() => window.dispatchEvent(new CustomEvent('walwal_open_all_services'))}
+              aria-label="전체서비스"
+              title="전체서비스" >
+              <Menu size={24} color="#1E293B" />
+            </button>
           </div>
         </div>
       </div>
@@ -796,77 +1000,45 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       {/* 둥근 카드 스타일의 카메라 컨테이너 */}
       <div className="ar-camera-container" onClick={handleViewfinderTap}>
 
-        {/* 5초 녹화 중 상태 배지 */}
+        {/* 3초 녹화 중 상태 배지 */}
         {isCapturingVideo && (
-          <div style={{
-            position: 'absolute',
-            top: '16px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 1100,
-            background: 'rgba(239, 68, 68, 0.92)',
-            backdropFilter: 'blur(8px)',
-            color: '#fff',
-            padding: '7px 16px',
-            borderRadius: '20px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            fontWeight: 700,
-            fontSize: '0.82rem',
-            boxShadow: '0 4px 16px rgba(239, 68, 68, 0.4)',
-            pointerEvents: 'none'
-          }}>
-            <div style={{ width: '10px', height: '10px', background: '#fff', borderRadius: '50%' }} />
-            <span>5초 비디오 녹화 중... ({captureCountdown > 0 ? captureCountdown : 1}s)</span>
+          <div className="ar-recording-badge">
+            <div className="ar-recording-dot" />
+            <span>
+              {(t.ar.recordingVideo || '3초 비디오 녹화 중... ({sec}s)').replace('{sec}', String(captureCountdown > 0 ? captureCountdown : 1))}
+            </span>
           </div>
         )}
 
         {/* 카메라 비디오 & 시뮬레이션 배경 레이어 (줌 뷰포트 확대 적용) */}
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          filter: isCameraLive ? 'none' : 'blur(8px) brightness(0.6)',
-          transform: zoomLevel === '2x' ? 'scale(1.6)' : zoomLevel === '0.5x' ? 'scale(1)' : 'scale(1.2)',
-          transition: 'transform 0.3s ease, filter 0.5s ease',
-          pointerEvents: 'none'
-        }}>
+        <div className={`ar-viewport-layer zoom-${zoomLevel.replace('.', '')} ${!isCameraLive ? 'offline' : ''}`}>
           {/* 웹캠 미연결 또는 로딩 시 표시되는 강아지 시뮬레이션 배경 */}
           <img
             ref={simImgRef}
-            src="/three_dogs_camera.jpg"
+            src="/three_dogs_camera.png"
             alt="Dog Camera Simulation"
-            style={{
-              position: 'absolute',
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              display: hasLiveStream ? 'none' : 'block'
-            }}
+            className={`ar-sim-bg ${hasLiveStream ? 'is-live' : ''}`}
           />
 
           {/* 실제 웹캠 비디오 */}
           <video
             ref={videoRef}
+            autoPlay
             playsInline
             muted
-            style={{
-              position: 'absolute',
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              display: hasLiveStream ? 'block' : 'none'
+            onLoadedMetadata={() => {
+              videoRef.current?.play().catch(() => { });
             }}
+            onCanPlay={() => {
+              setHasLiveStream(true);
+              setIsCameraLive(true);
+            }}
+            className={`ar-webcam-video ${hasLiveStream ? 'is-live' : ''}`}
           />
         </div>
 
         {/* ================= AR HUD 및 말풍선 오버레이 레이어 (1:1 픽셀 정확한 상단 배치) ================= */}
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          pointerEvents: 'none',
-          zIndex: 30
-        }}>
+        <div className="ar-overlay-layer">
           {/* ================= AF 포커스 링 오버레이 ================= */}
           {focusTarget.active && (
             <div
@@ -888,7 +1060,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
               {/* AF Label */}
               {focusLocked && (
                 <div className="af-label">
-                  ● AF 포커스 잠금
+                  {t.ar.afLocked || '● AF 포커스 잠금'}
                 </div>
               )}
             </div>
@@ -897,111 +1069,58 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
           {/* ================= 3. 카메라 앵글 속 강아지 머리 위 실시간 AR 말풍선 ================= */}
           {/* 다중 강아지(pack3/교감 모드) 오버레이 표시 */}
           {anglePreset === 'pack3' && (
-            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 35 }}>
+            <div className="ar-pack3-container">
 
               {/* Left Dog Speech Bubble (머리 바로 위) */}
-              <div style={{
-                position: 'absolute',
-                left: '4%',
-                top: '11%',
-                width: '38%',
-                pointerEvents: 'auto',
-                animation: 'floatBubble 3s ease-in-out infinite'
-              }}>
+              <div className="ar-dog-bubble-left">
                 <div className="ar-speech-bubble">
-                  <div style={{ fontSize: '0.65rem', fontWeight: 600, color: '#FFB320', marginBottom: '2px' }}>
+                  <div className="ar-bubble-speaker left">
                     {t.ar.mockDogLeftName}{t.ar.speechSuffix}
                   </div>
-                  <div style={{ fontSize: '0.74rem', fontWeight: 700, color: '#2D3748', lineHeight: 1.3, marginBottom: '4px' }}>
-                    "{t.ar.mockTurns?.[turnIndex]?.dogs[0]?.thought || currentTurn.dogs[0].thought}"
+                  <div className="ar-bubble-thought">
+                    "{currentTurn.dogs[0].thought}"
                   </div>
-                  <div style={{ fontSize: '0.55rem', color: '#718096', background: 'rgba(255,126,54,0.15)', padding: '2px 5px', borderRadius: '4px' }}>
-                    🧬 {t.ar.mockTurns?.[turnIndex]?.dogs[0]?.behavior || currentTurn.dogs[0].behavior}
+                  <div className="ar-bubble-behavior left">
+                    {currentTurn.dogs[0].behavior}
                   </div>
                   {/* Pointer Arrow */}
-                  <div style={{
-                    position: 'absolute',
-                    bottom: '-8px',
-                    left: '60%',
-                    width: 0,
-                    height: 0,
-                    borderLeft: '7px solid transparent',
-                    borderRight: '7px solid transparent',
-                    borderTop: '8px solid #FFB320'
-                  }} />
+                  <div className="ar-bubble-pointer left" />
                 </div>
               </div>
 
 
               {/* Center Dog Speech Bubble (머리 바로 위) */}
-              <div style={{
-                position: 'absolute',
-                left: '31%',
-                top: '7%',
-                width: '38%',
-                pointerEvents: 'auto',
-                animation: 'floatBubble 3.2s ease-in-out infinite'
-              }}>
-                <div className="ar-speech-bubble" style={{
-                  border: '2px solid #2EC4B6',
-                }}>
-                  <div style={{ fontSize: '0.65rem', fontWeight: 600, color: '#2EC4B6', marginBottom: '2px' }}>
+              <div className="ar-dog-bubble-center">
+                <div className="ar-speech-bubble center">
+                  <div className="ar-bubble-speaker center">
                     {t.ar.mockDogCenterName}{t.ar.speechSuffix}
                   </div>
-                  <div style={{ fontSize: '0.74rem', fontWeight: 700, color: '#2D3748', lineHeight: 1.3, marginBottom: '4px' }}>
-                    "{t.ar.mockTurns?.[turnIndex]?.dogs[1]?.thought || currentTurn.dogs[1].thought}"
+                  <div className="ar-bubble-thought">
+                    "{currentTurn.dogs[1].thought}"
                   </div>
-                  <div style={{ fontSize: '0.55rem', color: '#718096', background: 'rgba(46,196,182,0.15)', padding: '2px 5px', borderRadius: '4px' }}>
-                    🧬 {t.ar.mockTurns?.[turnIndex]?.dogs[1]?.behavior || currentTurn.dogs[1].behavior}
+                  <div className="ar-bubble-behavior center">
+                    {currentTurn.dogs[1].behavior}
                   </div>
                   {/* Pointer Arrow */}
-                  <div style={{
-                    position: 'absolute',
-                    bottom: '-8px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    width: 0,
-                    height: 0,
-                    borderLeft: '7px solid transparent',
-                    borderRight: '7px solid transparent',
-                    borderTop: '8px solid #2EC4B6'
-                  }} />
+                  <div className="ar-bubble-pointer center" />
                 </div>
               </div>
 
 
               {/* Right Dog Speech Bubble (머리 바로 위) */}
-              <div style={{
-                position: 'absolute',
-                right: '5%',
-                top: '13%',
-                width: '38%',
-                pointerEvents: 'auto',
-                animation: 'floatBubble 2.8s ease-in-out infinite'
-              }}>
-                <div className="ar-speech-bubble" style={{
-                  border: '2px solid #FFBF00',
-                }}>
-                  <div style={{ fontSize: '0.65rem', fontWeight: 600, color: '#FFBF00', marginBottom: '2px' }}>
+              <div className="ar-dog-bubble-right">
+                <div className="ar-speech-bubble right">
+                  <div className="ar-bubble-speaker right">
                     {t.ar.mockDogRightName}{t.ar.speechSuffix}
                   </div>
-                  <div style={{ fontSize: '0.74rem', fontWeight: 700, color: '#2D3748', lineHeight: 1.3, marginBottom: '4px' }}>
-                    "{t.ar.mockTurns?.[turnIndex]?.dogs[2]?.thought || currentTurn.dogs[2].thought}"
+                  <div className="ar-bubble-thought">
+                    "{currentTurn.dogs[2].thought}"
                   </div>
-                  <div style={{ fontSize: '0.55rem', color: '#718096', background: 'rgba(255,191,0,0.15)', padding: '2px 5px', borderRadius: '4px' }}>
-                    🧬 {t.ar.mockTurns?.[turnIndex]?.dogs[2]?.behavior || currentTurn.dogs[2].behavior}
+                  <div className="ar-bubble-behavior right">
+                    {currentTurn.dogs[2].behavior}
                   </div>
                   {/* Pointer Arrow */}
-                  <div style={{
-                    position: 'absolute',
-                    bottom: '-8px',
-                    left: '40%',
-                    width: 0,
-                    height: 0,
-                    borderLeft: '7px solid transparent',
-                    borderRight: '7px solid transparent',
-                    borderTop: '8px solid #FFBF00'
-                  }} />
+                  <div className="ar-bubble-pointer right" />
                 </div>
               </div>
             </div>
@@ -1015,64 +1134,86 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
             const boxLeft = Math.max(2, Math.min(100 - BOX_W * 2, focusTarget.x - BOX_W));
             const boxTop = Math.max(18, Math.min(100 - BOX_H * 2 - 5, focusTarget.y - BOX_H));
 
-            // 말풍선: 하단 버튼 및 데시벨 안내와 겹치지 않도록 카메라 상단에 안전하게 배치
-            const liveBubbleTop = isCapturingVideo ? '58px' : '22px';
-
             return (
               <div className="ar-detection-overlay">
-                {/* 동적 탐지 박스 (AI HUD가 켜져있을 때 표시) */}
-                <div
-                  className="ar-detection-box"
-                  style={{
-                    left: `${boxLeft}%`,
-                    top: `${boxTop}%`,
-                    width: `${BOX_W * 2}%`,
-                    height: `${BOX_H * 2}%`,
-                  }}
-                >
-                  <div className="ar-detection-label">
-                    ● {t.ar.afLock}
+                {/* 동적 탐지 박스 (실제 강아지가 감지되었을 때만 표시) */}
+                {isDogInView && (
+                  <div
+                    className="ar-detection-box"
+                    style={{
+                      left: `${boxLeft}%`,
+                      top: `${boxTop}%`,
+                      width: `${BOX_W * 2}%`,
+                      height: `${BOX_H * 2}%`,
+                    }}
+                  >
+                    <div className="ar-detection-label">
+                      ● {t.ar.afLock}
+                    </div>
+                    <div className="ar-detection-eye left" />
+                    <div className="ar-detection-eye right" />
                   </div>
-                  <div className="ar-detection-eye left" />
-                  <div className="ar-detection-eye right" />
-                </div>
+                )}
 
                 {/* 말풍선 - 상단 배치 (하단 컨트롤 및 데시벨 안내와 겹치지 않도록 상단 영역에 배치) */}
-                <div
-                  className="ar-live-bubble-container"
-                  style={{
-                    top: liveBubbleTop,
-                    left: '4%',
-                    right: '4%',
-                    width: '92%',
-                    zIndex: 40,
-                  }}
-                >
+                <div className={`ar-live-bubble-container ${isCapturingVideo ? 'capturing' : ''}`}>
                   <div className="ar-speech-bubble live">
                     <div className="ar-live-bubble-header">
-                      <span className="ar-live-bubble-title">{t.ar.realtimeAI}</span>
+                      <span className="ar-live-bubble-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {ollamaConnected ? (
+                          <>
+                            <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#22C55E', boxShadow: '0 0 8px #22C55E' }} />
+                            <span>Ollama LLaVA (로컬)</span>
+                          </>
+                        ) : (
+                          <>
+                            <span style={{
+                              display: 'inline-block',
+                              width: '8px',
+                              height: '8px',
+                              borderRadius: '50%',
+                              backgroundColor: aiAnalyzing ? '#F59E0B' : '#38BDF8',
+                              boxShadow: aiAnalyzing ? '0 0 8px #F59E0B' : '0 0 8px #38BDF8',
+                              transition: 'all 0.3s ease'
+                            }} />
+                            <span>{aiAnalyzing ? (language === 'ko' ? '분석 중...' : language === 'zh' ? '分析中...' : language === 'ja' ? '分析中...' : language === 'fr' ? 'Analyse...' : language === 'es' ? 'Analizando...' : 'Analyzing...') : 'Gemini AI'}</span>
+                          </>
+                        )}
+                      </span>
                       <div className="ar-live-bubble-info">
-                        <span className={`ar-live-bubble-tag tag-${behaviorState}`}>
-                          {behaviorState === 'bark' ? t.ar.behaviorBark : behaviorState === 'growl' ? t.ar.behaviorGrowl : behaviorState === 'whine' ? t.ar.behaviorWhine : behaviorState === 'active' ? t.ar.behaviorActive : t.ar.behaviorCalm}
-                          <span className="ar-live-bubble-confidence">{liveThought.confidence}%</span>
+                        <span className={`ar-live-bubble-tag tag-${isDogInView ? 'active' : 'calm'}`}>
+                          {isDogInView ? aiEmotionTag : (LANG_CONFIG[language] || LANG_CONFIG.ko).noDogTag}
                         </span>
                       </div>
                     </div>
                     <div className="liveThought-text">
-                      {aiAnalyzing ? (
-                        <span className="blinking-text">✨ {language === 'ko' ? 'AI가 실시간 분석 중...' : 'AI is analyzing in real-time...'}</span>
-                      ) : (
+                      {isDogInView ? (
                         `"${aiThoughtText}"`
+                      ) : (
+                        (LANG_CONFIG[language] || LANG_CONFIG.ko).noDogThought
                       )}
                     </div>
-                    <div className="behavior-signal-container">
-                      <div>
-                        🧬 {liveThought.behavior}
-                      </div>
-                      <div>
-                        {liveThought.signal}
-                      </div>
-                    </div>
+                    {isDogInView && (() => {
+                      const behaviorObj = (t.ar.behaviors as any)?.[behaviorState] || (t.ar.behaviors as any)?.calm;
+                      const targetConfidence = isCameraLive ? (liveThought.confidence || 95) : 98;
+                      const detailText = behaviorObj ? `${behaviorObj.detail} ${targetConfidence}%` : liveThought.behavior;
+                      const signalText = behaviorObj ? behaviorObj.signal : liveThought.signal;
+                      return (
+                        <div className="ar-live-bubble-footer" style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginTop: '6px',
+                          paddingTop: '6px',
+                          borderTop: '1px solid rgba(0, 0, 0, 0.06)',
+                          fontSize: '11px',
+                          color: '#64748B'
+                        }}>
+                          <span style={{ fontWeight: 500, color: '#334155' }}>{detailText}</span>
+                          <span style={{ color: '#94A3B8' }}>{signalText}</span>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -1081,12 +1222,17 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
         </div> {/* 카메라 + AR 오버레이 통합 래퍼 끝 */}
 
         {/* 오프라인 상태 (블러 처리된 화면 위에 선명하게 표시) */}
+        {/* 오프라인 상태 (블러 처리된 화면 위에 선명하게 표시) */}
         {!isCameraLive && (
           <div className="ar-offline-overlay">
             <div className="ar-offline-walking-container">
               <img src={walwalWalking} className='ar-offline-walking-img' />
             </div>
-            <button onClick={toggleRealCamera} className="ar-offline-turn-on-btn" style={{ pointerEvents: 'auto' }}>
+            <button
+              onClick={toggleRealCamera}
+              className="ar-offline-turn-on-btn"
+              title={t.ar.turnOnCamera || "카메라 켜기"}
+            >
               <ScanFace size={34} />
             </button>
           </div>
@@ -1094,11 +1240,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
 
 
         {/* ================= 4. 비디오 오디오 파형 & 실시간 마이크 레벨 ================= */}
-        <div className="ar-audio-level-container" style={{
-          filter: isCameraLive ? 'none' : 'blur(8px) brightness(0.6)',
-          transition: 'filter 0.5s ease',
-          pointerEvents: isCameraLive ? 'auto' : 'none'
-        }}>
+        <div className={`ar-audio-level-container ${!isCameraLive ? 'offline' : ''}`}>
           <Volume2 size={13} color="#2EC4B6" />
           <div className="ar-audio-level-bars">
             {[30, 60, 45, 80, 50, 90, 40].map((h, i) => (
@@ -1107,7 +1249,6 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
                 className="ar-audio-level-bar"
                 style={{
                   height: Math.min(14, (audioLevel / 100) * h) + 'px',
-                  background: i % 2 === 0 ? '#FFB320' : '#2EC4B6',
                 }}
               />
             ))}
@@ -1119,16 +1260,11 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
         </div>
 
         {/* ================= 5. 하단 동영상 촬영 컨트롤 바 ================= */}
-        <div className="ar-bottom-control-bar" style={{
-          filter: isCameraLive ? 'none' : 'blur(8px) brightness(0.6)',
-          transition: 'filter 0.5s ease',
-          pointerEvents: isCameraLive ? 'auto' : 'none'
-        }}>
+        <div className={`ar-bottom-control-bar ${!isCameraLive ? 'offline' : ''}`}>
 
           {/* 중앙 공유/캡처 버튼 */}
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div className="ar-capture-btn-group">
             <button className={`bottom-bar-btn ${!isCapturingVideo ? 'shot' : ''}`}
-              style={{ position: 'relative' }}
               onClick={() => {
                 if (isCapturingVideo) return;
 
@@ -1139,12 +1275,11 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
                 });
 
                 const targetDog = anglePreset === 'pack3' ? getMockDogs(language)[1] : (myDogProfile || getMockDogs(language)[0]);
-                const targetThought = isCameraLive ? aiThoughtText : currentTurn.dogs[1].thought;
+                const targetThought = isCameraLive ? (isDogInView ? aiThoughtText : (LANG_CONFIG[language] || LANG_CONFIG.ko).noDogThought) : currentTurn.dogs[1].thought;
 
                 try {
-                  // 9:16 모바일 숏폼 표준 해상도 (720 x 1280) 고정으로 왜곡 및 확대 잘림 방지
-                  const CANVAS_W = 720;
-                  const CANVAS_H = 1280;
+                  // 실제 촬영 앵글(가로 1280x720 / 세로 720x1280)에 맞춘 동적 해상도 적용
+                  const { width: CANVAS_W, height: CANVAS_H } = getCaptureDimensions();
                   const canvas = document.createElement('canvas');
                   canvas.width = CANVAS_W;
                   canvas.height = CANVAS_H;
@@ -1162,16 +1297,39 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
                   drawFrameWithBubble(ctx, canvas.width, canvas.height, 0);
 
                   const captureStreamFn = (canvas as any).captureStream || (canvas as any).webkitCaptureStream;
-                  if (typeof captureStreamFn !== 'function' || typeof (window as any).MediaRecorder === 'undefined') {
+                  let stream: MediaStream | null = null;
+                  if (typeof captureStreamFn === 'function') {
+                    try {
+                      stream = captureStreamFn.call(canvas, 30);
+                    } catch (streamErr) {
+                      console.warn('captureStream failed:', streamErr);
+                    }
+                  }
+
+                  // iOS/Safari 등 캔버스 스트림 미지원 브라우저는 실제 웹캠 스트림으로 폴백
+                  if (!stream && videoRef.current?.srcObject) {
+                    stream = videoRef.current.srcObject as MediaStream;
+                  }
+
+                  if (!stream || typeof (window as any).MediaRecorder === 'undefined') {
                     throw new Error('captureStream or MediaRecorder not supported');
                   }
 
-                  const stream = captureStreamFn.call(canvas, 30);
-                  const isWebMSupported = typeof (window as any).MediaRecorder.isTypeSupported === 'function' &&
-                    (window as any).MediaRecorder.isTypeSupported('video/webm');
-                  const options = isWebMSupported ? { mimeType: 'video/webm' } : undefined;
+                  let options: any = undefined;
+                  const MR = (window as any).MediaRecorder;
+                  if (typeof MR.isTypeSupported === 'function') {
+                    if (MR.isTypeSupported('video/mp4;codecs=avc1')) {
+                      options = { mimeType: 'video/mp4;codecs=avc1', videoBitsPerSecond: 1_200_000 };
+                    } else if (MR.isTypeSupported('video/mp4')) {
+                      options = { mimeType: 'video/mp4', videoBitsPerSecond: 1_200_000 };
+                    } else if (MR.isTypeSupported('video/webm;codecs=vp9')) {
+                      options = { mimeType: 'video/webm;codecs=vp9', videoBitsPerSecond: 1_200_000 };
+                    } else if (MR.isTypeSupported('video/webm')) {
+                      options = { mimeType: 'video/webm', videoBitsPerSecond: 1_200_000 };
+                    }
+                  }
 
-                  const mediaRecorder = new (window as any).MediaRecorder(stream, options);
+                  const mediaRecorder = options ? new MR(stream, options) : new MR(stream);
                   mediaRecorderRef.current = mediaRecorder;
                   const chunks: BlobPart[] = [];
 
@@ -1182,18 +1340,32 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
                   mediaRecorder.onstop = () => {
                     setIsCapturingVideo(false);
                     setCaptureCountdown(0);
-                    const actualMimeType = mediaRecorder.mimeType || (isWebMSupported ? 'video/webm' : 'video/mp4');
+                    const actualMimeType = mediaRecorder.mimeType || (options?.mimeType?.includes('mp4') ? 'video/mp4' : 'video/webm');
                     const blob = new Blob(chunks, { type: actualMimeType });
                     const videoUrl = URL.createObjectURL(blob);
                     blobCache.set(videoUrl, blob);
-                    onCaptureToStory(targetDog, targetThought, videoUrl);
+
+                    // Extract poster frame from current canvas
+                    let poster = '';
+                    try {
+                      poster = canvas.toDataURL('image/jpeg', 0.85);
+                    } catch (e) { }
+
+                    // 3초 동영상 녹화 완료 후 스냅스(Snaps) 등록으로 직행
+                    if (onCaptureToSnaps) {
+                      onCaptureToSnaps(targetDog, targetThought, videoUrl, poster, true);
+                    } else if (onCaptureToFeed) {
+                      onCaptureToFeed(targetDog, targetThought, videoUrl, poster, true);
+                    } else {
+                      onCaptureToStory(targetDog, targetThought, videoUrl, poster);
+                    }
                     if (canvas.parentNode) canvas.parentNode.removeChild(canvas);
                   };
 
                   setIsCapturingVideo(true);
-                  setCaptureCountdown(5);
+                  setCaptureCountdown(3);
 
-                  let count = 5;
+                  let count = 3;
                   const countInterval = setInterval(() => {
                     count--;
                     setCaptureCountdown(count);
@@ -1216,7 +1388,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
                       mediaRecorderRef.current.stop();
                       cancelAnimationFrame(animationId);
                     }
-                  }, 5000);
+                  }, 3000);
                   return;
                 } catch (e) {
                   setIsCapturingVideo(false);
@@ -1224,8 +1396,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
                   console.error('Canvas capture fallback to snapshot:', e);
 
                   let snapshot = '';
-                  const CANVAS_W = 720;
-                  const CANVAS_H = 1280;
+                  const { width: CANVAS_W, height: CANVAS_H } = getCaptureDimensions();
                   const canvas = document.createElement('canvas');
                   canvas.width = CANVAS_W;
                   canvas.height = CANVAS_H;
@@ -1235,33 +1406,40 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
                     snapshot = canvas.toDataURL('image/jpeg', 0.85);
                     fetch(snapshot).then(r => r.blob()).then(blob => blobCache.set(snapshot, blob)).catch(console.error);
                   }
-                  onCaptureToStory(targetDog, targetThought, snapshot);
+                  if (onCaptureToSnaps) {
+                    onCaptureToSnaps(targetDog, targetThought, snapshot, snapshot, false);
+                  } else if (onCaptureToFeed) {
+                    onCaptureToFeed(targetDog, targetThought, snapshot, snapshot, false);
+                  } else {
+                    onCaptureToStory(targetDog, targetThought, snapshot);
+                  }
                 }
               }}
-              title={isCapturingVideo ? `녹화 중... (${captureCountdown}s)` : "펫스튜디오 공유 (5초 동영상 촬영)"}
+              title={
+                isCapturingVideo
+                  ? (t.ar.recordingTitle || '녹화 중... ({sec}s)').replace('{sec}', String(captureCountdown))
+                  : (t.ar.captureVideoTitle || "스냅스 동영상 촬영 (3초)")
+              }
             >
               {isCapturingVideo ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                  <div style={{ width: '12px', height: '12px', background: '#FF3B30', borderRadius: '50%' }} />
-                  <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#FF3B30' }}>{captureCountdown}</span>
+                <div className="ar-btn-countdown-wrap">
+                  <div className="ar-btn-countdown-dot" />
+                  <span className="ar-btn-countdown-num">{captureCountdown}</span>
                 </div>
               ) : (
-                <Scan size={24} strokeWidth={2} />
+                <Scan size={30} strokeWidth={2} />
               )}
             </button>
           </div>
 
           {/* 중앙: 줌 버튼 및 카메라 전환 */}
-          <div className="ar-zoom-container" style={{ flex: 'none', margin: '0 8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="ar-zoom-container center-ctrl">
             <div className="ar-zoom-group">
               {(['0.5x', '1x', '2x'] as const).map(z => (
-                <button className="button"
+                <button
+                  className={`button ${zoomLevel === z ? 'active' : ''}`}
                   key={z}
                   onClick={() => setZoomLevel(z)}
-                  style={{
-                    background: zoomLevel === z ? '#FFB320' : 'transparent',
-                    color: zoomLevel === z ? '#FFFFFF' : '#fff',
-                  }}
                 >
                   {z}
                 </button>
@@ -1269,8 +1447,8 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
 
 
               {/* 카메라 전환 버튼 */}
-              <button className="button" onClick={() => setCameraFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}>
-                <RefreshCw size={16} />
+              <button className="button" title={t.ar.switchCamera || "카메라 전환"} onClick={() => setCameraFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}>
+                <RefreshCw size={20} />
               </button>
             </div>
           </div>
@@ -1284,10 +1462,9 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
               });
 
               const targetDog = anglePreset === 'pack3' ? getMockDogs(language)[1] : (myDogProfile || getMockDogs(language)[0]);
-              const targetThought = isCameraLive ? aiThoughtText : currentTurn.dogs[1].thought;
+              const targetThought = isCameraLive ? (isDogInView ? aiThoughtText : (LANG_CONFIG[language] || LANG_CONFIG.ko).noDogThought) : currentTurn.dogs[1].thought;
 
-              const CANVAS_W = 720;
-              const CANVAS_H = 1280;
+              const { width: CANVAS_W, height: CANVAS_H } = getCaptureDimensions();
               const canvas = document.createElement('canvas');
               canvas.width = CANVAS_W;
               canvas.height = CANVAS_H;
@@ -1299,13 +1476,15 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
                 snapshot = canvas.toDataURL('image/jpeg', 0.9);
               }
 
-              if (onCaptureToFeed) {
+              if (onCaptureToSnaps) {
+                onCaptureToSnaps(targetDog || myDogProfile, targetThought, snapshot);
+              } else if (onCaptureToFeed) {
                 onCaptureToFeed(targetDog || myDogProfile, targetThought, snapshot);
               }
             }}
-            title="피드 추가"
+            title={t.ar.capturePhotoTitle || "스냅샷 추가"}
           >
-            <ScanFace size={24} strokeWidth={2} />
+            <ScanFace size={30} strokeWidth={2} />
           </button>
         </div>
 

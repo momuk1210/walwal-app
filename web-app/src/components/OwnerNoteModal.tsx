@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { X, Send, Sparkles } from 'lucide-react';
-import { DogProfile, getDefaultDogAvatar } from '../data/mockDogs';
+import { DogProfile, getDefaultDogAvatar, getMockDogs, normalizeDogProfile } from '../data/mockDogs';
 import confetti from 'canvas-confetti';
 import { useTranslation } from '../i18n/LanguageContext';
+import { formatChatTime } from '../utils/timeUtils';
 import '../styles/OwnerNoteModal.css';
 
 interface OwnerNoteModalProps {
@@ -18,7 +19,7 @@ export const OwnerNoteModal: React.FC<OwnerNoteModalProps> = ({
   onClose,
   onStartVirtualChat
 }) => {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
 
   const QUICK_TEMPLATES = [
     t.profile?.noteTemplate1 || '안녕하세요! 산책 코스가 어떻게 되시나요?',
@@ -28,18 +29,39 @@ export const OwnerNoteModal: React.FC<OwnerNoteModalProps> = ({
   ];
 
   const [messageText, setMessageText] = useState<string>('');
-  const [isSending, setIsSending] = useState<boolean>(false);
-  const [messages, setMessages] = useState<Array<{ sender: 'me' | 'target'; text: string; time: string }>>([]);
+  const [, setTimeTick] = useState<number>(0);
+  const [messages, setMessages] = useState<Array<{ sender: 'me' | 'target'; text: string; time?: string; timestamp?: number }>>([]);
+
+  // Live timer to update relative time
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeTick(t => t + 1);
+    }, 10000);
+    return () => clearInterval(timer);
+  }, []);
 
   // 모달 열릴 때 초기 메세지 세팅 + body 스크롤 잠금
   useEffect(() => {
     if (isOpen && targetDog) {
-      const defaultIntro = '안녕하세요! 저는 {ownerName} 맘(대디)이에요. 저희 {dogName}이는 {breed}랍니다. 친하게 지내요!';
+      let myDog: any = null;
+      try {
+        const saved = localStorage.getItem('WALWAL_PETS');
+        if (saved) {
+          const pets = JSON.parse(saved);
+          if (pets.length > 0) myDog = normalizeDogProfile(pets[0], language);
+        }
+      } catch (e) { }
+      if (!myDog) {
+        myDog = getMockDogs(language)[0];
+      }
+
+      const defaultIntro = '안녕하세요! 저는 {ownerName} 보호자(엄마/아빠)예요. 저희 {dogName}이는 {breed}랍니다. 친하게 지내요!';
       const introText = (t.profile?.noteIntro || defaultIntro)
-        .replace('{ownerName}', targetDog.ownerName || '')
-        .replace('{dogName}', targetDog.name || '')
-        .replace('{breed}', targetDog.breed || '');
-      setMessages([{ sender: 'target', text: introText, time: t.profile?.justNow || '방금 전' }]);
+        .replace('{ownerName}', myDog.ownerName || myDog.name + ' 엄마')
+        .replace('{dogName}', myDog.name || '')
+        .replace('{breed}', myDog.breed || '');
+      const now = Date.now();
+      setMessages([{ sender: 'me', text: introText, timestamp: now, time: formatChatTime(now, language) }]);
       setMessageText('');
       // body 스크롤 잠금 → 뒷 화면 레이아웃 틀어짐 방지
       document.body.style.overflow = 'hidden';
@@ -49,7 +71,7 @@ export const OwnerNoteModal: React.FC<OwnerNoteModalProps> = ({
     return () => {
       document.body.style.overflow = '';
     };
-  }, [isOpen, targetDog]);
+  }, [isOpen, targetDog, language]);
 
   if (!isOpen || !targetDog) return null;
 
@@ -64,20 +86,10 @@ export const OwnerNoteModal: React.FC<OwnerNoteModalProps> = ({
 
   const handleSend = () => {
     if (!messageText.trim()) return;
-    setMessages(prev => [...prev, { sender: 'me', text: messageText.trim(), time: t.profile?.justNow || '방금 전' }]);
+    const now = Date.now();
+    setMessages(prev => [...prev, { sender: 'me', text: messageText.trim(), timestamp: now, time: formatChatTime(now, language) }]);
     setMessageText('');
-    setIsSending(true);
     confetti({ particleCount: 25, spread: 45, origin: { y: 0.6 } });
-    setTimeout(() => {
-      setIsSending(false);
-      const autoReplies = [
-        t.profile?.noteReply1?.replace('{distance}', targetDog.distance) || `${targetDog.distance} 인근에 계시네요! 반가워요.`,
-        t.profile?.noteReply2?.replace('{dogName}', targetDog.name) || `${targetDog.name}이가 좋아할 것 같아요!`,
-        t.profile?.noteReply3 || '네, 좋아요! 이따 뵐게요.'
-      ];
-      const reply = autoReplies[Math.floor(Math.random() * autoReplies.length)];
-      setMessages(prev => [...prev, { sender: 'target', text: reply, time: t.profile?.justNow || '방금 전' }]);
-    }, 1200);
   };
 
   return (
@@ -98,13 +110,17 @@ export const OwnerNoteModal: React.FC<OwnerNoteModalProps> = ({
               <div className="row gap-6">
                 <span className="own-message-modal-owner-name">{targetDog.ownerName}</span>
                 <span className="own-message-modal-distance">
-                  {targetDog.distance} 인근
+                  {targetDog.distance}{t.common?.nearby || ' 인근'}
                 </span>
               </div>
 
               <div className="own-message-modal-dog-info">
-                <div>{targetDog.breed} {targetDog.age}{t.profile?.dogAgeSuffix || '살'} &middot; {targetDog.gender === 'female' ? (t.common?.genderShortFemale || '여') : (t.common?.genderShortMale || '남')}</div>
-                <div>{targetDog.personality?.join(' ')}</div>
+                <div className='text-sm'>{targetDog.breed} {targetDog.age}{t.profile?.dogAgeSuffix || '살'} &middot; {targetDog.gender === 'female' ? (t.common?.genderShortFemale || '여') : (t.common?.genderShortMale || '남')}</div>
+                <div className="row gap-4" style={{ flexWrap: 'wrap', marginTop: 4 }}>
+                  {targetDog.personality?.map((p, i) => (
+                    <span key={i} className="badge-hashtag">{p}</span>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -132,18 +148,12 @@ export const OwnerNoteModal: React.FC<OwnerNoteModalProps> = ({
                     </div>
                   )}
                   <div className={`own-message-time ${isMe ? 'is-me' : 'is-target'}`}>
-                    {msg.time}
+                    {formatChatTime(msg.timestamp, language, msg.time)}
                   </div>
                 </div>
               </div>
             );
           })}
-          {isSending && (
-            <div className="row gap-6 own-message-sending-indicator">
-              <Sparkles size={13} />
-              {targetDog.ownerName} 맘(대디)님이 답장을 작성하고 있습니다...
-            </div>
-          )}
         </div>
 
         {/* Quick Templates */}
@@ -166,7 +176,7 @@ export const OwnerNoteModal: React.FC<OwnerNoteModalProps> = ({
             value={messageText}
             onChange={(e) => setMessageText(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleSend(); }}
-            placeholder={t.profile?.notePlaceholder ? t.profile.notePlaceholder.replace('{ownerName}', targetDog.ownerName) : `${targetDog.ownerName} 맘(대디)님께 메세지 보내기...`}
+            placeholder={t.profile?.notePlaceholder ? t.profile.notePlaceholder.replace('{ownerName}', targetDog.ownerName) : `${targetDog.ownerName} 보호자님께 메세지 보내기...`}
             className="own-message-input"
           />
           <button

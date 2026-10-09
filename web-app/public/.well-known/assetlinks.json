@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.walwal.app",
+      "sha256_cert_fingerprints": [
+        "A9:2F:24:14:05:F0:CB:28:A2:E2:46:85:D8:21:32:ED:CB:98:F4:E7:AC:85:39:8D:BF:CA:85:89:7B:8B:98:66"
+      ]
+    }
+  }
+]

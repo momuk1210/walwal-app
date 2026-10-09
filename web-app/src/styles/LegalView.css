@@ -1,11 +1,13 @@
 .legal-view-root {
-  position: absolute;
+  position: fixed;
   top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  height: 100%;
   background: #FFFFFF;
-  z-index: 200;
+  z-index: 10000;
   display: flex;
   flex-direction: column;
 }
@@ -37,7 +39,7 @@
 
 .legal-title {
   font-size: 1.1rem;
-  font-weight: 700;
+  font-weight: 600;
   color: #1A202C;
 }
 
@@ -63,7 +65,7 @@
 .legal-faq-q {
   color: #1A202C;
   font-size: 1.05rem;
-  font-weight: 700;
+  font-weight: 600;
   margin-bottom: 8px;
 }
 
@@ -85,7 +87,7 @@
 
 .legal-section-header {
   font-size: 1rem;
-  font-weight: 700;
+  font-weight: 600;
   color: #1A202C;
   margin-top: 20px;
   margin-bottom: 6px;

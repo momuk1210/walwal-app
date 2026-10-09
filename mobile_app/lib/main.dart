@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 // TODO: Uncomment the next line after running `flutterfire configure`
 // import 'firebase_options.dart';
-import 'screens/radar_screen.dart';
+import 'package:walwal_app/screens/radar_screen.dart';
+import 'package:walwal_app/screens/ar_camera_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -55,10 +56,10 @@ class MainNavigationScreen extends StatefulWidget {
 }
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
-  int _currentIndex = 1; // Default to Radar for Google Maps demonstration
+  int _currentIndex = 0; // Default to AR Camera
 
   final List<Widget> _screens = const [
-    Center(child: Text('🐾 실시간 AR 통역 카메라', style: TextStyle(fontSize: 16, color: Colors.black87))),
+    ARCameraScreen(),
     RadarScreen(),
     Center(child: Text('📸 숏폼 & 피드 스튜디오', style: TextStyle(fontSize: 16, color: Colors.black87))),
     Center(child: Text('🐶 산책 커뮤니티 & 매칭', style: TextStyle(fontSize: 16, color: Colors.black87))),

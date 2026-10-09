@@ -1,0 +1,536 @@
+/* ========================================================
+   WalWal Walk History & Analytics Modal (산책 일지 & 분석 모달)
+   ======================================================== */
+
+.walk-history-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.walk-history-container {
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  background: #FFFFFF;
+  border-radius: 28px 28px 0 0;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* Header */
+.walk-history-header {
+  padding: 16px 20px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #F1F5F9;
+  background: #FFFFFF;
+}
+
+.walk-history-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.walk-history-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #FFB320;
+}
+
+.walk-history-title {
+  margin: 0;
+  font-size: 1.12rem;
+  font-weight: 600;
+  color: #1E293B;
+  letter-spacing: -0.02em;
+}
+
+.walk-history-subtitle {
+  margin: 2px 0 0;
+  font-size: 0.76rem;
+  color: #64748B;
+  font-weight: 500;
+}
+
+.walk-history-close-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #F1F5F9;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748B;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.walk-history-close-btn:hover {
+  background: #E2E8F0;
+  color: #1E293B;
+}
+
+/* Top Tab Switcher */
+.walk-history-tab-nav {
+  display: flex;
+  padding: 8px 16px;
+  background: #F8FAFC;
+  gap: 8px;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.walk-history-tab-btn {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #64748B;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.walk-history-tab-btn.active.distance {
+  background: #FFFFFF;
+  color: #FFB320;
+  border-color: #FDE68A;
+  box-shadow: 0 3px 10px rgba(217, 119, 6, 0.12);
+}
+
+.walk-history-tab-btn.active.time {
+  background: #FFFFFF;
+  color: #0D9488;
+  border-color: #99F6E4;
+  box-shadow: 0 3px 10px rgba(13, 148, 136, 0.12);
+}
+
+/* Body */
+.walk-history-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 18px 36px;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Summary Banner Card (Distance Theme) */
+.walk-summary-card.distance-theme {
+  background: linear-gradient(135deg, #FFB320 0%, #EA580C 100%);
+  border-radius: 20px;
+  padding: 18px 20px;
+  color: #FFFFFF;
+  margin-bottom: 16px;
+  box-shadow: 0 8px 24px rgba(234, 88, 12, 0.25);
+}
+
+/* Summary Banner Card (Time Theme) */
+.walk-summary-card.time-theme {
+  background: linear-gradient(135deg, #2EC4B6 0%, #0F766E 100%);
+  border-radius: 20px;
+  padding: 18px 20px;
+  color: #FFFFFF;
+  margin-bottom: 16px;
+  box-shadow: 0 8px 24px rgba(15, 118, 110, 0.25);
+}
+
+.walk-summary-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.walk-summary-badge {
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(4px);
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.walk-summary-today-tag {
+  font-size: 0.8rem;
+  font-weight: 600;
+  opacity: 0.95;
+}
+
+.walk-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 14px;
+  padding: 12px 10px;
+  text-align: center;
+}
+
+.walk-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.walk-summary-item-label {
+  font-size: 0.7rem;
+  opacity: 0.9;
+  font-weight: 600;
+}
+
+.walk-summary-item-value {
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* Progress / Milestone Insight Card */
+.walk-insight-card {
+  border-radius: 18px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  border: 1px solid #E2E8F0;
+  background: #F8FAFC;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.walk-insight-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.walk-insight-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #64748B;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.walk-insight-percent {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.walk-insight-percent.distance {
+  color: #FFB320;
+}
+
+.walk-insight-percent.time {
+  color: #0D9488;
+}
+
+.walk-progress-bar-bg {
+  width: 100%;
+  height: 8px;
+  background: #E2E8F0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.walk-progress-bar-fill {
+  height: 100%;
+  border-radius: 10px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.walk-progress-bar-fill.distance {
+  background: linear-gradient(90deg, #FFB320, #EA580C);
+}
+
+.walk-progress-bar-fill.time {
+  background: linear-gradient(90deg, #2EC4B6, #0D9488);
+}
+
+.walk-insight-footer {
+  font-size: 0.76rem;
+  color: #64748B;
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* Time-specific pattern chips */
+.walk-time-pattern-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.walk-pattern-chip {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.walk-pattern-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.walk-pattern-icon.morning {
+  background: #FEF3C7;
+  color: #FFB320;
+}
+
+.walk-pattern-icon.evening {
+  background: #E0E7FF;
+  color: #4F46E5;
+}
+
+.walk-pattern-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.walk-pattern-label {
+  font-size: 0.7rem;
+  color: #64748B;
+  font-weight: 600;
+}
+
+.walk-pattern-val {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1E293B;
+}
+
+/* List Header */
+.walk-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.walk-list-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1E293B;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.walk-add-btn {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  color: #3B82F6;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.walk-add-btn:hover {
+  background: #EFF6FF;
+  border-color: #BFDBFE;
+}
+
+/* Add Form Card (Collapsible) */
+.walk-add-form {
+  background: #F8FAFC;
+  border: 1.5px dashed #CBD5E1;
+  border-radius: 16px;
+  padding: 14px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.walk-add-form-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.walk-add-input {
+  flex: 1 1 0;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid #E2E8F0;
+  background: #fff;
+  font-size: 0.85rem;
+  color: #1E293B;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.walk-add-input:focus {
+  border-color: #FFB320;
+  box-shadow: 0 0 0 2px rgba(255, 179, 32, 0.18);
+}
+
+.walk-add-submit-btn {
+  background: #FFB320;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 9px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* Walk Records Timeline / List */
+.walk-records-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.walk-record-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+}
+
+.walk-record-card:hover {
+  border-color: #CBD5E1;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+
+.walk-record-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.walk-record-date-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.walk-record-date {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #1E293B;
+}
+
+.walk-record-today-badge {
+  background: #FEF3C7;
+  color: #FFB320;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 8px;
+}
+
+.walk-record-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.76rem;
+  color: #64748B;
+}
+
+.walk-record-meta span {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.walk-record-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+/* Distance Highlight Style */
+.walk-record-primary-val.distance {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #EA580C;
+  letter-spacing: -0.02em;
+}
+
+.walk-record-secondary-val.distance {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #64748B;
+}
+
+/* Time Highlight Style */
+.walk-record-primary-val.time {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #0D9488;
+  letter-spacing: -0.02em;
+}
+
+.walk-record-secondary-val.time {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #E11D48;
+}

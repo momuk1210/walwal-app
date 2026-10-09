@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { User, Globe, Settings, Award, Zap, Heart, Shield, Sparkles, Edit3, Plus, Camera, X, Check, Upload, LogOut, Trash2 } from 'lucide-react';
-import { DogProfile, MOCK_DOGS, getMockDogs, isSameDogName, getDefaultDogAvatar, normalizeDogProfile, localizeBreed, localizePersonalityTags, localizeDogName } from '../data/mockDogs';
+import { User, Globe, Settings, Award, Zap, Heart, Shield, Sparkles, Edit3, Plus, Camera, X, Check, Upload, LogOut, Trash2, MapPin, Clock, Calendar, ChevronRight, Menu } from 'lucide-react';
+import { DogProfile, MOCK_DOGS, getMockDogs, isSameDogName, getDefaultDogAvatar, normalizeDogProfile, localizeBreed, localizePersonalityTags, localizeDogName, isMockNeighborDog, isDeletedPet, sanitizePetList } from '../data/mockDogs';
 import { useTranslation } from '../i18n/LanguageContext';
-import { auth } from '../firebase';
-import { signOut, deleteUser } from 'firebase/auth';
+import { auth, db } from '../firebase';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { signOut, deleteUser, onAuthStateChanged } from 'firebase/auth';
 import { SettingsView } from './SettingsView';
+import { WalkHistoryModal } from './WalkHistoryModal';
+import { saveDogProfile, deleteDogProfile } from '../services/db';
 import '../styles/ProfileView.css';
 
 interface ProfileViewProps {
@@ -22,9 +25,62 @@ const AVATAR_PRESETS = [
   'https://images.dog.ceo/breeds/beagle/n02088364_10108.jpg'
 ];
 
+export const calculateDDay = (dateStr?: string, fallbackAgeStr?: string): number => {
+  if (dateStr) {
+    const targetDate = new Date(dateStr);
+    const today = new Date();
+    targetDate.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    const diffTime = today.getTime() - targetDate.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    return Math.max(1, diffDays);
+  }
+  const age = parseInt(fallbackAgeStr || '1', 10) || 1;
+  return age * 365;
+};
+
+export const getDefaultAdoptionDate = (ageStr?: string): string => {
+  const age = parseInt(ageStr || '1', 10) || 1;
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - age);
+  return d.toISOString().split('T')[0];
+};
+
 export const ProfileView: React.FC<ProfileViewProps> = () => {
   const { language, setLanguage, t } = useTranslation();
   const [showSettings, setShowSettings] = useState(false);
+  const [showWalkHistoryModal, setShowWalkHistoryModal] = useState(false);
+  const [walkHistoryTab, setWalkHistoryTab] = useState<'distance' | 'time'>('distance');
+
+  // Auth & Admin state
+  const [currentUser, setCurrentUser] = useState<any>(auth.currentUser);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setCurrentUser(u);
+      if (u?.email) {
+        localStorage.setItem('WALWAL_USER_EMAIL', u.email);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    const handleOpenSettings = () => setShowSettings(true);
+    const handleOpenWalkHistory = () => setShowWalkHistoryModal(true);
+    window.addEventListener('walwal_open_settings', handleOpenSettings);
+    window.addEventListener('walwal_open_walk_history', handleOpenWalkHistory);
+    return () => {
+      window.removeEventListener('walwal_open_settings', handleOpenSettings);
+      window.removeEventListener('walwal_open_walk_history', handleOpenWalkHistory);
+    };
+  }, []);
+
+  const isDaisynara = React.useMemo(() => {
+    const email = (currentUser?.email || localStorage.getItem('WALWAL_USER_EMAIL') || localStorage.getItem('walwal_user_email') || '').toLowerCase().trim();
+    return email === 'daisynara@gmail.com' || email.includes('daisynara') || localStorage.getItem('WALWAL_ADMIN_AUTH') === 'true';
+  }, [currentUser]);
+
   // Load pets from localStorage or fallback
   const [pets, setPets] = useState<DogProfile[]>(() => {
     const saved = localStorage.getItem('WALWAL_PETS');
@@ -32,13 +88,13 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const list = parsed.map((p: DogProfile) => normalizeDogProfile(p, language));
-          localStorage.setItem('WALWAL_PETS', JSON.stringify(list));
-          return list;
+          const sanitized = sanitizePetList(parsed, language);
+          localStorage.setItem('WALWAL_PETS', JSON.stringify(sanitized));
+          return sanitized;
         }
       } catch (e) { }
     }
-    const defaultList = getMockDogs(language);
+    const defaultList = [getMockDogs(language)[0]];
     localStorage.setItem('WALWAL_PETS', JSON.stringify(defaultList));
     return defaultList;
   });
@@ -46,9 +102,9 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
   // Re-normalize when language changes
   useEffect(() => {
     setPets(prev => {
-      const updated = prev.map(p => normalizeDogProfile(p, language));
-      localStorage.setItem('WALWAL_PETS', JSON.stringify(updated));
-      return updated;
+      const sanitized = sanitizePetList(prev, language);
+      localStorage.setItem('WALWAL_PETS', JSON.stringify(sanitized));
+      return sanitized;
     });
   }, [language]);
 
@@ -69,6 +125,7 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
   const [formAvatar, setFormAvatar] = useState(AVATAR_PRESETS[0]);
   const [formPersonalities, setFormPersonalities] = useState<string[]>([]);
   const [formGreeting, setFormGreeting] = useState('');
+  const [formAdoptionDate, setFormAdoptionDate] = useState('');
   const [customTag, setCustomTag] = useState<string>('');
 
   const studioCount = React.useMemo(() => {
@@ -104,15 +161,96 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
       }
     } catch (e) { }
     // Fallback based on INITIAL_MEETUPS where Bori is in m1 and m4
-    return myDog.name === '보리' || myDog.name === 'Bori' ? 2 : 1;
+    return isSameDogName(myDog.name, '보리') ? 2 : 1;
   }, [myDog.name]);
 
-  // Sync to localStorage
+  // Sync to localStorage and Firestore
   const savePetsToStorage = (updated: DogProfile[]) => {
-    setPets(updated);
-    localStorage.setItem('WALWAL_PETS', JSON.stringify(updated));
+    const sanitized = sanitizePetList(updated, language);
+    setPets(sanitized);
+    localStorage.setItem('WALWAL_PETS', JSON.stringify(sanitized));
     window.dispatchEvent(new Event('walwal_pets_updated'));
+    // 클라우드 Firestore dogs 컬렉션에도 실제 가입된 반려견으로 동기화 (유효한 반려견만)
+    sanitized.forEach(pet => {
+      if (!isMockNeighborDog(pet) && !isDeletedPet(pet)) {
+        saveDogProfile(pet, currentUser?.uid);
+      }
+    });
   };
+
+  // 앱 로드 시 로컬 반려견 프로필을 Firestore에 동기화 (기존 mock 제외, 유효한 사용자 반려견만)
+  useEffect(() => {
+    if (pets && pets.length > 0) {
+      pets.forEach(pet => {
+        if (!isMockNeighborDog(pet) && !isDeletedPet(pet) && pet.id !== 'dog-1') {
+          saveDogProfile(pet, currentUser?.uid);
+        }
+      });
+    }
+  }, []);
+
+  // 다른 기기나 도메인(예: localhost -> walwal-app.web.app)에서 등록/삭제된 반려견 실시간 자동 동기화
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'dogs'), (snapshot) => {
+      if (snapshot.empty) return;
+      const remoteDogs: DogProfile[] = [];
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        if (data && data.name) {
+          remoteDogs.push({ id: docSnap.id, ...data } as DogProfile);
+        }
+      });
+
+      const currentEmail = (currentUser?.email || localStorage.getItem('WALWAL_USER_EMAIL') || localStorage.getItem('walwal_user_email') || '').toLowerCase().trim();
+
+      // 현재 사용자가 소유한 원격 반려견만 엄격히 필터링 (다른 사람의 반려견이나 mock 이웃 반려견 유입 방지)
+      const myRemoteDogs = remoteDogs.filter(rd => {
+        if (isMockNeighborDog(rd) || isDeletedPet(rd)) return false;
+        const ownerEmail = (rd.ownerEmail || '').toLowerCase().trim();
+        if (isDaisynara) {
+          return ownerEmail === 'daisynara@gmail.com' || !ownerEmail || rd.id === 'dog-1';
+        }
+        if (currentEmail) {
+          return ownerEmail === currentEmail || rd.id === 'dog-1';
+        }
+        return !ownerEmail && rd.id === 'dog-1';
+      });
+
+      if (myRemoteDogs.length === 0) return;
+
+      setPets(prevPets => {
+        const cleanPrev = sanitizePetList(prevPets, language);
+        const petList: DogProfile[] = [];
+
+        // 1. 원격에서 현재 사용자의 등록된 반려견 추가 (이름 및 ID 중복 방지)
+        myRemoteDogs.forEach(rd => {
+          const already = petList.some(d => isSameDogName(d.name, rd.name) || (rd.id && d.id === rd.id));
+          if (!already) {
+            petList.push(normalizeDogProfile(rd, language));
+          }
+        });
+
+        // 2. 로컬에만 있는 유효한 반려견(오프라인 추가 등) 유지
+        cleanPrev.forEach(p => {
+          const already = petList.some(d => isSameDogName(d.name, p.name) || (p.id && d.id === p.id));
+          if (!already && !isDeletedPet(p) && !isMockNeighborDog(p)) {
+            petList.push(normalizeDogProfile(p, language));
+          }
+        });
+
+        const merged = sanitizePetList(petList, language);
+        if (merged.length === 0) return cleanPrev;
+
+        localStorage.setItem('WALWAL_PETS', JSON.stringify(merged));
+        window.dispatchEvent(new Event('walwal_pets_updated'));
+        return merged;
+      });
+    }, (err) => {
+      console.warn('ProfileView dogs onSnapshot error:', err);
+    });
+
+    return () => unsub();
+  }, [language, currentUser, isDaisynara]);
 
   // Open Edit Modal
   const openEditModal = () => {
@@ -124,6 +262,7 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
     setFormAvatar(myDog.avatar);
     setFormPersonalities([...myDog.personality]);
     setFormGreeting(myDog.greeting || '');
+    setFormAdoptionDate(myDog.adoptionDate || getDefaultAdoptionDate(myDog.age));
     setModalMode('edit');
   };
 
@@ -137,10 +276,11 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
     setFormAvatar(AVATAR_PRESETS[1]);
     setFormPersonalities(t.profile.presetPersonalities?.slice(0, 2) || []);
     setFormGreeting('');
+    setFormAdoptionDate(new Date().toISOString().split('T')[0]);
     setModalMode('add');
   };
 
-  // Handle Photo Upload
+  // Handle Photo Upload (Modal)
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -154,6 +294,29 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
     }
   };
 
+  // Direct Photo Upload on Profile Avatar Camera Click
+  const handleDirectPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (uploadEvent) => {
+        if (uploadEvent.target?.result) {
+          const newAvatar = uploadEvent.target.result as string;
+          const updated = pets.map((p, idx) => {
+            if (idx === activePetIndex) {
+              return { ...p, avatar: newAvatar };
+            }
+            return p;
+          });
+          savePetsToStorage(updated);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+    // reset target value so selecting the same file again triggers change
+    e.target.value = '';
+  };
+
   // Toggle Personality Tag
   const toggleTag = (tag: string) => {
     if (formPersonalities.includes(tag)) {
@@ -161,18 +324,27 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
     } else {
       if (formPersonalities.length < 5) {
         setFormPersonalities([...formPersonalities, tag]);
+      } else {
+        alert(language === 'ko' ? '성격 태그는 최대 5개까지 선택할 수 있습니다.' : 'You can select up to 5 personality tags.');
       }
     }
   };
 
   // Add Custom Tag
   const addCustomTag = () => {
-    if (!customTag.trim()) return;
-    const formatted = customTag.startsWith('#') ? customTag.trim() : '#' + customTag.trim();
-    if (!formPersonalities.includes(formatted) && formPersonalities.length < 5) {
-      setFormPersonalities([...formPersonalities, formatted]);
+    const raw = customTag.trim();
+    if (!raw) return;
+    const formatted = raw.startsWith('#') ? raw : '#' + raw;
+    if (formPersonalities.includes(formatted)) {
       setCustomTag('');
+      return;
     }
+    if (formPersonalities.length >= 5) {
+      alert(language === 'ko' ? '성격 태그는 최대 5개까지 선택할 수 있습니다.' : 'You can select up to 5 personality tags.');
+      return;
+    }
+    setFormPersonalities(prev => [...prev, formatted]);
+    setCustomTag('');
   };
 
   // Save Form Handler
@@ -194,7 +366,8 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
             ownerName: `${formName.trim()} ${formOwnerTitle === 'dad' ? t.profile.dad : t.profile.mom}`,
             avatar: formAvatar,
             personality: formPersonalities.length > 0 ? formPersonalities : [t.profile.presetPersonalities?.[0] || '#댕댕이'],
-            greeting: formGreeting.trim()
+            greeting: formGreeting.trim(),
+            adoptionDate: formAdoptionDate,
           };
         }
         return p;
@@ -211,6 +384,9 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
         avatar: formAvatar || AVATAR_PRESETS[0],
         personality: formPersonalities.length > 0 ? formPersonalities : [t.profile.presetPersonalities?.[0] || '#새로운댕댕이'],
         greeting: formGreeting.trim(),
+        adoptionDate: formAdoptionDate || new Date().toISOString().split('T')[0],
+        walkDistance: 0.0,
+        walkMinutes: 0,
         distance: '0m',
         lat: 37.4200,
         lng: 127.1267,
@@ -225,6 +401,16 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
           meetupCount: 0
         }
       };
+      // 새 반려견 추가 시 이전에 삭제 목록에 있었던 이름이면 복원 허용
+      try {
+        const raw = localStorage.getItem('WALWAL_DELETED_PETS');
+        if (raw) {
+          const list: string[] = JSON.parse(raw);
+          const filtered = list.filter(item => item !== formName.trim());
+          localStorage.setItem('WALWAL_DELETED_PETS', JSON.stringify(filtered));
+        }
+      } catch (e) { }
+
       const updated = [...pets, newPet];
       savePetsToStorage(updated);
       setActivePetIndex(updated.length - 1);
@@ -233,21 +419,82 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
     setModalMode(null);
   };
 
+  // Delete Pet Handler
+  const handleDeletePet = async (indexToDelete?: number) => {
+    const targetIdx = typeof indexToDelete === 'number' ? indexToDelete : activePetIndex;
+    const targetPet = pets[targetIdx] || myDog;
+    if (!targetPet) return;
+
+    if (pets.length <= 1) {
+      alert(language === 'ko'
+        ? '반려견이 최소 1마리 이상 등록되어 있어야 합니다. 새 반려견을 추가한 후 삭제해주세요.'
+        : 'At least one dog profile is required. Please add a new dog before deleting this one.');
+      return;
+    }
+
+    const confirmMsg = language === 'ko'
+      ? `'${targetPet.name}' 반려견을 정말 삭제하시겠습니까?`
+      : `Are you sure you want to delete '${targetPet.name}'?`;
+    if (!window.confirm(confirmMsg)) return;
+
+    // 1. Record in WALWAL_DELETED_PETS
+    try {
+      const raw = localStorage.getItem('WALWAL_DELETED_PETS');
+      const list: string[] = raw ? JSON.parse(raw) : [];
+      if (targetPet.id && !list.includes(targetPet.id)) list.push(targetPet.id);
+      if (targetPet.name && !list.includes(targetPet.name)) list.push(targetPet.name);
+      localStorage.setItem('WALWAL_DELETED_PETS', JSON.stringify(list));
+    } catch (e) { }
+
+    // 2. Delete from Firestore
+    if (targetPet.id) {
+      await deleteDogProfile(targetPet.id, currentUser?.uid);
+    }
+
+    // 3. Update local state
+    const remaining = pets.filter((_, idx) => idx !== targetIdx);
+    const updated = sanitizePetList(remaining, language);
+    setPets(updated);
+    localStorage.setItem('WALWAL_PETS', JSON.stringify(updated));
+
+    if (activePetIndex >= updated.length) {
+      setActivePetIndex(Math.max(0, updated.length - 1));
+    } else if (targetIdx === activePetIndex) {
+      setActivePetIndex(Math.max(0, Math.min(activePetIndex, updated.length - 1)));
+    } else if (targetIdx < activePetIndex) {
+      setActivePetIndex(prev => Math.max(0, prev - 1));
+    }
+
+    setModalMode(null);
+    window.dispatchEvent(new Event('walwal_pets_updated'));
+
+    alert(language === 'ko' ? `'${targetPet.name}' 반려견이 삭제되었습니다.` : `'${targetPet.name}' has been deleted.`);
+  };
+
 
   if (showSettings) return <SettingsView onClose={() => setShowSettings(false)} />;
 
   return (
     <div className="page-root">
       {/* Top Header */}
-      <div className="page-header">
+      <div className="page-header row-between">
         <div>
           <h2 className="title-lg">{t.profile.title}</h2>
           <p className="text-sub">{t.profile.subtitle}</p>
         </div>
 
-        <div className="profile-header-actions">
+        <div className="profile-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+
           <button onClick={() => setShowSettings(true)} className='btn-ghost'>
             <Settings size={24} strokeWidth={2} />
+          </button>
+          <button
+            className="all-services-header-btn"
+            onClick={() => window.dispatchEvent(new CustomEvent('walwal_open_all_services'))}
+            aria-label="전체서비스"
+            title="전체서비스"
+          >
+            <Menu size={24} />
           </button>
         </div>
       </div>
@@ -257,46 +504,79 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
         <div className="row">
           {pets.map((pet, idx) => {
             const normalizedPet = normalizeDogProfile(pet, language);
+            const isActive = activePetIndex === idx;
             return (
               <button
-                className={`petNameBtn ${activePetIndex === idx ? 'active' : ''}`}
+                className={`petNameBtn ${isActive ? 'active' : ''}`}
                 key={pet.id || idx}
                 onClick={() => setActivePetIndex(idx)}
               >
                 <img src={normalizedPet.avatar} alt={normalizedPet.name} />
-                {normalizedPet.name}
+                <span>{normalizedPet.name}</span>
+                {pets.length > 1 && (
+                  <span
+                    className="petTabDeleteBtn"
+                    title={language === 'ko' ? `${normalizedPet.name} 삭제` : `Delete ${normalizedPet.name}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeletePet(idx);
+                    }}
+                  >
+                    <X size={12} strokeWidth={2.5} />
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
         <button
-          onClick={openAddModal} className="btn-ghost" >
-          <Plus size={24} strokeWidth={2} />
+          onClick={openAddModal}
+          className="btn-ghost"
+          title={language === 'ko' ? '반려견 추가' : 'Add Pet'}
+        >
+          <Plus size={28} strokeWidth={2} />
         </button>
       </div>
 
       {/* Pet Card */}
       <div className="card-lg mb-20 profile-card">
-        {/* Edit Button on Top-Right */}
-        <button className='btn-ghost editProfileBtn'
-          onClick={openEditModal}
-        >
-          <Edit3 size={18} />
-        </button>
 
         {/* Avatar with Camera Icon */}
-        <div className="profile-avatar-wrapper" onClick={openEditModal}>
+        <div className="profile-avatar-wrapper">
           <img className='dogAvata'
             src={myDog.avatar}
             alt={myDog.name}
+            onClick={openEditModal}
           />
-          <div className="editAvata">
-            <Camera size={18} color="#fff" />
-          </div>
+          <label className="editAvata" title="프로필 사진 변경">
+            <input
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={handleDirectPhotoUpload}
+            />
+            <Camera size={24} color="#fff" />
+          </label>
         </div>
 
         <h3 className="title-lg profile-name">
           {myDog.name}
+          {/* Edit Button */}
+          <button className='btn-ghost editProfileBtn'
+            onClick={openEditModal}
+            title={language === 'ko' ? '프로필 수정' : 'Edit Profile'}
+          >
+            <Edit3 size={16} />
+          </button>
+          {/* Delete Button */}
+          {pets.length > 1 && (
+            <button className='btn-ghost deleteProfileBtn'
+              onClick={() => handleDeletePet(activePetIndex)}
+              title={language === 'ko' ? '반려견 삭제' : 'Delete Pet'}
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
         </h3>
         <p className="text-sub mt-4">
           {localizeBreed(myDog.breed, language)} &middot; {myDog.age}{t.profile.dogAgeSuffix}  &middot; {(myDog.gender || 'female') === 'female' ? t.common?.genderShortFemale : t.common?.genderShortMale}
@@ -315,26 +595,104 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
         {/* Greetings */}
         <div className="profile-greeting-wrapper">
           <div className="profile-greeting-inner">
-            "{myDog.greeting || t.profile?.greetingEmpty || '반갑습니다! 인사말을 등록해주세요 😊'}"
+            "{myDog.greeting || t.profile?.greetingEmpty || '반갑습니다! 인사말을 등록해주세요'}"
           </div>
         </div>
       </div>
 
 
 
-      {/* Stats Grid */}
-      <div className="grid-3 mb-24">
-        <div className="card profile-stat-card">
-          <div className="profile-stat-val-1">{myDog.conversationLog?.length || 0}</div>
-          <div className="text-sub mt-6">{t.profile.statTranslate}</div>
+      {/* Stats List: 3 Full-width Rows (Today Walk Distance, Today Walk Time, Days Together) */}
+      <div className="profile-stats-list">
+        {/* Row 1: Today Walk Distance */}
+        <div
+          className="profile-stat-row-card clickable"
+          onClick={() => {
+            setWalkHistoryTab('distance');
+            setShowWalkHistoryModal(true);
+          }}
+          title={language === 'ko' ? '거리 & 코스 분석 보기' : 'View Distance & Course'}
+        >
+          <div className="profile-stat-icon-wrapper distance">
+            <MapPin size={22} strokeWidth={2.5} />
+          </div>
+          <div className="profile-stat-content">
+            <div className="profile-stat-line primary">
+              <span className="profile-stat-label-main">
+                {t.profile.statTodayDistance || (language === 'ko' ? '오늘 산책 거리' : 'Today Walk')}
+              </span>
+              <span className="profile-stat-val-main distance">
+                {(myDog.todayWalkDistance !== undefined ? myDog.todayWalkDistance : 1.8).toFixed(1)} km
+              </span>
+            </div>
+            <div className="profile-stat-line secondary">
+              <span className="profile-stat-label-sub">
+                {t.profile.totalDistanceLabel || (language === 'ko' ? '누적 거리' : 'Total Distance')}
+              </span>
+              <span className="profile-stat-val-sub">
+                {(myDog.walkDistance !== undefined ? myDog.walkDistance : 35).toFixed(0)} km
+              </span>
+            </div>
+          </div>
+          <ChevronRight size={18} className="profile-stat-arrow" />
         </div>
-        <div className="card profile-stat-card">
-          <div className="profile-stat-val-2">{studioCount}</div>
-          <div className="text-sub mt-6">{t.profile.statWebtoon}</div>
+
+        {/* Row 2: Today Walk Time */}
+        <div
+          className="profile-stat-row-card clickable"
+          onClick={() => {
+            setWalkHistoryTab('time');
+            setShowWalkHistoryModal(true);
+          }}
+          title={language === 'ko' ? '시간 & 활동량 분석 보기' : 'View Time & Activity'}
+        >
+          <div className="profile-stat-icon-wrapper time">
+            <Clock size={22} strokeWidth={2.5} />
+          </div>
+          <div className="profile-stat-content">
+            <div className="profile-stat-line primary">
+              <span className="profile-stat-label-main">
+                {t.profile.statTodayTime || (language === 'ko' ? '오늘 산책 시간' : 'Today Time')}
+              </span>
+              <span className="profile-stat-val-main time">
+                {myDog.todayWalkMinutes !== undefined ? myDog.todayWalkMinutes : 45} {t.profile.walkMinSuffix || (language === 'ko' ? '분' : 'min')}
+              </span>
+            </div>
+            <div className="profile-stat-line secondary">
+              <span className="profile-stat-label-sub">
+                {t.profile.totalTimeLabel || (language === 'ko' ? '누적 시간' : 'Total Time')}
+              </span>
+              <span className="profile-stat-val-sub">
+                {myDog.walkMinutes !== undefined ? myDog.walkMinutes : 320} {t.profile.walkMinSuffix || (language === 'ko' ? '분' : 'min')}
+              </span>
+            </div>
+          </div>
+          <ChevronRight size={18} className="profile-stat-arrow" />
         </div>
-        <div className="card profile-stat-card">
-          <div className="profile-stat-val-3">{joinedMeetupsCount}</div>
-          <div className="text-sub mt-6">{t.profile.statMeetup}</div>
+
+        {/* Row 3: Days Together (D-Day) */}
+        <div className="profile-stat-row-card">
+          <div className="profile-stat-icon-wrapper dday">
+            <Calendar size={22} strokeWidth={2.5} />
+          </div>
+          <div className="profile-stat-content">
+            <div className="profile-stat-line primary">
+              <span className="profile-stat-label-main">
+                {t.profile.statDays || (language === 'ko' ? '함께한 날' : 'Days Together')}
+              </span>
+              <span className="profile-stat-val-main dday">
+                D+{calculateDDay(myDog.adoptionDate, myDog.age)}
+              </span>
+            </div>
+            <div className="profile-stat-line secondary">
+              <span className="profile-stat-label-sub">
+                {t.profile.sinceAdoption || (language === 'ko' ? '가족이 된 날' : 'Adoption Day')}
+              </span>
+              <span className="profile-stat-val-sub">
+                {myDog.adoptionDate || getDefaultAdoptionDate(myDog.age)}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -416,8 +774,7 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
                 ))}
               </select>
             </div>
-
-            {/* Input: Age, Gender, Owner Title */}
+            {/* Input: Age, Adoption Date, Gender, Owner Title */}
             {/* Age */}
             <div className="mb-18">
               <label className="form-label">
@@ -437,6 +794,25 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
                   {t.profile.dogAgeSuffix}
                 </span>
               </div>
+            </div>
+
+            {/* Adoption Date / Birthday */}
+            <div className="mb-18">
+              <label className="form-label">
+                {t.profile?.adoptionDate ||
+                  (language === 'ko' ? '함께한 날 (생일 / 입양일)' :
+                   language === 'zh' ? '陪伴时光（生日 / 领养日）' :
+                   language === 'ja' ? '一緒に過ごした日（誕生日・お迎え日）' :
+                   language === 'fr' ? "Date de naissance / d'adoption" :
+                   language === 'es' ? 'Fecha de nacimiento / adopción' : 'Birthday / Adoption Date')}
+              </label>
+              <input
+                type="date"
+                value={formAdoptionDate}
+                onChange={(e) => setFormAdoptionDate(e.target.value)}
+                className="form-input"
+                max={new Date().toISOString().split('T')[0]}
+              />
             </div>
 
             {/* Gender */}
@@ -493,7 +869,7 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
 
               {/* Tag Chips */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>
-                {t.profile.presetPersonalities?.map((tag: string) => {
+                {Array.from(new Set([...(t.profile.presetPersonalities || []), ...formPersonalities])).map((tag: string) => {
                   const isSelected = formPersonalities.includes(tag);
                   return (
                     <button
@@ -514,7 +890,12 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
                   type="text"
                   value={customTag}
                   onChange={(e) => setCustomTag(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') addCustomTag(); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addCustomTag();
+                    }
+                  }}
                   placeholder={t.profile.addTagPlaceholder}
                   className="form-input profile-tag-input"
                 />
@@ -544,7 +925,17 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
             </div>
 
             {/* Action Buttons */}
-            <div className="row gap-12">
+            <div className="row gap-12" style={{ marginTop: '10px' }}>
+              {modalMode === 'edit' && (
+                <button
+                  type="button"
+                  onClick={() => handleDeletePet(activePetIndex)}
+                  className="profile-action-cancel"
+                  title={language === 'ko' ? '반려견 삭제' : language === 'zh' ? '删除狗狗' : language === 'ja' ? '愛犬を削除' : language === 'fr' ? 'Supprimer le profil' : language === 'es' ? 'Eliminar perro' : 'Delete Pet'}
+                >
+                  <Trash2 size={18} /> {language === 'ko' ? '삭제' : language === 'zh' ? '删除' : language === 'ja' ? '削除' : language === 'fr' ? 'Supprimer' : language === 'es' ? 'Eliminar' : 'Delete'}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setModalMode(null)}
@@ -562,8 +953,29 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
             </div>
           </div>
         </div>
-      )
-      }
-    </div >
+      )}
+
+      {/* Walk History Modal */}
+      {showWalkHistoryModal && (
+        <WalkHistoryModal
+          dog={myDog}
+          initialTab={walkHistoryTab}
+          onClose={() => setShowWalkHistoryModal(false)}
+          onUpdateStats={(newDist, newMins) => {
+            const updated = pets.map(p => {
+              if (p.id === myDog.id) {
+                return {
+                  ...p,
+                  walkDistance: newDist,
+                  walkMinutes: newMins
+                };
+              }
+              return p;
+            });
+            savePetsToStorage(updated);
+          }}
+        />
+      )}
+    </div>
   );
 };

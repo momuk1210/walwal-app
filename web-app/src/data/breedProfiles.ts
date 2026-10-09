@@ -22,16 +22,16 @@ export const BREED_DEFINITIONS: BreedDefinition[] = [
     audioBarkInterpretation: '친구가 되고 싶다는 우렁찬 환영 인사',
     quipsByEmotion: {
       excited: [
-        '와! 친구다! 당장 놀자! 💖',
-        '주머니 소시지 냄새 킁킁! 꼬리 모터 가동! 🚀',
-        '나 쓰다듬고 가도 돼 헤헤 ✨'
+        '와! 친구다! 당장 놀자!',
+        '주머니 소시지 냄새 킁킁! 꼬리 모터 가동!',
+        '나 쓰다듬고 가도 돼 헤헤'
       ],
       curious: [
         '다른 칭구 냄새난다! 어디 있니?',
-        '나비야! 잔디밭 같이 뛸래? 🦋'
+        '나비야! 잔디밭 같이 뛸래?'
       ],
       dramatic: [
-        '저 칭구 허그해주고 싶은데 목줄이 너무 짧아... 🥺'
+        '저 칭구 허그해주고 싶은데 목줄이 너무 짧아...'
       ]
     }
   },
@@ -46,9 +46,9 @@ export const BREED_DEFINITIONS: BreedDefinition[] = [
     audioBarkInterpretation: '자신의 퍼스널 스페이스를 침범하지 말라는 단호한 경고',
     quipsByEmotion: {
       excited: [
-        '꼬리 흔드는 거 반동 추진력이다. 오해마라. 🕶️',
+        '꼬리 흔드는 거 반동 추진력이다. 오해마라.',
         '눈 마주쳤다고 친구 아님. 2미터 유지해.',
-        '당기지 마라. 안 간다 시바. 🛑'
+        '당기지 마라. 안 간다 시바.'
       ],
       curious: [
         '리트리버 녀석 너무 해맑네... 안 본 척 한다.',
@@ -70,8 +70,8 @@ export const BREED_DEFINITIONS: BreedDefinition[] = [
     audioBarkInterpretation: '"당장 내 요구를 들어줘라!" 강력한 의사 표시',
     quipsByEmotion: {
       excited: [
-        '말티즈는 참지 않아! 나만 봐라 앙! 💢',
-        '내 안에 맹수의 피가 흐른다! 🦁',
+        '말티즈는 참지 않아! 나만 봐라 앙!',
+        '내 안에 맹수의 피가 흐른다!',
         '지금 간식 안 주면 이불 뜯는다!'
       ],
       curious: [
@@ -79,7 +79,7 @@ export const BREED_DEFINITIONS: BreedDefinition[] = [
         '내 구역 냄새 누구냐! 당장 나와!'
       ],
       dramatic: [
-        '발바닥에 먼지 묻었다! 당장 안아라 집사야 😤'
+        '발바닥에 먼지 묻었다! 당장 안아라 집사야'
       ]
     }
   },
@@ -94,7 +94,7 @@ export const BREED_DEFINITIONS: BreedDefinition[] = [
     audioBarkInterpretation: '식사 시간 또는 간식 봉지 소리에 대한 경쾌한 비트',
     quipsByEmotion: {
       excited: [
-        '엉덩이 모터 3000RPM! 씰룩씰룩! 🍞',
+        '엉덩이 모터 3000RPM! 씰룩씰룩!',
         '내 무게중심이 우주 최강 안정적이다 컹컹!',
         '트릿 봉지 뜯는 소리다! 투하하라!'
       ],
@@ -103,7 +103,7 @@ export const BREED_DEFINITIONS: BreedDefinition[] = [
         '풀이 배에 닿네... 천연 안마 코스구만?'
       ],
       dramatic: [
-        '배고파서 다리가 더 짧아짐... 고기 긴급 처방 🍖'
+        '배고파서 다리가 더 짧아짐... 고기 긴급 처방'
       ]
     }
   },
@@ -118,8 +118,8 @@ export const BREED_DEFINITIONS: BreedDefinition[] = [
     audioBarkInterpretation: '"나 건들면 아프다!" 초고주파 방어적 경고음',
     quipsByEmotion: {
       excited: [
-        '어흥! 비둘기 내 구역에서 당장 꺼져! 🦁',
-        '내 털 120% 부풀었다! 다들 기절하겠지? ☁️',
+        '어흥! 비둘기 내 구역에서 당장 꺼져!',
+        '내 털 120% 부풀었다! 다들 기절하겠지?',
         '바람 각도 예술~ 내 미모 눈부시지?'
       ],
       curious: [
@@ -142,7 +142,7 @@ export const BREED_DEFINITIONS: BreedDefinition[] = [
     audioBarkInterpretation: '집사의 행동 패턴을 유도하는 맞춤형 소리 신호',
     quipsByEmotion: {
       excited: [
-        '고개 45도 갸우뚱! 간식 득템 🧠',
+        '고개 45도 갸우뚱! 간식 득템',
         '애교 패턴 데이터 완벽 출력 중!',
         '짖는 건 하수지. 난 눈빛으로 조종한다.'
       ],

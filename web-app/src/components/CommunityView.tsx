@@ -1,8 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { Calendar, MapPin, Heart, MessageSquare, Plus, CheckCircle2, Navigation, X, Send, PawPrint, Crown, LogOut } from 'lucide-react';
-import { MOCK_DOGS, getMockDogs, isSameDogName, getDefaultDogAvatar, normalizeDogProfile, getLiveDogAvatar, getLiveDogProfile, localizeBreed, localizePersonalityTags } from '../data/mockDogs';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Calendar, MapPin, Heart, MessageSquare, Plus, CheckCircle2, Navigation, X, Send, PawPrint, Crown, LogOut, MoreVertical, Edit3, Trash2, ChevronDown, RotateCcw, Sparkles, Filter, Check, SlidersHorizontal, Menu, ShieldAlert, Flag } from 'lucide-react';
+import { MOCK_DOGS, getMockDogs, isSameDogName, getDefaultDogAvatar, normalizeDogProfile, getLiveDogAvatar, getLiveDogProfile, localizeBreed, localizePersonalityTags, localizeDogName, sanitizePetList } from '../data/mockDogs';
 import { MeetupChatModal } from './MeetupChatModal';
 import { DogProfileModal } from './DogProfileModal';
+import { ReportModal, ReportModalTarget } from './ReportModal';
+import { isUserBlocked, blockUser } from '../services/moderationService';
+import { validateUserContent } from '../utils/profanityFilter';
+import { useTranslation } from '../i18n/LanguageContext';
+import { db } from '../firebase';
+import { deleteDoc, doc, collection, onSnapshot } from 'firebase/firestore';
+import { syncMeetupToFirestore } from '../services/db';
+import { formatMeetupDisplay, extractMeetupDateTime, getMeetupDynamicStatus } from '../utils/meetupTime';
+import '../styles/CommunityView.css';
 
 export interface WalkMeetup {
   id: string;
@@ -11,6 +20,10 @@ export interface WalkMeetup {
   lat: number;
   lng: number;
   time: string;
+  date?: string;
+  dateTime?: string;
+  timeStr?: string;
+  createdAt?: number;
   hostDog: string;
   hostOwner: string;
   avatar: string;
@@ -23,147 +36,379 @@ export interface WalkMeetup {
   unreadCount?: number;
   userJoinedPets?: any[];
   joinedPetIds?: string[];
+  isCustomEdited?: boolean;
 }
 
-const INITIAL_MEETUPS: WalkMeetup[] = [
-  {
-    id: 'm1',
-    title: '서울숲 야간 킁킁 산책 번개',
-    location: '서울숲 중앙잔디광장',
-    lat: 37.5445,
-    lng: 127.0374,
-    time: '오늘 저녁 8시 30분',
-    hostDog: '보리',
-    hostOwner: '보리 엄마',
-    avatar: getMockDogs("ko")[0].avatar,
-    participantsCount: 4,
-    maxParticipants: 8,
-    tag: '#대형견환영',
-    joined: false,
-    status: 'upcoming',
-    participants: [
-      getMockDogs("ko")[0],
-      getMockDogs("ko")[1],
-      getMockDogs("ko")[2],
-      getMockDogs("ko")[3]
-    ]
-  },
-  {
-    id: 'm2',
-    title: '웰시코기 & 숏다리 친구들 모여라!',
-    location: '뚝섬 한강공원 피크닉존',
-    lat: 37.5298,
-    lng: 127.0700,
-    time: '내일 오후 3시',
-    hostDog: '땅콩',
-    hostOwner: '땅콩 아빠',
-    avatar: getMockDogs("ko")[1].avatar,
-    participantsCount: 3,
-    maxParticipants: 6,
-    tag: '#숏다리모임',
-    joined: true,
-    unreadCount: 3,
-    status: 'upcoming',
-    participants: [
-      getMockDogs("ko")[1],
-      getMockDogs("ko")[2],
-      getMockDogs("ko")[3]
-    ]
-  },
-  {
-    id: 'm3',
-    title: '쫄보 솜뭉치들의 조용한 힐링 산책',
-    location: '살곶이 다리 산책로',
-    lat: 37.5580,
-    lng: 127.0435,
-    time: '일요일 오전 10시',
-    hostDog: '구름이',
-    hostOwner: '구름 엄마',
-    avatar: getMockDogs("ko")[2].avatar,
-    participantsCount: 2,
-    maxParticipants: 5,
-    tag: '#소형견전용',
-    joined: false,
-    status: 'upcoming',
-    participants: [
-      getMockDogs("ko")[2],
-      getMockDogs("ko")[3]
-    ]
-  },
-  {
-    id: 'm4',
-    title: ' 가을맞이 시바견 정모 (종료)',
-    location: '어린이대공원 반려견놀이터',
-    lat: 37.5492,
-    lng: 127.0818,
-    time: '지난 주말 오후 2시',
-    hostDog: '모찌',
-    hostOwner: '모찌 아빠',
-    avatar: getMockDogs("ko")[1].avatar,
-    participantsCount: 3,
-    maxParticipants: 10,
-    tag: '#정기모임',
-    joined: false,
-    status: 'past',
-    participants: [
-      getMockDogs("ko")[1],
-      getMockDogs("ko")[2],
-      getMockDogs("ko")[0],
-      getMockDogs("ko")[3]
-    ]
-  }
-];
+const INITIAL_MEETUPS: WalkMeetup[] = [];
 
 interface CommunityViewProps {
   onNavigateToRadar?: (meetup: { lat: number; lng: number; name: string }) => void;
 }
 
-import { useTranslation } from '../i18n/LanguageContext';
+const getTodayDateStr = () => {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
+const formatMeetupDateTime = (dateStr: string, timeStr: string, lang: string = 'ko'): string => {
+  if (!dateStr && !timeStr) return '';
+  if (!timeStr) return dateStr;
+  if (!dateStr) return timeStr;
+
+  try {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const [hours, minutes] = timeStr.split(':').map(Number);
+
+    const now = new Date();
+    const isToday = now.getFullYear() === year && now.getMonth() === month - 1 && now.getDate() === day;
+
+    const tomorrow = new Date(now);
+    tomorrow.setDate(now.getDate() + 1);
+    const isTomorrow = tomorrow.getFullYear() === year && tomorrow.getMonth() === month - 1 && tomorrow.getDate() === day;
+
+    const displayHour = hours % 12 === 0 ? 12 : hours % 12;
+
+    let timeFormatted = '';
+    if (lang === 'en') {
+      const ampm = hours < 12 ? 'AM' : 'PM';
+      timeFormatted = minutes === 0 ? `${displayHour} ${ampm}` : `${displayHour}:${String(minutes).padStart(2, '0')} ${ampm}`;
+    } else if (lang === 'ja') {
+      const ampm = hours < 12 ? '午前' : '午後';
+      timeFormatted = minutes === 0 ? `${ampm}${displayHour}時` : `${ampm}${displayHour}時${minutes}分`;
+    } else if (lang === 'es') {
+      const ampm = hours < 12 ? 'AM' : 'PM';
+      timeFormatted = minutes === 0 ? `${displayHour} ${ampm}` : `${displayHour}:${String(minutes).padStart(2, '0')} ${ampm}`;
+    } else {
+      const ampm = hours < 12 ? '오전' : '오후';
+      const minStr = minutes === 0 ? '' : ` ${minutes}분`;
+      timeFormatted = `${ampm} ${displayHour}시${minStr}`;
+    }
+
+    if (isToday) {
+      if (lang === 'en') return `Today ${timeFormatted}`;
+      if (lang === 'ja') return `今日 ${timeFormatted}`;
+      if (lang === 'es') return `Hoy ${timeFormatted}`;
+      return `오늘 ${timeFormatted}`;
+    }
+    if (isTomorrow) {
+      if (lang === 'en') return `Tomorrow ${timeFormatted}`;
+      if (lang === 'ja') return `明日 ${timeFormatted}`;
+      if (lang === 'es') return `Mañana ${timeFormatted}`;
+      return `내일 ${timeFormatted}`;
+    }
+
+    const targetDate = new Date(year, month - 1, day);
+    const dayOfWeek = targetDate.getDay();
+
+    if (lang === 'en') {
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${monthNames[month - 1]} ${day} (${dayNames[dayOfWeek]}) ${timeFormatted}`;
+    }
+    if (lang === 'ja') {
+      const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+      return `${month}月${day}日 (${dayNames[dayOfWeek]}) ${timeFormatted}`;
+    }
+    if (lang === 'es') {
+      const dayNames = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+      const monthNames = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+      return `${day} ${monthNames[month - 1]} (${dayNames[dayOfWeek]}) ${timeFormatted}`;
+    }
+
+    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+    return `${month}월 ${day}일 (${dayNames[dayOfWeek]}) ${timeFormatted}`;
+  } catch (e) {
+    return `${dateStr} ${timeStr}`;
+  }
+};
+
+const parseMeetupDateTime = (timeText: string): { date: string; time: string } => {
+  const todayStr = getTodayDateStr();
+  if (!timeText) {
+    return { date: todayStr, time: '15:00' };
+  }
+
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const lowerText = timeText.toLowerCase().trim();
+
+  let date = todayStr;
+  if (timeText.includes('내일') || lowerText.includes('tomorrow') || timeText.includes('明日') || lowerText.includes('mañana')) {
+    const tm = new Date(now);
+    tm.setDate(now.getDate() + 1);
+    date = `${tm.getFullYear()}-${pad(tm.getMonth() + 1)}-${pad(tm.getDate())}`;
+  } else if (timeText.includes('오늘') || lowerText.includes('today') || timeText.includes('今日') || lowerText.includes('hoy')) {
+    date = todayStr;
+  } else {
+    const fullDateMatch = timeText.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (fullDateMatch) {
+      date = `${fullDateMatch[1]}-${pad(Number(fullDateMatch[2]))}-${pad(Number(fullDateMatch[3]))}`;
+    } else {
+      const monthDayMatch = timeText.match(/(\d{1,2})[월月\/\.-]\s*(\d{1,2})[일日]?/);
+      if (monthDayMatch) {
+        const m = pad(Number(monthDayMatch[1]));
+        const d = pad(Number(monthDayMatch[2]));
+        date = `${now.getFullYear()}-${m}-${d}`;
+      } else {
+        const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+        const esMonths = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+        let matchedMonthIdx = -1;
+        for (let i = 0; i < 12; i++) {
+          if (lowerText.includes(monthNames[i]) || lowerText.includes(esMonths[i])) {
+            matchedMonthIdx = i;
+            break;
+          }
+        }
+        if (matchedMonthIdx !== -1) {
+          const dayMatch = timeText.match(/\b(\d{1,2})\b/);
+          if (dayMatch) {
+            date = `${now.getFullYear()}-${pad(matchedMonthIdx + 1)}-${pad(Number(dayMatch[1]))}`;
+          }
+        }
+      }
+    }
+  }
+
+  let hours = 15;
+  let minutes = 0;
+  const pmMatch = lowerText.includes('오후') || lowerText.includes('저녁') || lowerText.includes('밤') || lowerText.includes('pm') || lowerText.includes('午後');
+  const amMatch = lowerText.includes('오전') || lowerText.includes('아침') || lowerText.includes('새벽') || lowerText.includes('am') || lowerText.includes('午前');
+
+  const colonMatch = timeText.match(/(\d{1,2}):(\d{2})/);
+  if (colonMatch) {
+    hours = parseInt(colonMatch[1], 10);
+    minutes = parseInt(colonMatch[2], 10);
+    if (pmMatch && hours < 12) hours += 12;
+    if (amMatch && hours === 12) hours = 0;
+  } else {
+    const hourMatch = timeText.match(/(\d{1,2})\s*(시|時|h|pm|am)/i) || timeText.match(/\b(\d{1,2})\s*(?:pm|am)\b/i);
+    const minMatch = timeText.match(/(\d{1,2})\s*(분|m|min)/i);
+    if (hourMatch) {
+      hours = parseInt(hourMatch[1], 10);
+      if (pmMatch && hours < 12) hours += 12;
+      if (amMatch && hours === 12) hours = 0;
+      if (minMatch) minutes = parseInt(minMatch[1], 10);
+    }
+  }
+
+  return {
+    date,
+    time: `${pad(hours)}:${pad(minutes)}`
+  };
+};
 
 export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar }) => {
   const { t, language } = useTranslation();
+  const filterT = (t.community as any)?.filters || {};
 
   // Use dynamically translated mock data
-  const localizedMeetups: WalkMeetup[] = [
-    { ...INITIAL_MEETUPS[0], hostDog: getMockDogs(language)[0].name, hostOwner: getMockDogs(language)[0].ownerName, participants: [getMockDogs(language)[0], getMockDogs(language)[1], getMockDogs(language)[2], getMockDogs(language)[3]], title: t.community.mock.m1?.title || INITIAL_MEETUPS[0].title, location: t.community.mock.m1?.location || INITIAL_MEETUPS[0].location, time: t.community.mock.m1?.time || INITIAL_MEETUPS[0].time, tag: t.community.mock.m1?.tag || INITIAL_MEETUPS[0].tag },
-    { ...INITIAL_MEETUPS[1], hostDog: getMockDogs(language)[1].name, hostOwner: getMockDogs(language)[1].ownerName, participants: [getMockDogs(language)[1], getMockDogs(language)[2], getMockDogs(language)[3]], title: t.community.mock.m2?.title || INITIAL_MEETUPS[1].title, location: t.community.mock.m2?.location || INITIAL_MEETUPS[1].location, time: t.community.mock.m2?.time || INITIAL_MEETUPS[1].time, tag: t.community.mock.m2?.tag || INITIAL_MEETUPS[1].tag, participantsCount: 3 },
-    { ...INITIAL_MEETUPS[2], hostDog: getMockDogs(language)[2].name, hostOwner: getMockDogs(language)[2].ownerName, participants: [getMockDogs(language)[2], getMockDogs(language)[3]], title: t.community.mock.m3?.title || INITIAL_MEETUPS[2].title, location: t.community.mock.m3?.location || INITIAL_MEETUPS[2].location, time: t.community.mock.m3?.time || INITIAL_MEETUPS[2].time, tag: t.community.mock.m3?.tag || INITIAL_MEETUPS[2].tag, participantsCount: 2 },
-    { ...INITIAL_MEETUPS[3], hostDog: getMockDogs(language)[1].name, hostOwner: getMockDogs(language)[1].ownerName, participants: [getMockDogs(language)[0], getMockDogs(language)[1], getMockDogs(language)[2]], title: '정기 건강 산책', location: '호수공원 둘레길', time: '지난주 수요일', tag: '#정기모임', participantsCount: 3 }
-  ];
+  const localizedMeetups: WalkMeetup[] = [];
 
   // Initialize or sync with language changes
   const [meetups, setMeetups] = useState<WalkMeetup[]>(() => {
     try {
       const saved = localStorage.getItem('WALWAL_MEETUPS');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const filtered = parsed.filter(m => {
+            // Remove mock data from user's cache
+            if (!m.id) return false;
+            if (['m1', 'm2', 'm3', 'm4'].includes(m.id)) return false;
+            if (m.title && (m.title.includes('웰시코기') || m.title.includes('쫄보') || m.title.includes('정기 건강 산책') || m.title.includes('서울숲'))) return false;
+            return true;
+          });
+          return filtered.map((m: WalkMeetup) => {
+            let cleanedHostOwner = m.hostOwner ? m.hostOwner.replace(/맘/g, '엄마') : m.hostOwner;
+            let cleanedHostDog = m.hostDog;
+            if (language === 'ko' && cleanedHostOwner) {
+              cleanedHostOwner = cleanedHostOwner.replace(/Strawberry/ig, '딸기').replace(/Mom/ig, '엄마').replace(/Dad/ig, '아빠');
+              if (cleanedHostDog) cleanedHostDog = localizeDogName(cleanedHostDog, 'ko');
+            } else if (language === 'en' && cleanedHostOwner) {
+              cleanedHostOwner = cleanedHostOwner.replace(/딸기/g, 'Strawberry').replace(/엄마/g, 'Mom').replace(/아빠/g, 'Dad');
+              if (cleanedHostDog) cleanedHostDog = localizeDogName(cleanedHostDog, 'en');
+            }
+            if (m.id === 'm1' || m.hostDog === '보리') {
+              return { ...m, hostOwner: language === 'ko' ? '보리 엄마' : 'Bori Mom', joined: true };
+            }
+            const cleanedParticipants = (m.participants || []).map((p: any) => ({
+              ...p,
+              name: localizeDogName(p.name, language),
+              breed: localizeBreed(p.breed, language)
+            }));
+            return { ...m, hostOwner: cleanedHostOwner, hostDog: cleanedHostDog, participants: cleanedParticipants };
+          });
+        }
+      }
     } catch (e) { }
     return localizedMeetups;
   });
 
-  // Save to localStorage whenever meetups change
+  // Save to localStorage and Firestore whenever meetups change
   React.useEffect(() => {
     localStorage.setItem('WALWAL_MEETUPS', JSON.stringify(meetups));
+    if (meetups && meetups.length > 0) {
+      meetups.forEach(m => {
+        syncMeetupToFirestore(m);
+      });
+    }
   }, [meetups]);
+
+  // Two-way sync with Firestore meetups collection
+  React.useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'meetups'), (snapshot) => {
+      if (snapshot.empty) return;
+      const remoteList: WalkMeetup[] = [];
+      snapshot.forEach(docSnap => {
+        remoteList.push({ id: docSnap.id, ...docSnap.data() } as WalkMeetup);
+      });
+      setMeetups(prev => {
+        const map = new Map<string, WalkMeetup>();
+        prev.forEach(m => {
+          if (m.id && !['m1', 'm2', 'm3', 'm4'].includes(m.id)) {
+            map.set(m.id, m);
+          }
+        });
+        let hasChanges = false;
+        remoteList.forEach(rm => {
+          if (rm.id && !['m1', 'm2', 'm3', 'm4'].includes(rm.id)) {
+            if (!map.has(rm.id)) {
+              map.set(rm.id, rm);
+              hasChanges = true;
+            }
+          }
+        });
+        if (!hasChanges) return prev;
+        return Array.from(map.values());
+      });
+    }, (err) => {
+      console.warn('Community meetups onSnapshot error:', err);
+    });
+    return () => unsub();
+  }, []);
+
+  // Sync loaded meetups when language changes
+  React.useEffect(() => {
+    setMeetups(prev => prev.map(m => {
+      let cleanedHostOwner = m.hostOwner;
+      let cleanedHostDog = m.hostDog;
+      if (cleanedHostOwner) {
+        if (language === 'ko') {
+          cleanedHostOwner = cleanedHostOwner.replace(/Strawberry/ig, '딸기').replace(/Mom/ig, '엄마').replace(/Dad/ig, '아빠');
+          if (cleanedHostDog) cleanedHostDog = localizeDogName(cleanedHostDog, 'ko');
+        } else if (language === 'en') {
+          cleanedHostOwner = cleanedHostOwner.replace(/딸기/g, 'Strawberry').replace(/엄마/g, 'Mom').replace(/아빠/g, 'Dad');
+          if (cleanedHostDog) cleanedHostDog = localizeDogName(cleanedHostDog, 'en');
+        } else if (language === 'ja') {
+          cleanedHostOwner = cleanedHostOwner.replace(/Strawberry/ig, 'イチゴ').replace(/딸기/g, 'イチゴ').replace(/Mom/ig, 'ママ').replace(/엄마/g, 'ママ').replace(/Dad/ig, 'パパ').replace(/아빠/g, 'パパ');
+          if (cleanedHostDog) cleanedHostDog = localizeDogName(cleanedHostDog, 'ja');
+        }
+      }
+      const cleanedParticipants = (m.participants || []).map((p: any) => ({
+        ...p,
+        name: localizeDogName(p.name, language),
+        breed: localizeBreed(p.breed, language)
+      }));
+      return { ...m, hostOwner: cleanedHostOwner, hostDog: cleanedHostDog, participants: cleanedParticipants };
+    }));
+  }, [language]);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedHostProfile, setSelectedHostProfile] = useState<any>(null);
   const [formTitle, setFormTitle] = useState('');
   const [formLocation, setFormLocation] = useState('');
-  const [formTime, setFormTime] = useState('');
+  const [formDate, setFormDate] = useState(() => getTodayDateStr());
+  const [formTimeStr, setFormTimeStr] = useState('15:00');
   const [formTag, setFormTag] = useState('');
   const [formMax, setFormMax] = useState<number>(5);
 
-  const [meetupStatusFilter, setMeetupStatusFilter] = useState<'upcoming' | 'joined' | 'past'>('upcoming');
+  const [meetupStatusFilter, setMeetupStatusFilter] = useState<'all' | 'joined'>('all');
+  const [openOnly, setOpenOnly] = useState<boolean>(false);
+  const [dogSize, setDogSize] = useState<'all' | 'small' | 'medium' | 'large'>('all');
+  const [walkStyle, setWalkStyle] = useState<'all' | 'free' | 'training' | 'sniff' | 'shy'>('all');
+  const [distanceFilter, setDistanceFilter] = useState<'all' | 'neighborhood' | 'nearby'>('all');
+  const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'tomorrow' | 'weekend' | 'custom'>('all');
+  const [customDate, setCustomDate] = useState<string>('');
+  const [timeSlotFilter, setTimeSlotFilter] = useState<'all' | 'morning' | 'day' | 'night'>('all');
+  const [myDogMatch, setMyDogMatch] = useState<boolean>(false);
+  const [activeDropdown, setActiveDropdown] = useState<'dogSize' | 'walkStyle' | 'date' | null>(null);
+
+  // Filter Modal State & Draft values
+  const [showFilterModal, setShowFilterModal] = useState<boolean>(false);
+  const [draftOpenOnly, setDraftOpenOnly] = useState<boolean>(false);
+  const [draftDogSize, setDraftDogSize] = useState<'all' | 'small' | 'medium' | 'large'>('all');
+  const [draftWalkStyle, setDraftWalkStyle] = useState<'all' | 'free' | 'training' | 'sniff' | 'shy'>('all');
+  const [draftDistanceFilter, setDraftDistanceFilter] = useState<'all' | 'neighborhood' | 'nearby'>('all');
+  const [draftDateFilter, setDraftDateFilter] = useState<'all' | 'today' | 'tomorrow' | 'weekend' | 'custom'>('all');
+  const [draftCustomDate, setDraftCustomDate] = useState<string>('');
+  const [draftTimeSlotFilter, setDraftTimeSlotFilter] = useState<'all' | 'morning' | 'day' | 'night'>('all');
+  const [draftMyDogMatch, setDraftMyDogMatch] = useState<boolean>(false);
+
+  const openFilterModal = () => {
+    setDraftOpenOnly(openOnly);
+    setDraftDogSize(dogSize);
+    setDraftWalkStyle(walkStyle);
+    setDraftDistanceFilter(distanceFilter);
+    setDraftDateFilter(dateFilter);
+    setDraftCustomDate(customDate || getTodayDateStr());
+    setDraftTimeSlotFilter(timeSlotFilter);
+    setDraftMyDogMatch(myDogMatch);
+    setShowFilterModal(true);
+  };
+
+  const applyFilterModal = () => {
+    setOpenOnly(draftOpenOnly);
+    setDogSize(draftDogSize);
+    setWalkStyle(draftWalkStyle);
+    setDistanceFilter(draftDistanceFilter);
+    setDateFilter(draftDateFilter);
+    setCustomDate(draftCustomDate);
+    setTimeSlotFilter(draftTimeSlotFilter);
+    setMyDogMatch(draftMyDogMatch);
+    setShowFilterModal(false);
+  };
+
+  const resetDraftFilters = () => {
+    setDraftOpenOnly(false);
+    setDraftDogSize('all');
+    setDraftWalkStyle('all');
+    setDraftDistanceFilter('all');
+    setDraftDateFilter('all');
+    setDraftCustomDate('');
+    setDraftTimeSlotFilter('all');
+    setDraftMyDogMatch(false);
+  };
+
+  const hasActiveFilters = openOnly || dogSize !== 'all' || walkStyle !== 'all' || distanceFilter !== 'all' || dateFilter !== 'all' || timeSlotFilter !== 'all' || myDogMatch;
+
+  const resetAllFilters = () => {
+    setOpenOnly(false);
+    setDogSize('all');
+    setWalkStyle('all');
+    setDistanceFilter('all');
+    setDateFilter('all');
+    setCustomDate('');
+    setTimeSlotFilter('all');
+    setMyDogMatch(false);
+    setActiveDropdown(null);
+  };
+
   const [showParticipantsModal, setShowParticipantsModal] = useState<WalkMeetup | null>(null);
   const [activeChatMeetup, setActiveChatMeetup] = useState<WalkMeetup | null>(null);
+  const [reportTarget, setReportTarget] = useState<ReportModalTarget | null>(null);
   const [petVersion, setPetVersion] = useState(0);
+  const [blockedVersion, setBlockedVersion] = useState(0);
 
   useEffect(() => {
     const handlePetUpdate = () => setPetVersion(v => v + 1);
+    const handleBlockedUpdate = () => setBlockedVersion(v => v + 1);
     window.addEventListener('walwal_pets_updated', handlePetUpdate);
+    window.addEventListener('walwal_blocked_users_updated', handleBlockedUpdate);
     window.addEventListener('storage', handlePetUpdate);
     return () => {
       window.removeEventListener('walwal_pets_updated', handlePetUpdate);
+      window.removeEventListener('walwal_blocked_users_updated', handleBlockedUpdate);
       window.removeEventListener('storage', handlePetUpdate);
     };
   }, []);
@@ -175,11 +420,11 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((p: any) => normalizeDogProfile(p, language));
+          return sanitizePetList(parsed, language);
         }
       }
     } catch (e) { }
-    return getMockDogs(language);
+    return [getMockDogs(language)[0]];
   }, [language, petVersion]);
 
   const myDog = myPets[0] || getMockDogs("ko")[0];
@@ -191,32 +436,235 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
     return fallbackAvatar || getDefaultDogAvatar(name);
   };
 
+  const isMeetupClosed = (m: WalkMeetup): boolean => {
+    if (m.status === 'past') return true;
+    try {
+      const now = new Date();
+      const { targetDate } = extractMeetupDateTime(m);
+      // 모임 시작 후 2시간 경과 시 마감 처리
+      if (now.getTime() > targetDate.getTime() + 2 * 60 * 60 * 1000) {
+        return true;
+      }
+    } catch (e) { }
+
+    const timeStr = (m.time || '').trim().toLowerCase();
+    if (timeStr.includes('지난') || timeStr.includes('종료') || timeStr.includes('마감') || timeStr.includes('past') || timeStr.includes('closed') || timeStr.includes('締切') || timeStr.includes('cerrado')) {
+      return true;
+    }
+
+    return false;
+  };
+
+  const isUserHost = (m: WalkMeetup): boolean => {
+    return myPets.some(p => isSameDogName(p.name, m.hostDog) || (p.ownerName && p.ownerName === m.hostOwner)) ||
+      m.hostDog === myDog.name || m.hostOwner === myDog.ownerName;
+  };
+
+  // 모임 정보 수정 상태
+  const [editingMeetup, setEditingMeetup] = useState<WalkMeetup | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editLocation, setEditLocation] = useState('');
+  const [editDate, setEditDate] = useState(() => getTodayDateStr());
+  const [editTimeStr, setEditTimeStr] = useState('15:00');
+  const [editTag, setEditTag] = useState('');
+  const [editMax, setEditMax] = useState<number>(5);
+  const [selectedEditPetIds, setSelectedEditPetIds] = useState<string[]>([]);
+
+  const openEditModal = (meetup: WalkMeetup) => {
+    const parsed = parseMeetupDateTime(meetup.time);
+    setEditingMeetup(meetup);
+    setEditTitle(meetup.title);
+    setEditLocation(meetup.location);
+    setEditDate(parsed.date);
+    setEditTimeStr(parsed.time);
+    setEditTag(meetup.tag || '');
+    setEditTag(meetup.tag || '');
+    setEditMax(meetup.maxParticipants || 5);
+
+    const initialPets = meetup.joinedPetIds || [];
+    setSelectedEditPetIds(initialPets.length > 0 ? initialPets : (myPets.length > 0 ? [myPets[0].id || myPets[0].name] : []));
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingMeetup || !editTitle.trim() || !editLocation.trim() || !editDate || !editTimeStr) return;
+
+    const validTitle = validateUserContent(editTitle);
+    if (!validTitle.isValid) {
+      alert(validTitle.message);
+      return;
+    }
+    const validLoc = validateUserContent(editLocation);
+    if (!validLoc.isValid) {
+      alert(validLoc.message);
+      return;
+    }
+
+    const formattedTime = formatMeetupDateTime(editDate, editTimeStr, language);
+
+    const selectedPets = myPets.filter(p => selectedEditPetIds.includes(p.id || p.name));
+    if (selectedPets.length === 0) return;
+
+    const hostDogName = selectedPets.map(p => p.name).join(language === 'en' ? ', ' : ', ');
+    const firstOwner = selectedPets[0].ownerName || `${selectedPets[0].name} ${language === 'ko' ? '엄마' : language === 'ja' ? 'ママ' : 'Mom'}`;
+
+    let ownerSuffix = language === 'ko' ? '엄마' : language === 'ja' ? 'ママ' : 'Mom';
+    const lowerOwner = firstOwner.toLowerCase();
+    if (lowerOwner.includes('papa') || lowerOwner.includes('dad') || firstOwner.includes('아빠') || firstOwner.includes('パパ')) {
+      ownerSuffix = language === 'ko' ? '아빠' : language === 'ja' ? 'パパ' : 'Dad';
+    } else if (lowerOwner.includes('mom') || firstOwner.includes('엄마') || firstOwner.includes('맘') || firstOwner.includes('ママ')) {
+      ownerSuffix = language === 'ko' ? '엄마' : language === 'ja' ? 'ママ' : 'Mom';
+    } else if (firstOwner.includes('형')) ownerSuffix = '형';
+    else if (firstOwner.includes('누나')) ownerSuffix = '누나';
+    else if (firstOwner.includes('언니')) ownerSuffix = '언니';
+    else if (firstOwner.includes('오빠')) ownerSuffix = '오빠';
+    else {
+      const parts = firstOwner.split(' ');
+      if (parts.length > 1) ownerSuffix = parts[parts.length - 1];
+    }
+
+    const hostOwnerName = `${hostDogName} ${ownerSuffix}`;
+
+    setMeetups(prev => prev.map(m => {
+      if (m.id === editingMeetup.id) {
+        const prevHostPetsCount = m.userJoinedPets?.length || 1;
+        const otherParticipants = (m.participants || []).filter(p => !m.userJoinedPets?.some(up => (up.id || up.name) === (p.id || p.name)));
+        const nextParticipants = [...otherParticipants, ...selectedPets];
+        const nextParticipantsCount = m.participantsCount - prevHostPetsCount + selectedPets.length;
+
+        return {
+          ...m,
+          title: editTitle.trim(),
+          location: editLocation.trim(),
+          time: formattedTime,
+          tag: editTag.trim() || '#자유모임',
+          maxParticipants: editMax,
+          hostDog: hostDogName,
+          hostOwner: hostOwnerName,
+          avatar: selectedPets[0].avatar,
+          participantsCount: nextParticipantsCount,
+          userJoinedPets: selectedPets,
+          joinedPetIds: selectedEditPetIds,
+          participants: nextParticipants,
+          isCustomEdited: true
+        };
+      }
+      return m;
+    }));
+
+    if (activeChatMeetup && activeChatMeetup.id === editingMeetup.id) {
+      setActiveChatMeetup(prev => prev ? ({
+        ...prev,
+        title: editTitle.trim(),
+        location: editLocation.trim(),
+        time: formattedTime,
+        tag: editTag.trim() || '#자유모임',
+        maxParticipants: editMax,
+        isCustomEdited: true
+      }) : null);
+    }
+
+    setEditingMeetup(null);
+  };
+
+  // 모임 드롭다운 메뉴 상태
+  const [activeMenuMeetupId, setActiveMenuMeetupId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('.meetup-menu-wrapper')) {
+        setActiveMenuMeetupId(null);
+      }
+    };
+    window.addEventListener('click', handleClickOutside);
+    return () => window.removeEventListener('click', handleClickOutside);
+  }, []);
+
+  const handleDeleteMeetup = (id: string) => {
+    if (window.confirm(t.community?.deleteConfirm || '정말로 이 산책 모임을 삭제하시겠습니까?')) {
+      setMeetups(prev => prev.filter(m => m.id !== id));
+      deleteDoc(doc(db, 'meetups', id)).catch(() => { });
+      if (activeChatMeetup && activeChatMeetup.id === id) {
+        setActiveChatMeetup(null);
+      }
+      setActiveMenuMeetupId(null);
+    }
+  };
+
   // 다견 산책 참여 선택 모달 상태
   const [joinPetSelectionMeetup, setJoinPetSelectionMeetup] = useState<WalkMeetup | null>(null);
   const [selectedJoinPetIds, setSelectedJoinPetIds] = useState<string[]>([]);
+  const [selectedCreatePetIds, setSelectedCreatePetIds] = useState<string[]>([]);
+
+  const openCreateModal = () => {
+    setSelectedCreatePetIds(myPets.length > 0 ? [myPets[0].id || myPets[0].name] : []);
+    setShowCreateModal(true);
+  };
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formTitle || !formLocation || !formTime) return;
+    if (!formTitle || !formLocation || !formDate || !formTimeStr) return;
 
+    const validTitle = validateUserContent(formTitle);
+    if (!validTitle.isValid) {
+      alert(validTitle.message);
+      return;
+    }
+    const validLoc = validateUserContent(formLocation);
+    if (!validLoc.isValid) {
+      alert(validLoc.message);
+      return;
+    }
+
+    const formattedTime = formatMeetupDateTime(formDate, formTimeStr, language);
+
+    const selectedPets = myPets.filter(p => selectedCreatePetIds.includes(p.id || p.name));
+    if (selectedPets.length === 0) return;
+
+    const hostDogName = selectedPets.map(p => p.name).join(language === 'en' ? ', ' : ', ');
+    const firstOwner = selectedPets[0].ownerName || `${selectedPets[0].name} ${language === 'ko' ? '엄마' : language === 'ja' ? 'ママ' : 'Mom'}`;
+
+    let ownerSuffix = language === 'ko' ? '엄마' : language === 'ja' ? 'ママ' : 'Mom';
+    const lowerOwner = firstOwner.toLowerCase();
+    if (lowerOwner.includes('papa') || lowerOwner.includes('dad') || firstOwner.includes('아빠') || firstOwner.includes('パパ')) {
+      ownerSuffix = language === 'ko' ? '아빠' : language === 'ja' ? 'パパ' : 'Dad';
+    } else if (lowerOwner.includes('mom') || firstOwner.includes('엄마') || firstOwner.includes('맘') || firstOwner.includes('ママ')) {
+      ownerSuffix = language === 'ko' ? '엄마' : language === 'ja' ? 'ママ' : 'Mom';
+    } else if (firstOwner.includes('형')) ownerSuffix = '형';
+    else if (firstOwner.includes('누나')) ownerSuffix = '누나';
+    else if (firstOwner.includes('언니')) ownerSuffix = '언니';
+    else if (firstOwner.includes('오빠')) ownerSuffix = '오빠';
+    else {
+      const parts = firstOwner.split(' ');
+      if (parts.length > 1) ownerSuffix = parts[parts.length - 1];
+    }
+
+    const hostOwnerName = `${hostDogName} ${ownerSuffix}`;
+
+    const nowTimestamp = Date.now();
     const newMeetup: WalkMeetup = {
-      id: `m_${Date.now()}`,
+      id: `m_${nowTimestamp}`,
       title: formTitle,
       location: formLocation,
       lat: 37.5445,
       lng: 127.0374,
-      time: formTime,
-      hostDog: myDog.name,
-      hostOwner: myDog.ownerName,
-      avatar: myDog.avatar,
-      participantsCount: 1,
+      date: formDate,
+      timeStr: formTimeStr,
+      dateTime: `${formDate}T${formTimeStr}:00`,
+      createdAt: nowTimestamp,
+      time: formattedTime,
+      hostDog: hostDogName,
+      hostOwner: hostOwnerName,
+      avatar: selectedPets[0].avatar,
+      participantsCount: selectedPets.length,
       maxParticipants: formMax,
       tag: formTag || '#자유모임',
       joined: true,
       status: 'upcoming',
-      participants: [myDog],
-      userJoinedPets: [myDog],
-      joinedPetIds: [myDog.id || myDog.name]
+      participants: selectedPets,
+      userJoinedPets: selectedPets,
+      joinedPetIds: selectedCreatePetIds,
+      isCustomEdited: true
     };
 
     setMeetups([newMeetup, ...meetups]);
@@ -224,7 +672,8 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
 
     setFormTitle('');
     setFormLocation('');
-    setFormTime('');
+    setFormDate(getTodayDateStr());
+    setFormTimeStr('15:00');
     setFormTag('');
     setFormMax(5);
   };
@@ -232,6 +681,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
   // Sync when language changes
   React.useEffect(() => {
     setMeetups(prev => prev.map(m => {
+      if (m.isCustomEdited) return m;
       const localizedM = localizedMeetups.find(lm => lm.id === m.id);
       if (localizedM) {
         return {
@@ -248,7 +698,12 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
 
   const handleJoin = (id: string) => {
     const targetMeetup = meetups.find(m => m.id === id);
-    if (!targetMeetup) return;
+    if (!targetMeetup || isMeetupClosed(targetMeetup)) return;
+
+    if (isUserHost(targetMeetup)) {
+      alert('모임장은 모임에서 나갈 수 없습니다. 모임을 종료하거나 삭제하려면 우측 상단 메뉴(⋮)에서 삭제해주세요.');
+      return;
+    }
 
     // 이미 참여한 모임이면 -> 취소 처리
     if (targetMeetup.joined) {
@@ -297,6 +752,14 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
         return m;
       })
     );
+
+    import('../utils/notificationService').then(({ sendPushNotification }) => {
+      sendPushNotification({
+        title: `[WalWal 산책] 참가 완료!`,
+        body: `'${targetMeetup.title}' 모임 참여가 확정되었습니다.`,
+        data: { meetupId: targetMeetup.id }
+      });
+    });
   };
 
   const confirmJoinWithSelectedPets = () => {
@@ -321,7 +784,17 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
       })
     );
 
+    const meetupTitle = joinPetSelectionMeetup.title;
+    const meetupId = joinPetSelectionMeetup.id;
     setJoinPetSelectionMeetup(null);
+
+    import('../utils/notificationService').then(({ sendPushNotification }) => {
+      sendPushNotification({
+        title: `[WalWal 산책] ${chosenDogs.length}마리 참가 완료!`,
+        body: `'${meetupTitle}' 모임 참여가 확정되었습니다.`,
+        data: { meetupId }
+      });
+    });
   };
 
   const handleLocationClick = (m: WalkMeetup) => {
@@ -332,262 +805,664 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
     }
   };
 
+  const DOG_SIZE_OPTIONS = [
+    { value: 'all', label: '전체 크기' },
+    { value: 'small', label: '소형견 (말티즈, 포메 등)' },
+    { value: 'medium', label: '중형견 (웰시코기, 시바 등)' },
+    { value: 'large', label: '대형견 (리트리버, 허스키 등)' }
+  ];
+
+  const WALK_STYLE_OPTIONS = [
+    { value: 'all', label: '전체 스타일' },
+    { value: 'free', label: '자유 산책 / 피크닉' },
+    { value: 'sniff', label: '킁킁 탐색 / 노즈워크' },
+    { value: 'training', label: '훈련 & 사회화' },
+    { value: 'shy', label: '소심이 / 힐링 산책' }
+  ];
+
+  const DATE_OPTIONS = [
+    { value: 'all', label: '전체 날짜' },
+    { value: 'today', label: '오늘' },
+    { value: 'tomorrow', label: '내일' },
+    { value: 'weekend', label: '주말' }
+  ];
+
+  const dogSizeLabel = dogSize === 'small' ? '소형견' : dogSize === 'medium' ? '중형견' : dogSize === 'large' ? '대형견' : '견종 크기';
+  const walkStyleLabel = walkStyle === 'free' ? '자유산책' : walkStyle === 'sniff' ? '킁킁탐색' : walkStyle === 'training' ? '훈련·사회화' : walkStyle === 'shy' ? '소심이힐링' : '산책 스타일';
+  const dateLabel = dateFilter === 'today' ? '오늘' : dateFilter === 'tomorrow' ? '내일' : dateFilter === 'weekend' ? '주말' : '날짜';
+
+  const filteredMeetups = useMemo(() => {
+    return meetups.filter(m => {
+      // 0. Blocked user filter
+      if (isUserBlocked(m.hostDog) || isUserBlocked(m.hostOwner)) {
+        return false;
+      }
+
+      // 1. Tab filter
+      if (meetupStatusFilter === 'joined') {
+        const isJoinedOrHost = m.joined || isUserHost(m);
+        if (!isJoinedOrHost) return false;
+      }
+
+      const isClosed = isMeetupClosed(m);
+
+      // 2. Open only filter
+      if (openOnly && isClosed) {
+        return false;
+      }
+
+      // 3. Dog Size filter
+      if (dogSize === 'small') {
+        const isSmall = m.tag.includes('소형') || m.title.includes('소형') || m.title.includes('솜뭉치') || m.title.includes('포메') || m.title.includes('말티');
+        if (!isSmall) return false;
+      } else if (dogSize === 'medium') {
+        const isMedium = m.tag.includes('중형') || m.tag.includes('숏다리') || m.title.includes('코기') || m.title.includes('시바') || m.title.includes('비글') || m.title.includes('중형');
+        if (!isMedium) return false;
+      } else if (dogSize === 'large') {
+        const isLarge = m.tag.includes('대형') || m.title.includes('대형') || m.title.includes('리트리버') || m.title.includes('허스키') || m.title.includes('셰퍼드');
+        if (!isLarge) return false;
+      }
+
+      // 4. Walk Style filter
+      if (walkStyle === 'free') {
+        const isFree = m.tag.includes('자유') || m.tag.includes('정기') || m.title.includes('자유') || m.title.includes('정모') || m.title.includes('피크닉');
+        if (!isFree) return false;
+      } else if (walkStyle === 'training') {
+        const isTraining = m.tag.includes('훈련') || m.tag.includes('사회화') || m.title.includes('사회화') || m.title.includes('예절');
+        if (!isTraining) return false;
+      } else if (walkStyle === 'sniff') {
+        const isSniff = m.tag.includes('킁킁') || m.tag.includes('탐색') || m.title.includes('킁킁') || m.title.includes('노즈워크');
+        if (!isSniff) return false;
+      } else if (walkStyle === 'shy') {
+        const isShy = m.tag.includes('소심') || m.tag.includes('힐링') || m.tag.includes('조용') || m.title.includes('쫄보') || m.title.includes('힐링');
+        if (!isShy) return false;
+      }
+
+      // 5. Distance / Area filter
+      if (distanceFilter === 'neighborhood') {
+        const isLocal = m.location.includes('성수') || m.location.includes('뚝섬') || m.location.includes('서울숲') || m.location.includes('살곶이');
+        if (!isLocal) return false;
+      }
+
+      // 6. Date filter
+      const parsedTime = parseMeetupDateTime(m.time);
+      const todayStr = getTodayDateStr();
+      const tm = new Date();
+      tm.setDate(tm.getDate() + 1);
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const tomorrowStr = `${tm.getFullYear()}-${pad(tm.getMonth() + 1)}-${pad(tm.getDate())}`;
+
+      if (dateFilter === 'today') {
+        if (parsedTime.date !== todayStr) return false;
+      } else if (dateFilter === 'tomorrow') {
+        if (parsedTime.date !== tomorrowStr) return false;
+      } else if (dateFilter === 'weekend') {
+        const targetD = new Date(parsedTime.date + 'T00:00:00');
+        const dayOfWeek = targetD.getDay();
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) return false;
+      } else if (dateFilter === 'custom' && customDate) {
+        if (parsedTime.date !== customDate) return false;
+      }
+
+      // 7. Time slot filter
+      if (timeSlotFilter !== 'all') {
+        const hour = parseInt(parsedTime.time.split(':')[0], 10);
+        if (timeSlotFilter === 'morning') {
+          if (hour < 6 || hour >= 10) return false;
+        } else if (timeSlotFilter === 'day') {
+          if (hour < 10 || hour >= 18) return false;
+        } else if (timeSlotFilter === 'night') {
+          if (hour < 18 && hour >= 6) return false;
+        }
+      }
+
+      // 8. My Dog Match filter
+      if (myDogMatch) {
+        const breedKey = myDog.breed?.replace(/견|종/g, '').trim() || '';
+        const matchesBreed = breedKey && (m.title.includes(breedKey) || m.tag.includes(breedKey));
+        const matchesLarge = (myDog.breed.includes('리트리버') || myDog.breed.includes('허스키')) && (m.tag.includes('대형') || m.title.includes('대형'));
+        const matchesMedium = (myDog.breed.includes('코기') || myDog.breed.includes('시바')) && (m.tag.includes('숏다리') || m.tag.includes('중형') || m.title.includes('코기'));
+        const matchesSmall = (myDog.breed.includes('포메') || myDog.breed.includes('말티')) && (m.tag.includes('소형') || m.title.includes('소형') || m.title.includes('솜뭉치'));
+        const isParticipating = m.joined || isUserHost(m);
+
+        if (!matchesBreed && !matchesLarge && !matchesMedium && !matchesSmall && !isParticipating) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [meetups, meetupStatusFilter, openOnly, dogSize, walkStyle, distanceFilter, dateFilter, customDate, timeSlotFilter, myDogMatch, myDog, blockedVersion]);
+
+  const draftMatchCount = useMemo(() => {
+    return meetups.filter(m => {
+      // 0. Blocked user filter
+      if (isUserBlocked(m.hostDog) || isUserBlocked(m.hostOwner)) {
+        return false;
+      }
+
+      if (meetupStatusFilter === 'joined') {
+        const isJoinedOrHost = m.joined || isUserHost(m);
+        if (!isJoinedOrHost) return false;
+      }
+      const isClosed = isMeetupClosed(m);
+      if (draftOpenOnly && isClosed) return false;
+
+      if (draftDogSize === 'small') {
+        const isSmall = m.tag.includes('소형') || m.title.includes('소형') || m.title.includes('솜뭉치') || m.title.includes('포메') || m.title.includes('말티');
+        if (!isSmall) return false;
+      } else if (draftDogSize === 'medium') {
+        const isMedium = m.tag.includes('중형') || m.tag.includes('숏다리') || m.title.includes('코기') || m.title.includes('시바') || m.title.includes('비글') || m.title.includes('중형');
+        if (!isMedium) return false;
+      } else if (draftDogSize === 'large') {
+        const isLarge = m.tag.includes('대형') || m.title.includes('대형') || m.title.includes('리트리버') || m.title.includes('허스키') || m.title.includes('셰퍼드');
+        if (!isLarge) return false;
+      }
+
+      if (draftWalkStyle === 'free') {
+        const isFree = m.tag.includes('자유') || m.tag.includes('정기') || m.title.includes('자유') || m.title.includes('정모') || m.title.includes('피크닉');
+        if (!isFree) return false;
+      } else if (draftWalkStyle === 'training') {
+        const isTraining = m.tag.includes('훈련') || m.tag.includes('사회화') || m.title.includes('사회화') || m.title.includes('예절');
+        if (!isTraining) return false;
+      } else if (draftWalkStyle === 'sniff') {
+        const isSniff = m.tag.includes('킁킁') || m.tag.includes('탐색') || m.title.includes('킁킁') || m.title.includes('노즈워크');
+        if (!isSniff) return false;
+      } else if (draftWalkStyle === 'shy') {
+        const isShy = m.tag.includes('소심') || m.tag.includes('힐링') || m.tag.includes('조용') || m.title.includes('쫄보') || m.title.includes('힐링');
+        if (!isShy) return false;
+      }
+
+      if (draftDistanceFilter === 'neighborhood') {
+        const isLocal = m.location.includes('성수') || m.location.includes('뚝섬') || m.location.includes('서울숲') || m.location.includes('살곶이');
+        if (!isLocal) return false;
+      }
+
+      const draftParsedTime = parseMeetupDateTime(m.time);
+      const draftTodayStr = getTodayDateStr();
+      const draftTm = new Date();
+      draftTm.setDate(draftTm.getDate() + 1);
+      const draftPad = (n: number) => String(n).padStart(2, '0');
+      const draftTomorrowStr = `${draftTm.getFullYear()}-${draftPad(draftTm.getMonth() + 1)}-${draftPad(draftTm.getDate())}`;
+
+      if (draftDateFilter === 'today') {
+        if (draftParsedTime.date !== draftTodayStr) return false;
+      } else if (draftDateFilter === 'tomorrow') {
+        if (draftParsedTime.date !== draftTomorrowStr) return false;
+      } else if (draftDateFilter === 'weekend') {
+        const targetD = new Date(draftParsedTime.date + 'T00:00:00');
+        const dayOfWeek = targetD.getDay();
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) return false;
+      } else if (draftDateFilter === 'custom' && draftCustomDate) {
+        if (draftParsedTime.date !== draftCustomDate) return false;
+      }
+
+      if (draftTimeSlotFilter !== 'all') {
+        const hour = parseInt(draftParsedTime.time.split(':')[0], 10);
+        if (draftTimeSlotFilter === 'morning') {
+          if (hour < 6 || hour >= 10) return false;
+        } else if (draftTimeSlotFilter === 'day') {
+          if (hour < 10 || hour >= 18) return false;
+        } else if (draftTimeSlotFilter === 'night') {
+          if (hour < 18 && hour >= 6) return false;
+        }
+      }
+
+      if (draftMyDogMatch) {
+        const breedKey = myDog.breed?.replace(/견|종/g, '').trim() || '';
+        const matchesBreed = breedKey && (m.title.includes(breedKey) || m.tag.includes(breedKey));
+        const matchesLarge = (myDog.breed.includes('리트리버') || myDog.breed.includes('허스키')) && (m.tag.includes('대형') || m.title.includes('대형'));
+        const matchesMedium = (myDog.breed.includes('코기') || myDog.breed.includes('시바')) && (m.tag.includes('숏다리') || m.tag.includes('중형') || m.title.includes('코기'));
+        const matchesSmall = (myDog.breed.includes('포메') || myDog.breed.includes('말티')) && (m.tag.includes('소형') || m.title.includes('소형') || m.title.includes('솜뭉치'));
+        const isParticipating = m.joined || isUserHost(m);
+
+        if (!matchesBreed && !matchesLarge && !matchesMedium && !matchesSmall && !isParticipating) {
+          return false;
+        }
+      }
+
+      return true;
+    }).length;
+  }, [meetups, meetupStatusFilter, draftOpenOnly, draftDogSize, draftWalkStyle, draftDistanceFilter, draftDateFilter, draftCustomDate, draftTimeSlotFilter, draftMyDogMatch, myDog, blockedVersion]);
+
   return (
     <div className="page-root">
       {/* Header */}
-      <div className="page-header">
+      <div className="page-header row-between">
         <div>
           <h2 className="title-lg">{t.tabs.community}</h2>
           <p className="text-sub">{t.community.subtitle}</p>
         </div>
-        <button
-          className="btn-ghost"
-          onClick={() => setShowCreateModal(true)}
-        >
-          <Plus size={24} strokeWidth={2} />
-        </button>
-      </div>
-
-      {/* Content */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '6px' }}>
-        <button className="tap-btn"
-          onClick={() => setMeetupStatusFilter('upcoming')}
-          style={{ background: meetupStatusFilter === 'upcoming' ? '#3b4a5d' : '#E2E8F0', color: meetupStatusFilter === 'upcoming' ? '#fff' : '#4A5568' }}
-        >
-          {t.community.filterUpcoming}
-        </button>
-        <button className="tap-btn"
-          onClick={() => setMeetupStatusFilter('joined')}
-          style={{ border: 'none', background: meetupStatusFilter === 'joined' ? '#3b4a5d' : '#E2E8F0', color: meetupStatusFilter === 'joined' ? '#fff' : '#4A5568' }}
-        >
-          {t.community.filterJoined}
-        </button>
-        <button className="tap-btn"
-          onClick={() => setMeetupStatusFilter('past')}
-          style={{ background: meetupStatusFilter === 'past' ? '#3b4a5d' : '#E2E8F0', color: meetupStatusFilter === 'past' ? '#fff' : '#4A5568' }}
-        >
-          {t.community.filterPast}
-        </button>
-      </div>
-      <div className="section-gap">
-        {meetups.filter(m => {
-          if (meetupStatusFilter === 'joined') return m.joined;
-          if (meetupStatusFilter === 'past') return m.status === 'past';
-          return m.status !== 'past';
-        }).map(m => (
-          <div
-            key={m.id}
-            className={`card-lg${m.joined ? ' card-joined' : ''}`}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            className="btn-ghost"
+            onClick={openCreateModal}
           >
-            <div className="row-between" style={{ alignItems: 'flex-start' }}>
-              <div className="row gap-12" style={{ alignItems: 'start', flex: '1' }}>
-                <img
-                  src={getLiveDogAvatar(m.hostDog, m.avatar)}
-                  alt={m.hostDog}
-                  className="avatar-md"
-                  style={{ cursor: 'pointer', border: '2px solid transparent', transition: 'border-color 0.2s' }}
-                  onMouseOver={e => (e.currentTarget.style.borderColor = '#FFB320')}
-                  onMouseOut={e => (e.currentTarget.style.borderColor = 'transparent')}
-                  onClick={() => {
-                    const profile = myPets.find(d => isSameDogName(d.name, m.hostDog)) || getMockDogs(language).find(d => isSameDogName(d.name, m.hostDog));
-                    if (profile) setSelectedHostProfile(profile);
-                    else {
-                      setSelectedHostProfile({
-                        name: m.hostDog,
-                        breed: '알 수 없음',
-                        age: '비공개',
-                        ownerName: m.hostOwner,
-                        avatar: getLiveDogAvatar(m.hostDog, m.avatar),
-                        personality: []
-                      });
-                    }
-                  }}
-                />
-                <div className="host-info-wrapper"
-                  onClick={() => {
-                    if (!m.joined) {
-                      alert(t.community.joinReqBeforeChat || '모임에 참가 신청 후 톡방에 입장할 수 있습니다.');
-                      return;
-                    }
-                    setActiveChatMeetup(m);
-                  }}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <div className="row-between gap-12" style={{ alignItems: 'center', width: '100%' }}>
-                    <span className="badge-hashtag">{m.tag}</span>
-                    <div className="text-sub" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Crown size={14} style={{ color: '#FFB320' }} />
-                      {m.hostOwner}
-                    </div>
-                  </div>
-                  <h3 className="title-md" style={{ transition: 'color 0.2s', display: 'flex', alignItems: 'center', gap: '6px' }} onMouseOver={e => e.currentTarget.style.color = '#38c5b7'} onMouseOut={e => e.currentTarget.style.color = 'inherit'}>
-                    {m.title}
-                    {m.unreadCount ? (
-                      <span className="unreadCount">
-                        {m.unreadCount} +
-                      </span>
-                    ) : null}
-                  </h3>
-                </div>
+            <Plus size={24} strokeWidth={2} />
+          </button>
+          <button
+            className="all-services-header-btn"
+            onClick={() => window.dispatchEvent(new CustomEvent('walwal_open_all_services'))}
+            aria-label="전체서비스"
+            title="전체서비스"
+          >
+            <Menu size={24} />
+          </button>
+        </div>
+      </div>
+
+      {/* Content: Top Tab Row (Left: [함께산책해요] [내 산책] | Right: Filter Icon Button) */}
+      <div className="community-filter-row">
+        <div className="community-tab-group">
+          <button
+            className={`community-tab-btn ${meetupStatusFilter === 'all' ? 'active' : ''}`}
+            onClick={() => setMeetupStatusFilter('all')}
+          >
+            {t.community?.filterUpcoming ||
+              (language === 'zh' ? '聚会活动' :
+               language === 'fr' ? 'Rencontres' :
+               language === 'ja' ? '一緒にお散歩' :
+               language === 'es' ? 'Encuentros' :
+               language === 'en' ? 'Meetups' : '함께산책해요')}
+          </button>
+          <button
+            className={`community-tab-btn ${meetupStatusFilter === 'joined' ? 'active' : ''}`}
+            onClick={() => setMeetupStatusFilter('joined')}
+          >
+            {t.community?.filterJoined ||
+              (language === 'zh' ? '我的聚会' :
+               language === 'fr' ? 'Mes rencontres' :
+               language === 'ja' ? '私のお散歩' :
+               language === 'es' ? 'Mis Encuentros' :
+               language === 'en' ? 'My Meetups' : '내 산책')}
+          </button>
+        </div>
+
+        {/* Filter Icon Button on Right */}
+        <button
+          type="button"
+          className={`filter-icon-btn ${hasActiveFilters ? 'active' : ''}`}
+          onClick={openFilterModal}
+          title={filterT.modalTitle || '상세 필터 검색'}
+        >
+          <SlidersHorizontal size={24} />
+          {hasActiveFilters && <span className="filter-badge-dot" />}
+        </button>
+      </div>
+
+
+      <div className="section-gap">
+        {filteredMeetups.length === 0 ? (
+          <div className="community-empty-card">
+            <div className="community-empty-icon-wrap">
+              <div className="community-empty-icon-circle">
+                <PawPrint size={30} color="#94A3B8" />
               </div>
             </div>
-
-            {/* Location & Time */}
-            < div className="col mt-16 gap-10" style={{ fontSize: '0.8rem', color: '#4A5568' }}>
-              <div className="info-row">
+            <h4 className="community-empty-title">
+              {filterT.emptyTitle || '조건에 맞는 산책 모임이 없어요'}
+            </h4>
+            <p className="community-empty-desc">
+              {filterT.emptySub || '필터를 변경하거나 직접 새로운 번개 모임을 개설해보세요!'}
+            </p>
+            <div className="community-empty-btn-group">
+              {hasActiveFilters && (
                 <button
-                  className="link-accent"
-                  onClick={() => handleLocationClick(m)}
-                  title={t.community.tooltipLocation}
+                  className="tap-btn community-empty-reset-btn"
+                  onClick={resetAllFilters}
                 >
-                  <MapPin size={16} />
-                  <span style={{ textDecoration: 'underline' }}>{m.location}</span>
+                  <RotateCcw size={13} style={{ marginRight: '4px' }} /> {filterT.emptyResetBtn || '필터 초기화'}
                 </button>
-              </div>
-              <div className="info-row justify-start">
-                <Calendar size={16} /> <span>{m.time}</span>
-              </div>
-            </div>
-
-            <div className="row-between mt-20" style={{ alignItems: 'flex-end' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div className="text-sm">
-                  {t.community.participants}: {m.participantsCount} / {m.maxParticipants}{t.community.peopleCount}
-                </div>
-                {/* Facepile UI */}
-                {m.participants && m.participants.length > 0 && (
-                  <div
-                    onClick={() => setShowParticipantsModal(m)}
-                    style={{ display: 'flex', cursor: 'pointer', alignItems: 'center' }}
-                  >
-                    {m.participants.slice(0, 5).map((p: any, idx: number) => (
-                      <img
-                        key={idx}
-                        src={getLiveDogAvatar(p.name, p.avatar)}
-                        alt={p.name}
-                        style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #fff', marginLeft: idx === 0 ? 0 : '-10px', zIndex: 5 - idx, position: 'relative' }}
-                      />
-                    ))}
-                    {m.participants.length > 5 && (
-                      <div style={{ width: '32px', height: '32px', borderRadius: '50%', border: '2px solid #fff', marginLeft: '-10px', zIndex: 0, background: '#EDF2F7', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '0.75rem', fontWeight: 800, color: '#4A5568', position: 'relative' }}>
-                        +{m.participants.length - 5}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+              )}
               <button
-                onClick={() => m.status !== 'past' && handleJoin(m.id)}
-                className={m.status === 'past' ? 'btn-disabled' : (m.joined ? 'btn-dark-line' : 'btn-primary')}
-                style={{ background: m.status === 'past' ? '#bfc4c9ff' : undefined, cursor: m.status === 'past' ? 'not-allowed' : 'pointer', color: m.status === 'past' ? '#fff' : undefined, height: 'fit-content' }}
-                disabled={m.status === 'past'}
+                className="btn-primary community-empty-create-btn"
+                onClick={openCreateModal}
               >
-                {m.status === 'past' ? (
-                  '종료됨'
-                ) : m.joined ? (
-                  <><LogOut size={16} /></>
-                ) : (
-                  <><PawPrint size={16} />In</>
-                )}
+                <Plus size={16} /> {filterT.emptyCreateBtn || '모임 개설하기'}
               </button>
             </div>
           </div>
-        ))
-        }
+        ) : filteredMeetups.map(m => {
+          const isClosed = isMeetupClosed(m);
+          return (
+            <div
+              key={m.id}
+              className={`card-lg${m.joined ? ' card-joined' : ''}`}
+            >
+              <div className="row-between meetup-card-top">
+                <div className="row gap-12 meetup-card-left">
+                  <img
+                    src={getLiveDogAvatar(m.hostDog, m.avatar)}
+                    alt={m.hostDog}
+                    className="avatar-md meetup-host-avatar"
+                    onClick={() => {
+                      const profile = myPets.find(d => isSameDogName(d.name, m.hostDog)) || getMockDogs(language).find(d => isSameDogName(d.name, m.hostDog));
+                      if (profile) setSelectedHostProfile(profile);
+                      else {
+                        setSelectedHostProfile({
+                          name: m.hostDog,
+                          breed: '알 수 없음',
+                          age: '비공개',
+                          ownerName: m.hostOwner,
+                          avatar: getLiveDogAvatar(m.hostDog, m.avatar),
+                          personality: []
+                        });
+                      }
+                    }}
+                  />
+                  <div className="host-info-wrapper meetup-host-info-wrap"
+                    onClick={() => {
+                      if (!m.joined) {
+                        alert(t.community.joinReqBeforeChat || '모임에 참가 신청 후 톡방에 입장할 수 있습니다.');
+                        return;
+                      }
+                      setMeetups(prev => prev.map(item => item.id === m.id ? { ...item, unreadCount: 0 } : item));
+                      setActiveChatMeetup({ ...m, unreadCount: 0 });
+                    }}
+                  >
+                    <div className="row-between gap-12 meetup-tag-row">
+                      <div className="meetup-badge-group">
+                        <span className="badge">{m.tag}</span>
+
+                      </div>
+                      <div className="meetup-host-row">
+                        <div className="text-sub meetup-host-text">
+                          <Crown size={14} className="meetup-crown-icon" />
+                          {m.hostOwner ? m.hostOwner.replace(/맘/g, '엄마') : ''}
+                        </div>
+                        <div className="meetup-menu-wrapper" style={{ position: 'relative' }}>
+                          <button
+                            type="button"
+                            className={`meetup-menu-btn ${activeMenuMeetupId === m.id ? 'active' : ''}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveMenuMeetupId(prev => prev === m.id ? null : m.id);
+                            }}
+                            title={isUserHost(m) ? "모임 관리" : "더보기"}
+                          >
+                            <MoreVertical size={16} />
+                          </button>
+
+                          {activeMenuMeetupId === m.id && (
+                            <div className="snaps-dropdown-menu feed-dropdown-menu">
+                              {isUserHost(m) ? (
+                                <>
+                                  <button
+                                    className="snaps-dropdown-item feed-dropdown-item"
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openEditModal(m);
+                                      setActiveMenuMeetupId(null);
+                                    }}
+                                    onMouseEnter={(e) => (e.currentTarget.style.background = '#F7FAFC')}
+                                    onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                                  >
+                                    <Edit3 size={15} />
+                                    <span>{t.community?.editMeetup || (language === 'ko' ? '수정' : language === 'ja' ? '集まりを編集' : 'Edit Meetup')}</span>
+                                  </button>
+                                  <button
+                                    className="snaps-dropdown-item feed-dropdown-item"
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteMeetup(m.id);
+                                    }}
+                                    onMouseEnter={(e) => (e.currentTarget.style.background = '#FFF5F5')}
+                                    onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                                  >
+                                    <Trash2 size={15} />
+                                    <span>{t.community?.deleteMeetup || (language === 'ko' ? '모임 삭제' : language === 'ja' ? '集まりを削除' : 'Delete Meetup')}</span>
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    className="snaps-dropdown-item feed-dropdown-item"
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveMenuMeetupId(null);
+                                      setReportTarget({
+                                        type: 'meetup',
+                                        id: m.id,
+                                        author: m.hostDog || m.hostOwner,
+                                        content: m.title
+                                      });
+                                    }}
+                                    onMouseEnter={(e) => (e.currentTarget.style.background = '#FFF5F5')}
+                                    onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                                  >
+                                    <Flag size={15} color="#E53E3E" />
+                                    <span style={{ color: '#E53E3E' }}>모임 신고하기</span>
+                                  </button>
+                                  <button
+                                    className="snaps-dropdown-item feed-dropdown-item"
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveMenuMeetupId(null);
+                                      const targetUser = m.hostDog || m.hostOwner;
+                                      if (window.confirm(`'${targetUser}' 사용자를 차단하시겠습니까? 이 사용자의 모임과 글이 목록에서 숨겨집니다.`)) {
+                                        blockUser(targetUser);
+                                        alert('사용자가 차단되었습니다.');
+                                      }
+                                    }}
+                                    onMouseEnter={(e) => (e.currentTarget.style.background = '#F7FAFC')}
+                                    onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                                  >
+                                    <ShieldAlert size={15} color="#718096" />
+                                    <span>작성자 차단하기</span>
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <h3 className="title-md meetup-card-title">
+                      {m.title}
+                      {!!m.unreadCount && m.unreadCount > 0 && (
+                        <span className="unreadCount">
+                          {m.unreadCount > 99 ? '99+' : m.unreadCount}
+                        </span>
+                      )}
+                    </h3>
+                  </div>
+                </div>
+              </div>
+
+              {/* Location & Time */}
+              <div className="col mt-16 gap-10 meetup-location-time-col">
+                <div className="info-row">
+                  <button
+                    className="link-accent"
+                    onClick={() => handleLocationClick(m)}
+                    title={t.community.tooltipLocation}
+                  >
+                    <MapPin size={16} />
+                    <span className="meetup-location-link">{m.location}</span>
+                  </button>
+                </div>
+                <div className="info-row justify-start">
+                  <Calendar size={16} />
+                  <span>
+                    {formatMeetupDisplay(m, language)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="row-between mt-20 meetup-card-bottom">
+                <div className="meetup-facepile-wrap">
+                  <div className="text-sm">
+                    {t.community.participants}: {m.participantsCount} / {m.maxParticipants}{t.community.peopleCount}
+                  </div>
+                  {/* Facepile UI */}
+                  {m.participants && m.participants.length > 0 && (
+                    <div
+                      className="meetup-facepile-row"
+                      onClick={() => setShowParticipantsModal(m)}
+                    >
+                      {m.participants.slice(0, 5).map((p: any, idx: number) => (
+                        <img
+                          key={idx}
+                          src={getLiveDogAvatar(p.name, p.avatar)}
+                          alt={p.name}
+                          className={`meetup-participant-avatar ${idx > 0 ? 'stacked' : ''}`}
+                          style={{ zIndex: 5 - idx }}
+                        />
+                      ))}
+                      {m.participants.length > 5 && (
+                        <div className="meetup-participant-more">
+                          +{m.participants.length - 5}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => !isClosed && handleJoin(m.id)}
+                  className={`meetup-join-btn ${isClosed ? 'btn-disabled closed' : ((m.joined || isUserHost(m)) ? 'btn-dark-line' : 'btn-primary')}`}
+                  disabled={isClosed}
+                >
+                  {isClosed ? (
+                    t.community?.closedBtn || (language === 'ko' ? '마감' : language === 'ja' ? '締切' : language === 'es' ? 'Cerrado' : 'Closed')
+                  ) : (m.joined || isUserHost(m)) ? (
+                    <><LogOut size={20} /></>
+                  ) : (
+                    <><PawPrint size={20} />In</>
+                  )}
+                </button>
+              </div>
+            </div>
+          );
+        })}
       </div >
 
       {/* Create Meetup Modal */}
       {
         showCreateModal && (
-          <div style={{
-            position: 'fixed',
-            top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.5)',
-            zIndex: 9999,
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            padding: '20px'
-          }}>
-            <div style={{
-              background: '#fff',
-              borderRadius: '24px',
-              padding: '24px',
-              width: '100%',
-              maxWidth: '400px',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#2D3748' }}>{t.community.modalCreateTitle}</h3>
-                <button onClick={() => setShowCreateModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+          <div className="community-modal-overlay">
+            <div className="community-modal-content">
+              <div className="modal-header-row">
+                <h3 className="modal-title-text">{t.community.modalCreateTitle}</h3>
+                <button type="button" onClick={() => setShowCreateModal(false)} className="modal-close-icon-btn">
                   <X size={24} color="#3b4a5d" />
                 </button>
               </div>
 
-              <form onSubmit={handleCreateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <form onSubmit={handleCreateSubmit} className="modal-form">
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', color: '#4A5568', marginBottom: '6px', fontWeight: 600 }}>{t.community.modalTitleLabel}</label>
+                  <label className="modal-label">{t.community.modalTitleLabel}</label>
                   <input
                     type="text"
                     value={formTitle}
                     onChange={e => setFormTitle(e.target.value)}
                     placeholder={t.community.modalTitlePlaceholder}
-                    style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #E2E8F0', outline: 'none' }}
+                    className="modal-input"
                     required
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', color: '#4A5568', marginBottom: '6px', fontWeight: 600 }}>{t.community.modalLocationLabel}</label>
+                  <label className="modal-label">{t.community.modalLocationLabel}</label>
                   <input
                     type="text"
                     value={formLocation}
                     onChange={e => setFormLocation(e.target.value)}
                     placeholder={t.community.modalLocationPlaceholder}
-                    style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #E2E8F0', outline: 'none' }}
+                    className="modal-input"
                     required
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', color: '#4A5568', marginBottom: '6px', fontWeight: 600 }}>{t.community.modalTimeLabel}</label>
-                  <input
-                    type="text"
-                    value={formTime}
-                    onChange={e => setFormTime(e.target.value)}
-                    placeholder={t.community.modalTimePlaceholder}
-                    style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #E2E8F0', outline: 'none' }}
-                    required
-                  />
+                  <label className="modal-label">
+                    {t.community.modalTimeLabel || '모임 일시'}
+                  </label>
+                  <div className="modal-datetime-row">
+                    <input
+                      type="date"
+                      value={formDate}
+                      onChange={e => setFormDate(e.target.value)}
+                      className="modal-date-input"
+                      required
+                    />
+                    <input
+                      type="time"
+                      value={formTimeStr}
+                      onChange={e => setFormTimeStr(e.target.value)}
+                      className="modal-time-input"
+                      required
+                    />
+                  </div>
+                  {formDate && formTimeStr && (
+                    <div className="modal-datetime-preview">
+                      ✓ {formatMeetupDateTime(formDate, formTimeStr, language)}
+                    </div>
+                  )}
                 </div>
 
-                <div style={{ display: 'flex', gap: '12px' }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ display: 'block', fontSize: '0.85rem', color: '#4A5568', marginBottom: '6px', fontWeight: 600 }}>{t.community.modalTagLabel}</label>
+                <div className="modal-two-col">
+                  <div>
+                    <label className="modal-label">{t.community.modalTagLabel}</label>
                     <input
                       type="text"
                       value={formTag}
                       onChange={e => setFormTag(e.target.value)}
                       placeholder={t.community.modalTagPlaceholder}
-                      style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #E2E8F0', outline: 'none' }}
+                      className="modal-input"
                     />
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ display: 'block', fontSize: '0.85rem', color: '#4A5568', marginBottom: '6px', fontWeight: 600 }}>{t.community.modalMaxLabel}</label>
+                  <div>
+                    <label className="modal-label">{t.community.modalMaxLabel}</label>
                     <input
                       type="number"
                       min="2"
                       max="20"
                       value={formMax}
                       onChange={e => setFormMax(parseInt(e.target.value) || 5)}
-                      style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid #E2E8F0', outline: 'none' }}
+                      className="modal-input"
                     />
                   </div>
                 </div>
 
-                <button type="submit" style={{
-                  background: '#FFB320', color: '#fff', border: 'none', padding: '14px', borderRadius: '14px', fontSize: '1rem', fontWeight: 700, marginTop: '8px', cursor: 'pointer'
-                }}>
+                <div>
+                  <label className="modal-label">{t.community.modalJoinPetsLabel || '함께 갈 반려견 선택'}</label>
+                  <div className="modal-pet-scroll">
+                    {myPets.map((pet: any) => {
+                      const isSelected = selectedCreatePetIds.includes(pet.id || pet.name);
+                      return (
+                        <div
+                          key={pet.id || pet.name}
+                          onClick={() => {
+                            if (isSelected) {
+                              if (selectedCreatePetIds.length > 1) {
+                                setSelectedCreatePetIds(selectedCreatePetIds.filter(id => id !== (pet.id || pet.name)));
+                              } else {
+                                alert(t.community.modalJoinPetsMinAlert || '최소 한 마리의 반려견을 선택해야 합니다.');
+                              }
+                            } else {
+                              setSelectedCreatePetIds([...selectedCreatePetIds, pet.id || pet.name]);
+                            }
+                          }}
+                          className="modal-pet-chip"
+                          style={{ opacity: isSelected ? 1 : 0.4 }}
+                        >
+                          <img
+                            src={getLiveDogAvatar(pet.name, pet.avatar)}
+                            alt={pet.name}
+                            className={`modal-pet-avatar ${isSelected ? 'selected' : ''}`}
+                          />
+                          <span className={`modal-pet-name ${isSelected ? 'selected' : ''}`}>{pet.name}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <button type="submit" className="modal-submit-btn">
                   {t.community.modalBtnSubmit}
                 </button>
               </form>
@@ -603,73 +1478,44 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
       {/* Participant List Modal */}
       {
         showParticipantsModal && (
-          <div style={{
-            position: 'fixed',
-            top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.6)',
-            zIndex: 10000,
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            padding: '20px',
-            backdropFilter: 'blur(5px)'
-          }}>
-            <div style={{
-              background: '#fff',
-              borderRadius: '24px',
-              padding: '24px',
-              width: '100%',
-              maxWidth: '360px',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
-              display: 'flex',
-              flexDirection: 'column',
-              position: 'relative',
-              maxHeight: '80vh'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#2D3748', fontWeight: 800 }}>
+          <div className='dog-profile-modal-overlay'>
+            <div className="dog-profile-modal-card">
+
+              <div className="modal-header-row" style={{ width: '100%', marginBottom: '16px' }}>
+                <h3 className="modal-title-text">
                   {t.community.modalParticipantsTitle} ({showParticipantsModal.participants?.length || 0})
                 </h3>
-                <button onClick={() => setShowParticipantsModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+
+                <button type="button" onClick={() => setShowParticipantsModal(null)} className="modal-close-icon-btn">
                   <X size={24} color="#3b4a5d" />
                 </button>
               </div>
 
-              <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {showParticipantsModal.participants?.map((p: any, idx: number) => (
-                  <div
-                    key={idx}
-                    className='avatar-wrapper'
-                    style={{ cursor: 'pointer', transition: 'background 0.15s', padding: '6px 8px', borderRadius: '14px' }}
-                    onClick={() => {
-                      const profile = getLiveDogProfile(p.name, language) || p;
-                      setSelectedHostProfile(profile);
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = '#F8FAFC')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                    title={`${p.name} 프로필 보기`}
-                  >
-                    <img className="avatar-sm" src={getLiveDogAvatar(p.name, p.avatar)} alt={p.name} />
-                    <div>
-                      <div className="pName">{p.name} <span>({localizeBreed(p.breed, language)} / {p.age ? String(p.age).replace(/[^0-9]/g, '') : '1'}{t.profile?.dogAgeSuffix || '살'} / {p.gender === 'male' ? (t.common?.genderShortMale || '남') : (t.common?.genderShortFemale || '여')})</span></div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
-                        {localizePersonalityTags(p.personality || [], language).map((tag: string, i: number) => (
-                          <span key={i} className='badge-hashtag'>
-                            {tag.startsWith('#') ? tag : `#${tag}`}
-                          </span>
-                        ))}
+              <div className="participants-list">
+                {showParticipantsModal.participants?.map((p: any, idx: number) => {
+                  const localizedName = localizeDogName(p.name, language);
+                  return (
+                    <div
+                      key={idx}
+                      className="avatar-wrapper"
+                      style={{ transition: 'background 0.15s', padding: '6px 8px', borderRadius: '14px' }}
+                    >
+                      <img className="avatar-sm" src={getLiveDogAvatar(p.name, p.avatar)} alt={localizedName} />
+                      <div>
+                        <div className="pName">{localizedName} <span>({localizeBreed(p.breed, language)} / {p.age ? String(p.age).replace(/[^0-9]/g, '') : '1'}{t.profile?.dogAgeSuffix || '살'} / {p.gender === 'male' ? (t.common?.genderShortMale || '남') : (t.common?.genderShortFemale || '여')})</span></div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+                          {localizePersonalityTags(p.personality || [], language).map((tag: string, i: number) => (
+                            <span key={i} className='badge-hashtag'>
+                              {tag.startsWith('#') ? tag : `#${tag}`}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
-              <button
-                onClick={() => setShowParticipantsModal(null)}
-                style={{ width: '100%', background: '#F7FAFC', color: '#4A5568', border: '1px solid #E2E8F0', padding: '12px', borderRadius: '12px', fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer', marginTop: '20px' }}
-              >
-                {t.community.btnClose}
-              </button>
             </div>
           </div>
         )
@@ -677,61 +1523,37 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
       {/* Multi-Pet Join Selection Modal (함께 산책 갈 반려견 선택) */}
       {joinPetSelectionMeetup && (
         <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.6)',
-            zIndex: 10000,
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            padding: '20px',
-            backdropFilter: 'blur(5px)'
-          }}
+          className="pet-select-modal-overlay"
           onClick={(e) => {
             if (e.target === e.currentTarget) setJoinPetSelectionMeetup(null);
           }}
         >
-          <div
-            style={{
-              background: '#fff',
-              borderRadius: '24px',
-              padding: '24px',
-              width: '100%',
-              maxWidth: '360px',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.25)',
-              display: 'flex',
-              flexDirection: 'column',
-              position: 'relative'
-            }}
-          >
+          <div className="pet-select-modal-card">
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+            <div className="pet-select-header">
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#1E293B', fontWeight: 800 }}>
+                <h3 className="pet-select-title">
                   {t.community.selectPetTitle || '함께 산책 갈 반려견 선택'}
                 </h3>
-                <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#64748B' }}>
+                <p className="pet-select-subtitle">
                   {joinPetSelectionMeetup.title}
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() => setJoinPetSelectionMeetup(null)}
-                style={{ background: '#F1F5F9', border: 'none', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748B' }}
+                className="pet-select-close-btn"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <p style={{ fontSize: '0.85rem', color: '#475569', marginBottom: '16px', lineHeight: 1.4 }}>
+            <p className="pet-select-desc">
               {t.community.selectPetDesc || '이번 모임에 함께 참여할 아이를 선택해주세요. (다중 선택 가능)'}
             </p>
 
             {/* Pet Options */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+            <div className="pet-select-list">
               {myPets.map((pet: any) => {
                 const petKey = pet.id || pet.name;
                 const isSelected = selectedJoinPetIds.includes(petKey);
@@ -749,45 +1571,22 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
                         setSelectedJoinPetIds([...selectedJoinPetIds, petKey]);
                       }
                     }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '12px 14px',
-                      borderRadius: '16px',
-                      border: isSelected ? '2px solid #FFB320' : '1.5px solid #E2E8F0',
-                      background: isSelected ? '#FFFDF5' : '#FFFFFF',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s'
-                    }}
+                    className={`pet-select-item ${isSelected ? 'selected' : ''}`}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div className="pet-select-item-left">
                       <img
                         src={getLiveDogAvatar(pet.name, pet.avatar)}
                         alt={pet.name}
-                        style={{ width: '44px', height: '44px', borderRadius: '50%', objectFit: 'cover', border: isSelected ? '2px solid #FFB320' : '1px solid #E2E8F0' }}
+                        className={`pet-select-item-avatar ${isSelected ? 'selected' : ''}`}
                       />
                       <div>
-                        <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1E293B' }}>{pet.name}</div>
-                        <div style={{ fontSize: '0.7rem', color: '#64748B' }}>
+                        <div className="pet-select-item-name">{pet.name}</div>
+                        <div className="pet-select-item-sub">
                           {pet.breed} · {pet.age}{t.profile?.dogAgeSuffix || '살'} {pet.gender === 'female' ? (t.common?.genderShortFemale || '여') : pet.gender === 'male' ? (t.common?.genderShortMale || '남') : ''}
                         </div>
                       </div>
                     </div>
-                    <div
-                      style={{
-                        width: '24px',
-                        height: '24px',
-                        borderRadius: '50%',
-                        background: isSelected ? '#FFB320' : '#E2E8F0',
-                        color: '#FFFFFF',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '0.8rem',
-                        fontWeight: 800
-                      }}
-                    >
+                    <div className={`pet-select-check-circle ${isSelected ? 'selected' : ''}`}>
                       {isSelected ? '✓' : ''}
                     </div>
                   </div>
@@ -796,21 +1595,11 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
             </div>
 
             {/* Quick All / Single toggle */}
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+            <div className="pet-select-toggle-row">
               <button
                 type="button"
                 onClick={() => setSelectedJoinPetIds(myPets.map((p: any) => p.id || p.name))}
-                style={{
-                  flex: 1,
-                  padding: '8px',
-                  borderRadius: '10px',
-                  border: '1px solid #E2E8F0',
-                  background: selectedJoinPetIds.length === myPets.length ? '#FFF7E6' : '#F8FAFC',
-                  color: selectedJoinPetIds.length === myPets.length ? '#D97706' : '#64748B',
-                  fontSize: '0.7rem',
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
+                className={`pet-select-all-btn ${selectedJoinPetIds.length === myPets.length ? 'active' : ''}`}
               >
                 {(t.community.allPetsBtn || '모든 반려견 ({count}마리 모두)').replace('{count}', String(myPets.length))}
               </button>
@@ -821,18 +1610,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
               type="button"
               onClick={confirmJoinWithSelectedPets}
               disabled={selectedJoinPetIds.length === 0}
-              style={{
-                width: '100%',
-                background: selectedJoinPetIds.length > 0 ? '#FFB320' : '#CBD5E1',
-                color: '#FFFFFF',
-                border: 'none',
-                padding: '14px',
-                borderRadius: '14px',
-                fontSize: '0.98rem',
-                fontWeight: 700,
-                cursor: selectedJoinPetIds.length > 0 ? 'pointer' : 'not-allowed',
-                boxShadow: selectedJoinPetIds.length > 0 ? '0 4px 12px rgba(255, 179, 32, 0.35)' : 'none'
-              }}
+              className="pet-select-submit-btn"
             >
               {(t.community.btnJoinWithCount || '{count}마리 반려견과 함께 참여하기').replace('{count}', String(selectedJoinPetIds.length))}
             </button>
@@ -840,14 +1618,448 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
         </div>
       )}
 
-      {/* Meetup Chat Modal */}
-      {activeChatMeetup && (
-        <MeetupChatModal
-          meetup={activeChatMeetup}
-          onClose={() => setActiveChatMeetup(null)}
-          language={language}
-        />
+      {/* Edit Meetup Modal (모임장 전용) */}
+      {editingMeetup && (
+        <div className="community-modal-overlay">
+          <div className="community-modal-content">
+            <div className="modal-header-row">
+              <h3 className="modal-title-text" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Crown size={18} color="#FFB320" /> {t.community?.editModalTitle || (language === 'ko' ? '모임 정보 수정' : language === 'ja' ? '集まりの情報を編集' : 'Edit Meetup Info')}
+              </h3>
+              <button type="button" onClick={() => setEditingMeetup(null)} className="modal-close-icon-btn">
+                <X size={24} color="#3b4a5d" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSubmit} className="modal-form">
+              <div>
+                <label className="modal-label">{t.community.modalTitleLabel}</label>
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={e => setEditTitle(e.target.value)}
+                  placeholder={t.community.modalTitlePlaceholder}
+                  className="modal-input"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="modal-label">{t.community.modalLocationLabel}</label>
+                <input
+                  type="text"
+                  value={editLocation}
+                  onChange={e => setEditLocation(e.target.value)}
+                  placeholder={t.community.modalLocationPlaceholder}
+                  className="modal-input"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="modal-label">
+                  {t.community.modalTimeLabel || '모임 일시'}
+                </label>
+                <div className="modal-datetime-row">
+                  <input
+                    type="date"
+                    value={editDate}
+                    onChange={e => setEditDate(e.target.value)}
+                    className="modal-date-input"
+                    required
+                  />
+                  <input
+                    type="time"
+                    value={editTimeStr}
+                    onChange={e => setEditTimeStr(e.target.value)}
+                    className="modal-time-input"
+                    required
+                  />
+                </div>
+                {editDate && editTimeStr && (
+                  <div className="modal-datetime-preview">
+                    ✓ {formatMeetupDateTime(editDate, editTimeStr, language)}
+                  </div>
+                )}
+              </div>
+
+              <div className="modal-two-col">
+                <div>
+                  <label className="modal-label">{t.community.modalTagLabel}</label>
+                  <input
+                    type="text"
+                    value={editTag}
+                    onChange={e => setEditTag(e.target.value)}
+                    placeholder={t.community.modalTagPlaceholder}
+                    className="modal-input"
+                  />
+                </div>
+                <div>
+                  <label className="modal-label">{t.community.modalMaxLabel}</label>
+                  <input
+                    type="number"
+                    min="2"
+                    max="20"
+                    value={editMax}
+                    onChange={e => setEditMax(parseInt(e.target.value) || 5)}
+                    className="modal-input"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="modal-label">{t.community.modalJoinPetsLabel || '함께 갈 반려견 선택'}</label>
+                <div className="modal-pet-scroll">
+                  {myPets.map((pet: any) => {
+                    const isSelected = selectedEditPetIds.includes(pet.id || pet.name);
+                    return (
+                      <div
+                        key={pet.id || pet.name}
+                        onClick={() => {
+                          if (isSelected) {
+                            if (selectedEditPetIds.length > 1) {
+                              setSelectedEditPetIds(selectedEditPetIds.filter(id => id !== (pet.id || pet.name)));
+                            } else {
+                              alert(t.community.modalJoinPetsMinAlert || '최소 한 마리의 반려견을 선택해야 합니다.');
+                            }
+                          } else {
+                            setSelectedEditPetIds([...selectedEditPetIds, pet.id || pet.name]);
+                          }
+                        }}
+                        className="modal-pet-chip"
+                        style={{ opacity: isSelected ? 1 : 0.4 }}
+                      >
+                        <img
+                          src={getLiveDogAvatar(pet.name, pet.avatar)}
+                          alt={pet.name}
+                          className={`modal-pet-avatar ${isSelected ? 'selected' : ''}`}
+                        />
+                        <span className={`modal-pet-name ${isSelected ? 'selected' : ''}`}>{pet.name}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <button type="submit" className="modal-submit-btn">
+                {t.community?.editSubmitBtn || (language === 'ko' ? '수정 완료' : language === 'ja' ? '修正完了' : 'Save Changes')}
+              </button>
+            </form>
+          </div>
+        </div>
       )}
-    </div>
+
+      {/* 100% Filter Modal Popup */}
+      {showFilterModal && (
+        <div className="modal-overlay" onClick={() => setShowFilterModal(false)} style={{ maxWidth: '100%', padding: '0' }}>
+          <div
+            className="modal-box"
+            onClick={e => e.stopPropagation()}  >
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', paddingBottom: '12px', borderBottom: '1px solid #F1F5F9' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <SlidersHorizontal size={20} color="#1E293B" />
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#1E293B', margin: 0 }}>
+                  {filterT.modalTitle || '상세 필터 검색'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => setShowFilterModal(false)}
+                style={{ padding: '4px' }}
+              >
+                <X size={22} color="#64748B" />
+              </button>
+            </div>
+
+            {/* Modal Body (Scrollable) */}
+            <div style={{ flex: 1, overflowY: 'auto', paddingRight: '4px' }}>
+              {/* 1. 모집 상태 */}
+              <div className="filter-modal-section">
+                <div className="filter-modal-label">
+                  <span>{filterT.statusLabel || '모집 상태'}</span>
+                </div>
+                <div className="filter-chip-group">
+                  <button
+                    type="button"
+                    className={`filter-modal-chip ${!draftOpenOnly ? 'active' : ''}`}
+                    onClick={() => setDraftOpenOnly(false)}
+                  >
+                    {filterT.statusAll || '전체 보기'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`filter-modal-chip ${draftOpenOnly ? 'active' : ''}`}
+                    onClick={() => setDraftOpenOnly(true)}
+                  >
+                    {filterT.statusOpenOnly || '모집중만 보기'}
+                  </button>
+                </div>
+              </div>
+
+              {/* 2. 견종 크기 */}
+              <div className="filter-modal-section">
+                <div className="filter-modal-label">
+                  <span>{filterT.dogSizeLabel || '1. 견종 크기'}</span>
+                </div>
+                <div className="filter-chip-group">
+                  <button
+                    type="button"
+                    className={`filter-modal-chip ${draftDogSize === 'all' ? 'active' : ''}`}
+                    onClick={() => setDraftDogSize('all')}
+                  >
+                    {filterT.sizeAll || '전체'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`filter-modal-chip ${draftDogSize === 'small' ? 'active' : ''}`}
+                    onClick={() => setDraftDogSize('small')}
+                  >
+                    {filterT.sizeSmall || '소형견'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`filter-modal-chip ${draftDogSize === 'medium' ? 'active' : ''}`}
+                    onClick={() => setDraftDogSize('medium')}
+                  >
+                    {filterT.sizeMedium || '중형견'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`filter-modal-chip ${draftDogSize === 'large' ? 'active' : ''}`}
+                    onClick={() => setDraftDogSize('large')}
+                  >
+                    {filterT.sizeLarge || '대형견'}
+                  </button>
+                </div>
+              </div>
+
+              {/* 3. 산책 스타일 */}
+              <div className="filter-modal-section">
+                <div className="filter-modal-label">
+                  <span>{filterT.walkStyleLabel || '2. 산책 스타일'}</span>
+                </div>
+                <div className="filter-chip-group">
+                  <button
+                    type="button"
+                    className={`filter-modal-chip ${draftWalkStyle === 'all' ? 'active' : ''}`}
+                    onClick={() => setDraftWalkStyle('all')}
+                  >
+                    {filterT.styleAll || '전체'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`filter-modal-chip ${draftWalkStyle === 'free' ? 'active' : ''}`}
+                    onClick={() => setDraftWalkStyle('free')}
+                  >
+                    {filterT.styleFree || '자유산책'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`filter-modal-chip ${draftWalkStyle === 'training' ? 'active' : ''}`}
+                    onClick={() => setDraftWalkStyle('training')}
+                  >
+                    {filterT.styleTraining || '훈련·사회화'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`filter-modal-chip ${draftWalkStyle === 'sniff' ? 'active' : ''}`}
+                    onClick={() => setDraftWalkStyle('sniff')}
+                  >
+                    {filterT.styleSniff || '킁킁이(탐색)'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`filter-modal-chip ${draftWalkStyle === 'shy' ? 'active' : ''}`}
+                    onClick={() => setDraftWalkStyle('shy')}
+                  >
+                    {filterT.styleShy || '소심이 전용'}
+                  </button>
+                </div>
+              </div>
+
+              {/* 4. 거리 / 지역 */}
+              <div className="filter-modal-section">
+                <div className="filter-modal-label">
+                  <span>{filterT.distanceLabel || '3. 거리 / 지역'}</span>
+                </div>
+                <div className="filter-chip-group">
+                  <button
+                    type="button"
+                    className={`filter-modal-chip ${draftDistanceFilter === 'all' ? 'active' : ''}`}
+                    onClick={() => setDraftDistanceFilter('all')}
+                  >
+                    {filterT.distanceAll || '전체'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`filter-modal-chip ${draftDistanceFilter === 'nearby' ? 'active' : ''}`}
+                    onClick={() => setDraftDistanceFilter('nearby')}
+                  >
+                    {filterT.distanceNearby || '거리순'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`filter-modal-chip ${draftDistanceFilter === 'neighborhood' ? 'active' : ''}`}
+                    onClick={() => setDraftDistanceFilter('neighborhood')}
+                  >
+                    {filterT.distanceNeighborhood || '내 동네'}
+                  </button>
+                </div>
+              </div>
+
+              {/* 5. 날짜별 */}
+              <div className="filter-modal-section">
+                <div className="filter-modal-label">
+                  <span>{filterT.dateLabel || '4. 날짜별'}</span>
+                </div>
+                <div className="filter-chip-group">
+                  <button
+                    type="button"
+                    className={`filter-modal-chip ${draftDateFilter === 'all' ? 'active' : ''}`}
+                    onClick={() => setDraftDateFilter('all')}
+                  >
+                    {filterT.dateAll || '전체'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`filter-modal-chip ${draftDateFilter === 'today' ? 'active' : ''}`}
+                    onClick={() => setDraftDateFilter('today')}
+                  >
+                    {filterT.dateToday || '오늘'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`filter-modal-chip ${draftDateFilter === 'tomorrow' ? 'active' : ''}`}
+                    onClick={() => setDraftDateFilter('tomorrow')}
+                  >
+                    {filterT.dateTomorrow || '내일'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`filter-modal-chip ${draftDateFilter === 'weekend' ? 'active' : ''}`}
+                    onClick={() => setDraftDateFilter('weekend')}
+                  >
+                    {filterT.dateWeekend || '주말'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`filter-modal-chip ${draftDateFilter === 'custom' ? 'active' : ''}`}
+                    onClick={() => setDraftDateFilter('custom')}
+                  >
+                    {filterT.dateCustom || '직접 설정'}
+                  </button>
+                </div>
+                {draftDateFilter === 'custom' && (
+                  <div style={{ marginTop: '10px' }}>
+                    <input
+                      type="date"
+                      value={draftCustomDate}
+                      onChange={e => setDraftCustomDate(e.target.value)}
+                      className="filter-custom-date-input"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* 6. 시간대별 */}
+              <div className="filter-modal-section">
+                <div className="filter-modal-label">
+                  <span>{filterT.timeSlotLabel || '5. 시간대별'}</span>
+                </div>
+                <div className="filter-chip-group">
+                  <button
+                    type="button"
+                    className={`filter-modal-chip ${draftTimeSlotFilter === 'all' ? 'active' : ''}`}
+                    onClick={() => setDraftTimeSlotFilter('all')}
+                  >
+                    {filterT.timeAll || '전체'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`filter-modal-chip ${draftTimeSlotFilter === 'morning' ? 'active' : ''}`}
+                    onClick={() => setDraftTimeSlotFilter('morning')}
+                  >
+                    {filterT.timeMorning || '이른 아침 (06~09시)'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`filter-modal-chip ${draftTimeSlotFilter === 'day' ? 'active' : ''}`}
+                    onClick={() => setDraftTimeSlotFilter('day')}
+                  >
+                    {filterT.timeDay || '낮 (10~17시)'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`filter-modal-chip ${draftTimeSlotFilter === 'night' ? 'active' : ''}`}
+                    onClick={() => setDraftTimeSlotFilter('night')}
+                  >
+                    {filterT.timeNight || '야간 / 심야 (18시~)'}
+                  </button>
+                </div>
+              </div>
+
+              {/* 7. 참여 조건 필터 */}
+              <div className="filter-modal-section">
+                <div
+                  className={`filter-toggle-card ${draftMyDogMatch ? 'active' : ''}`}
+                  onClick={() => setDraftMyDogMatch(prev => !prev)}
+                >
+                  <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#1E293B' }}>
+                    {filterT.myDogMatchLabel || '내 강아지 참여 가능 여부'}
+                  </span>
+                  <div className={`filter-toggle-switch ${draftMyDogMatch ? 'active' : 'inactive'}`}>
+                    <div className="filter-toggle-knob" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions Footer */}
+            <div className="flex grid-2">
+              <button
+                type="button"
+                className="tap-btn"
+                onClick={resetDraftFilters}
+                title={filterT.resetBtn || '초기화'}
+              >
+                <RotateCcw size={18} />
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={applyFilterModal}
+              >
+                {draftMatchCount > 0
+                  ? (filterT.searchWithCount ? filterT.searchWithCount.replace('{count}', String(draftMatchCount)) : `${draftMatchCount}개 산책 모임 조회하기`)
+                  : (filterT.searchBtn || '조회하기')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )
+      }
+
+      {/* Meetup Chat Modal */}
+      {
+        activeChatMeetup && (
+          <MeetupChatModal
+            meetup={activeChatMeetup}
+            onClose={() => setActiveChatMeetup(null)}
+            language={language}
+            isHost={isUserHost(activeChatMeetup)}
+            onEdit={isUserHost(activeChatMeetup) ? () => openEditModal(activeChatMeetup) : undefined}
+            onDelete={isUserHost(activeChatMeetup) ? () => handleDeleteMeetup(activeChatMeetup.id) : undefined}
+          />
+        )
+      }
+
+      {/* Report Modal */}
+      <ReportModal
+        target={reportTarget}
+        onClose={() => setReportTarget(null)}
+      />
+    </div >
   );
 };

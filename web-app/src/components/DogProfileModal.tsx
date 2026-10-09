@@ -1,6 +1,6 @@
 import React from 'react';
 import { X } from 'lucide-react';
-import { getLiveDogAvatar, localizeBreed, localizePersonalityTags } from '../data/mockDogs';
+import { getLiveDogAvatar, localizeBreed, localizePersonalityTags, localizeDogName } from '../data/mockDogs';
 import { useTranslation } from '../i18n/LanguageContext';
 import '../styles/DogProfileModal.css';
 
@@ -44,7 +44,7 @@ export const DogProfileModal: React.FC<DogProfileModalProps> = ({ dog, onClose }
           onClick={onClose}
           aria-label="닫기"
         >
-          <X size={16} />
+          <X size={24} />
         </button>
 
         {/* Profile Avatar */}
@@ -58,7 +58,7 @@ export const DogProfileModal: React.FC<DogProfileModalProps> = ({ dog, onClose }
 
         {/* Name */}
         <h3 className="dog-profile-modal-name">
-          {dog.name}
+          {localizeDogName(dog.name, language)}
         </h3>
 
         {/* Breed, Age & Gender */}

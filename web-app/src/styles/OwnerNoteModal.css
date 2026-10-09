@@ -15,7 +15,7 @@
 .own-message-modal-container {
   background: #FFFFFF;
   width: 100%;
-  max-width: 400px;
+  max-width: 440px;
   /* Optional: if you want it to look like a phone on desktop */
   height: 100dvh;
   max-height: 100dvh;
@@ -24,13 +24,18 @@
   flex-direction: column;
   box-shadow: 0 15px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(255, 126, 54, 0.2);
   overflow: hidden;
-  border-radius: 20px;
+  border-radius: 0;
 }
 
 .own-message-modal-header {
   padding: 16px 18px;
   background: #FFB320;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.own-message-modal-header .badge-hashtag {
+  border-color: #fff;
+  color: #fff;
 }
 
 .own-message-modal-avatar-container {
@@ -117,29 +122,23 @@
 }
 
 
-.pet-studio-modal-action-wrapper {
+.snaps-modal-action-wrapper {
   box-sizing: border-box;
-  position: absolute;
-  bottom: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: calc(100% - 32px);
-  max-width: 370px;
+  width: calc(100% - 24px);
+  max-width: 380px;
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border-radius: 20px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.16), 0 2px 8px rgba(0, 0, 0, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  padding: 10px 6px;
-  z-index: 10;
+  padding: 0 10px;
+  z-index: 45;
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-flow: row nowrap;
+  margin: 12px auto 18px;
 }
 
-.pet-studio-modal-action-wrapper button {
+.snaps-modal-action-wrapper button {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -154,13 +153,13 @@
   font-family: inherit;
 }
 
-.pet-studio-modal-action-wrapper button>div {
+.snaps-modal-action-wrapper button>div {
   width: 40px;
   height: 40px;
   border-radius: 14px;
 }
 
-.pet-studio-modal-action-wrapper button span {
+.snaps-modal-action-wrapper button span {
   font-size: 0.65rem;
   color: #4a5568;
   font-weight: 600;
