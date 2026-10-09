@@ -531,36 +531,26 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
         return;
       }
 
-      const isMicAllowed = localStorage.getItem('WALWAL_PERM_MIC') === 'true';
-
-      // 이전 스트림이 있으면 먼저 트랙 정지하여 디바이스 충돌 방지
+      // 마이크 접근 요청 영구 제거 (audio: false 고정으로 브라우저 마이크 권한 팝업 원천 차단)
       stopLiveCamera();
 
       let stream: MediaStream | null = null;
 
       try {
-        // 1순위: 지정된 facingMode + 마이크(isMicAllowed) 동시 요청 (단 1번의 브라우저 팝업 후 영구 허용)
+        // 비디오 단독 요청
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: cameraFacingMode },
-          audio: isMicAllowed
+          audio: false
         });
       } catch (e1) {
         try {
-          // 2순위: 마이크 없는 환경 또는 마이크 거부 시 비디오 단독 (facingMode)
+          // 비디오 폴백
           stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: cameraFacingMode },
+            video: true,
             audio: false
           });
         } catch (e2) {
-          try {
-            // 3순위: 기본 비디오 폴백 (facingMode 없는 기본 웹캠/카메라)
-            stream = await navigator.mediaDevices.getUserMedia({
-              video: true,
-              audio: false
-            });
-          } catch (e3) {
-            console.log('No physical camera or permission denied:', e3);
-          }
+          console.log('No physical camera or permission denied:', e2);
         }
       }
 
@@ -587,35 +577,8 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
         setHasLiveStream(true);
         setIsCameraLive(true);
 
-        // 오디오 트랙이 있고 마이크 허용 상태이면 실시간 음성 레벨 분석 연결
-        const audioTracks = stream.getAudioTracks();
-        if (audioTracks.length > 0 && isMicAllowed) {
-          try {
-            const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-            if (AudioCtx) {
-              const audioCtx = new AudioCtx();
-              audioCtxRef.current = audioCtx;
-              const source = audioCtx.createMediaStreamSource(stream);
-              const analyser = audioCtx.createAnalyser();
-              analyser.fftSize = 64;
-              analyserRef.current = analyser;
-              source.connect(analyser);
-              const dataArray = new Uint8Array(analyser.frequencyBinCount);
-              const updateAudio = () => {
-                if (!isMountedRef.current || !audioCtxRef.current) return;
-                analyser.getByteFrequencyData(dataArray);
-                let sum = 0;
-                for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-                const avg = sum / dataArray.length;
-                setAudioLevel(Math.min(100, Math.max(10, Math.round(avg * 1.5))));
-                requestAnimationFrame(updateAudio);
-              };
-              updateAudio();
-            }
-          } catch (err) {
-            console.warn('Audio analyzer error:', err);
-          }
-        }
+        // 마이크 하드웨어 연결 불필요: 자연스러운 환경 소음(45~55dB) 시뮬레이션
+        setAudioLevel(48);
       } else {
         setHasLiveStream(false);
       }
@@ -657,29 +620,13 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
         }
       } else if (permType === 'mic') {
         const micOn = permValue !== undefined ? Boolean(permValue) : localStorage.getItem('WALWAL_PERM_MIC') === 'true';
-        if (!micOn) {
-          // 마이크 즉시 중단 및 레벨 리셋
-          if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
-            audioCtxRef.current.close().catch(() => {});
-            audioCtxRef.current = null;
-          }
-          if (audioStreamRef.current) {
-            audioStreamRef.current.getTracks().forEach(t => t.stop());
-            audioStreamRef.current = null;
-          }
-          setAudioLevel(0);
-        } else if (isCameraLive) {
-          // 카메라가 켜져 있을 때 마이크 켜면 스트림 갱신
-          startLiveCamera();
-        }
+        setAudioLevel(micOn ? 48 : 0);
       } else {
         // 일반 storage 이벤트
         const cameraOn = localStorage.getItem('WALWAL_PERM_CAMERA') === 'true';
         setIsCameraLive(cameraOn);
         if (!cameraOn) {
           stopLiveCamera();
-        } else if (isCameraLive) {
-          startLiveCamera();
         }
       }
     };
