@@ -166,6 +166,7 @@
   display: flex;
   border-radius: 100px;
   padding: 0;
+  gap: 5px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
 }
 
@@ -174,7 +175,6 @@
   border: none;
   border-radius: 100px;
   padding: 6px;
-  width: 36px;
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
@@ -1083,6 +1083,7 @@ button.ar-offline-turn-on-btn svg {
 .ar-zoom-group .button.active {
   background: #FFB320;
   color: #FFFFFF;
+  width: 36px;
 }
 
 .ar-offline-turn-on-btn {

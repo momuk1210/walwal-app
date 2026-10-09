@@ -153,6 +153,18 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
     return () => clearInterval(turnInterval);
   }, [language]);
 
+  // iOS Safari 모션 센서 권한 활성화 (사용자 제스처 시 1회 요청)
+  const requestMotionPermissionIfNeeded = () => {
+    try {
+      if (typeof (DeviceOrientationEvent as any)?.requestPermission === 'function') {
+        (DeviceOrientationEvent as any).requestPermission().catch(() => {});
+      }
+      if (typeof (DeviceMotionEvent as any)?.requestPermission === 'function') {
+        (DeviceMotionEvent as any).requestPermission().catch(() => {});
+      }
+    } catch (e) {}
+  };
+
   // 스마트폰 하드웨어 가속도/자이로 센서 실시간 감지 (중력 가속도로 폰의 회전 100% 자동 감지)
   useEffect(() => {
     // 1. 중력 가속도 센서 (모바일 브라우저 권한 불필요, 가장 정확함)
@@ -167,14 +179,14 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       if (Math.abs(ax) < 2.5 && Math.abs(ay) < 2.5) return;
 
       // 폰을 가로로 돌려 쥐었을 때 (|ax| > |ay|)
-      if (Math.abs(ax) > 4.0 && Math.abs(ax) > Math.abs(ay) * 1.05) {
+      if (Math.abs(ax) > 3.8 && Math.abs(ax) > Math.abs(ay) * 1.05) {
         orientationStateRef.current = {
           isLandscape: true,
           rotation: ax > 0 ? 90 : -90
         };
       }
       // 폰을 세로로 세워 쥐었을 때 (|ay| > |ax|)
-      else if (Math.abs(ay) > 4.0 && Math.abs(ay) > Math.abs(ax) * 1.05) {
+      else if (Math.abs(ay) > 3.8 && Math.abs(ay) > Math.abs(ax) * 1.05) {
         orientationStateRef.current = {
           isLandscape: false,
           rotation: 0
@@ -197,9 +209,15 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       }
     };
 
+    // 3. 브라우저 화면 방향 변경 감지 (화면 자동회전 시 100% 동작)
     const handleScreenResize = () => {
-      if (window.innerWidth > window.innerHeight) {
-        orientationStateRef.current = { isLandscape: true, rotation: 0 };
+      const isWindowLandscape = window.innerWidth > window.innerHeight;
+      const isOrientationLandscape = typeof window.orientation !== 'undefined' && Math.abs(Number(window.orientation)) === 90;
+      const isScreenLandscape = typeof window.screen !== 'undefined' && Boolean(window.screen.orientation?.type?.includes('landscape'));
+
+      if (isWindowLandscape || isOrientationLandscape || isScreenLandscape) {
+        const rot = Number(window.orientation) === -90 ? -90 : 90;
+        orientationStateRef.current = { isLandscape: true, rotation: rot };
       } else if (window.innerWidth < window.innerHeight && orientationStateRef.current.rotation === 0) {
         orientationStateRef.current = { isLandscape: false, rotation: 0 };
       }
@@ -544,8 +562,9 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
     return () => clearInterval(liveLoop);
   }, [isCameraLive, language]);
 
-  // 뷰파인더 탭 시 해당 위치로 포커스 이동
+  // 뷰파인더 탭 시 해당 위치로 포커스 이동 & 모션 센서 활성화
   const handleViewfinderTap = (e: React.MouseEvent<HTMLDivElement>) => {
+    requestMotionPermissionIfNeeded();
     const rect = e.currentTarget.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
@@ -1487,6 +1506,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
 
           <button className="bottom-bar-btn"
             onClick={() => {
+              requestMotionPermissionIfNeeded();
               confetti({
                 particleCount: 16,
                 spread: 35,
