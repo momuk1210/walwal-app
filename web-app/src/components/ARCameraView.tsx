@@ -171,6 +171,15 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       // 테이블에 완전히 평평하게 내려놓은 상태 (|planar| < 1.0) 제외
       if (planar < 1.0) return;
 
+      // 브라우저 자체가 이미 가로 상태라면 센서로 덮어쓰지 않음
+      const isWindowCurrentlyLandscape = (typeof window.orientation !== 'undefined' && Math.abs(Number(window.orientation)) === 90) ||
+                                          (typeof window !== 'undefined' && window.innerWidth > window.innerHeight) ||
+                                          (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(orientation: landscape)').matches);
+      if (isWindowCurrentlyLandscape) {
+        orientationStateRef.current = { isLandscape: true, rotation: -90 };
+        return;
+      }
+
       // 폰을 가로로 돌려 쥐었을 때: x축 중력이 y축 중력보다 큼
       if (Math.abs(ax) > Math.abs(ay)) {
         orientationStateRef.current = {
@@ -193,6 +202,14 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       if (gamma === null || beta === null) return;
       lastGyroRef.current = { gamma, beta };
 
+      const isWindowCurrentlyLandscape = (typeof window.orientation !== 'undefined' && Math.abs(Number(window.orientation)) === 90) ||
+                                          (typeof window !== 'undefined' && window.innerWidth > window.innerHeight) ||
+                                          (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(orientation: landscape)').matches);
+      if (isWindowCurrentlyLandscape) {
+        orientationStateRef.current = { isLandscape: true, rotation: -90 };
+        return;
+      }
+
       // 좌우 기울기(gamma)가 크면 가로
       if (Math.abs(gamma) > 28) {
         orientationStateRef.current = {
@@ -212,8 +229,9 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       const isWindowLandscape = typeof window !== 'undefined' && window.innerWidth > window.innerHeight;
       const isOrientationLandscape = typeof window.orientation !== 'undefined' && Math.abs(Number(window.orientation)) === 90;
       const isScreenLandscape = typeof window.screen !== 'undefined' && Boolean(window.screen.orientation?.type?.includes('landscape'));
+      const isMediaLandscape = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(orientation: landscape)').matches;
 
-      if (isWindowLandscape || isOrientationLandscape || isScreenLandscape) {
+      if (isWindowLandscape || isOrientationLandscape || isScreenLandscape || isMediaLandscape) {
         const rot = typeof window.orientation !== 'undefined' && Number(window.orientation) === 90 ? -90 : 90;
         orientationStateRef.current = { isLandscape: true, rotation: rot };
         setIsLandscapeMode(true);
@@ -223,13 +241,37 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       }
     };
 
+    const mediaQuery = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(orientation: landscape)') : null;
+    const handleMediaChange = (e: any) => {
+      if (e.matches) {
+        orientationStateRef.current = { isLandscape: true, rotation: -90 };
+        setIsLandscapeMode(true);
+      } else {
+        handleScreenResize();
+      }
+    };
+
     handleScreenResize();
+    if (mediaQuery) {
+      if (mediaQuery.addEventListener) {
+        mediaQuery.addEventListener('change', handleMediaChange);
+      } else if ((mediaQuery as any).addListener) {
+        (mediaQuery as any).addListener(handleMediaChange);
+      }
+    }
     window.addEventListener('devicemotion', handleDeviceMotion, true);
     window.addEventListener('deviceorientation', handleDeviceOrientation, true);
     window.addEventListener('resize', handleScreenResize);
     window.addEventListener('orientationchange', handleScreenResize);
 
     return () => {
+      if (mediaQuery) {
+        if (mediaQuery.removeEventListener) {
+          mediaQuery.removeEventListener('change', handleMediaChange);
+        } else if ((mediaQuery as any).removeListener) {
+          (mediaQuery as any).removeListener(handleMediaChange);
+        }
+      }
       window.removeEventListener('devicemotion', handleDeviceMotion, true);
       window.removeEventListener('deviceorientation', handleDeviceOrientation, true);
       window.removeEventListener('resize', handleScreenResize);
@@ -825,8 +867,9 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
     const isScreenOrientationLandscape = typeof window !== 'undefined' &&
       typeof window.screen !== 'undefined' &&
       Boolean(window.screen.orientation?.type?.includes('landscape'));
+    const isMediaLandscape = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(orientation: landscape)').matches;
 
-    if (isLandscapeMode || isLandscapeBySensor || isScreenLandscape || isWindowOrientationLandscape || isScreenOrientationLandscape) {
+    if (isMediaLandscape || isLandscapeMode || isLandscapeBySensor || isScreenLandscape || isWindowOrientationLandscape || isScreenOrientationLandscape) {
       return { width: 1280, height: 720, isLandscape: true };
     }
 
