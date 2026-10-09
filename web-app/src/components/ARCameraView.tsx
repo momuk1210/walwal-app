@@ -69,6 +69,8 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
   const [audioLevel, setAudioLevel] = useState<number>(52);
   const [focusTarget, setFocusTarget] = useState<{ x: number; y: number; active: boolean; dogName: string }>({ x: 50, y: 50, active: false, dogName: '' });
   const orientationStateRef = useRef<{ isLandscape: boolean; rotation: number }>({ isLandscape: false, rotation: 0 });
+  const lastAccRef = useRef<{ ax: number; ay: number } | null>(null);
+  const lastGyroRef = useRef<{ gamma: number; beta: number } | null>(null);
   const [behaviorState, setBehaviorState] = useState<DogBehaviorState>('calm');
   const [scenarioIdx, setScenarioIdx] = useState<number>(0);
   const [isCapturingVideo, setIsCapturingVideo] = useState<boolean>(false);
@@ -167,26 +169,28 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
 
   // 스마트폰 하드웨어 가속도/자이로 센서 실시간 감지 (중력 가속도로 폰의 회전 100% 자동 감지)
   useEffect(() => {
-    // 1. 중력 가속도 센서 (모바일 브라우저 권한 불필요, 가장 정확함)
+    // 1. 중력 가속도 센서 (어떤 각도로 쥐고 있든 x, y 중력 비교로 즉시 감지)
     const handleDeviceMotion = (e: DeviceMotionEvent) => {
       const acc = e.accelerationIncludingGravity;
       if (!acc || acc.x === null || acc.y === null) return;
 
       const ax = acc.x;
       const ay = acc.y;
+      lastAccRef.current = { ax, ay };
 
-      // 평평하게 바닥에 놓은 경우 (|ax| < 2.5 && |ay| < 2.5)는 기존 상태 유지
-      if (Math.abs(ax) < 2.5 && Math.abs(ay) < 2.5) return;
+      const planar = Math.sqrt(ax * ax + ay * ay);
+      // 테이블에 완전히 평평하게 내려놓은 상태 (|planar| < 1.0) 제외
+      if (planar < 1.0) return;
 
-      // 폰을 가로로 돌려 쥐었을 때 (|ax| > |ay|) - 부호 반전하여 똑바로 세움
-      if (Math.abs(ax) > 3.8 && Math.abs(ax) > Math.abs(ay) * 1.05) {
+      // 폰을 가로로 돌려 쥐었을 때: x축 중력이 y축 중력보다 큼
+      if (Math.abs(ax) > Math.abs(ay)) {
         orientationStateRef.current = {
           isLandscape: true,
           rotation: ax > 0 ? -90 : 90
         };
       }
-      // 폰을 세로로 세워 쥐었을 때 (|ay| > |ax|)
-      else if (Math.abs(ay) > 3.8 && Math.abs(ay) > Math.abs(ax) * 1.05) {
+      // 폰을 세로로 세워 쥐었을 때: y축 중력이 x축 중력보다 큼
+      else {
         orientationStateRef.current = {
           isLandscape: false,
           rotation: 0
@@ -194,31 +198,36 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       }
     };
 
-    // 2. orientation 이벤트 보조 감지
+    // 2. orientation (자이로스코프) 이벤트 보조 감지
     const handleDeviceOrientation = (event: DeviceOrientationEvent) => {
       const { gamma, beta } = event;
       if (gamma === null || beta === null) return;
-      if (Math.abs(beta) < 15 && Math.abs(gamma) < 15) return;
+      lastGyroRef.current = { gamma, beta };
 
-      if (gamma < -35 && Math.abs(beta) < 65) {
-        orientationStateRef.current = { isLandscape: true, rotation: -90 };
-      } else if (gamma > 35 && Math.abs(beta) < 65) {
-        orientationStateRef.current = { isLandscape: true, rotation: 90 };
-      } else if (Math.abs(gamma) < 25 && beta > 25) {
-        orientationStateRef.current = { isLandscape: false, rotation: 0 };
+      // 좌우 기울기(gamma)가 크면 가로
+      if (Math.abs(gamma) > 28) {
+        orientationStateRef.current = {
+          isLandscape: true,
+          rotation: gamma > 0 ? 90 : -90
+        };
+      } else if (Math.abs(gamma) < 20 && Math.abs(beta) > 20) {
+        orientationStateRef.current = {
+          isLandscape: false,
+          rotation: 0
+        };
       }
     };
 
     // 3. 브라우저 화면 방향 변경 감지 (화면 자동회전 시 100% 동작)
     const handleScreenResize = () => {
-      const isWindowLandscape = window.innerWidth > window.innerHeight;
+      const isWindowLandscape = typeof window !== 'undefined' && window.innerWidth > window.innerHeight;
       const isOrientationLandscape = typeof window.orientation !== 'undefined' && Math.abs(Number(window.orientation)) === 90;
       const isScreenLandscape = typeof window.screen !== 'undefined' && Boolean(window.screen.orientation?.type?.includes('landscape'));
 
       if (isWindowLandscape || isOrientationLandscape || isScreenLandscape) {
-        const rot = Number(window.orientation) === 90 ? -90 : 90;
+        const rot = typeof window.orientation !== 'undefined' && Number(window.orientation) === 90 ? -90 : 90;
         orientationStateRef.current = { isLandscape: true, rotation: rot };
-      } else if (window.innerWidth < window.innerHeight && orientationStateRef.current.rotation === 0) {
+      } else if (typeof window !== 'undefined' && window.innerWidth < window.innerHeight && orientationStateRef.current.rotation === 0) {
         orientationStateRef.current = { isLandscape: false, rotation: 0 };
       }
     };
@@ -603,10 +612,14 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
   const startLiveCamera = async () => {
     if (isStartingRef.current) return;
     isStartingRef.current = true;
+    const unlockTimeout = setTimeout(() => {
+      isStartingRef.current = false;
+    }, 4000);
 
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         setHasLiveStream(false);
+        isStartingRef.current = false;
         return;
       }
 
@@ -614,11 +627,34 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       if (isCameraBlocked) {
         stopLiveCamera();
         setIsCameraLive(false);
+        isStartingRef.current = false;
         return;
       }
 
-      // 마이크 접근 요청 영구 제거 (audio: false 고정으로 브라우저 마이크 권한 팝업 원천 차단)
-      stopLiveCamera();
+      // 이미 활성화된 스트림이 있다면 즉시 비디오에 연결하여 0ms로 실행
+      if (liveStreamRef.current && liveStreamRef.current.active && videoRef.current) {
+        const v = videoRef.current;
+        v.srcObject = liveStreamRef.current;
+        v.play().catch(() => {});
+        setHasLiveStream(true);
+        setIsCameraLive(true);
+        isStartingRef.current = false;
+        clearTimeout(unlockTimeout);
+        return;
+      }
+
+      if ((window as any).__WALWAL_CAMERA_STREAM__ && (window as any).__WALWAL_CAMERA_STREAM__.active && videoRef.current) {
+        const gStream = (window as any).__WALWAL_CAMERA_STREAM__ as MediaStream;
+        liveStreamRef.current = gStream;
+        const v = videoRef.current;
+        v.srcObject = gStream;
+        v.play().catch(() => {});
+        setHasLiveStream(true);
+        setIsCameraLive(true);
+        isStartingRef.current = false;
+        clearTimeout(unlockTimeout);
+        return;
+      }
 
       let stream: MediaStream | null = null;
 
@@ -674,6 +710,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
         setHasLiveStream(false);
       }
     } finally {
+      clearTimeout(unlockTimeout);
       isStartingRef.current = false;
     }
   };
@@ -724,7 +761,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       window.removeEventListener('walwal_permissions_updated', handlePermUpdate);
       window.removeEventListener('storage', handlePermUpdate);
     };
-  }, [cameraFacingMode, isCameraLive]);
+  }, [cameraFacingMode]);
 
   // 컴포넌트 마운트 및 facingMode 변경 시 처리 (즉시 라이브 카메라 시작)
   useEffect(() => {
@@ -776,18 +813,34 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
   const currentTurn = packTurns[turnIndex % packTurns.length] || packTurns[0];
   // 화면 및 카메라 실제 앵글에 따른 동적 가로/세로 해상도 계산 (1280x720 vs 720x1280)
   const getCaptureDimensions = () => {
-    // 1. 중력 센서 또는 기기 방향이 가로인 경우
-    const isPhysicalLandscape = orientationStateRef.current.isLandscape;
+    // 1. 센서 가속도/자이로 실시간 물리적 방향 확인 (기울어진 채 찍어도 즉시 감지)
+    let isLandscapeBySensor = orientationStateRef.current.isLandscape;
+    if (lastAccRef.current) {
+      const { ax, ay } = lastAccRef.current;
+      const planar = Math.sqrt(ax * ax + ay * ay);
+      if (planar >= 1.0) {
+        isLandscapeBySensor = Math.abs(ax) > Math.abs(ay);
+      }
+    } else if (lastGyroRef.current) {
+      if (Math.abs(lastGyroRef.current.gamma) > 25) {
+        isLandscapeBySensor = true;
+      }
+    }
+
+    // 2. 브라우저/스크린/윈도우 물리 방향 확인
     const isScreenLandscape = typeof window !== 'undefined' && window.innerWidth > window.innerHeight;
+    const isWindowOrientationLandscape = typeof window !== 'undefined' &&
+      typeof window.orientation !== 'undefined' &&
+      Math.abs(Number(window.orientation)) === 90;
     const isScreenOrientationLandscape = typeof window !== 'undefined' &&
       typeof window.screen !== 'undefined' &&
       Boolean(window.screen.orientation?.type?.includes('landscape'));
 
-    if (isPhysicalLandscape || isScreenLandscape || isScreenOrientationLandscape) {
+    if (isLandscapeBySensor || isScreenLandscape || isWindowOrientationLandscape || isScreenOrientationLandscape) {
       return { width: 1280, height: 720, isLandscape: true };
     }
 
-    // 2. 비디오 스트림 자체가 가로인 경우 (PC 웹캠 등)
+    // 3. 비디오 스트림 자체가 가로인 경우 (PC 웹캠 등)
     if (hasLiveStream && videoRef.current && videoRef.current.videoWidth > 0 && videoRef.current.videoHeight > 0) {
       const v = videoRef.current;
       if (v.videoWidth > v.videoHeight) {
@@ -795,7 +848,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       }
     }
 
-    // 3. 기본 세로 (720x1280)
+    // 4. 기본 세로 (720x1280)
     return { width: 720, height: 1280, isLandscape: false };
   };
 
@@ -814,7 +867,16 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
         // 스마트폰을 가로로 돌려 찍었을 때: 센서가 감지한 회전 각도로 똑바로 세워서 1280x720 가로 화면에 채움
         context.save();
         context.translate(cWidth / 2, cHeight / 2);
-        const rot = orientationStateRef.current.rotation || -90;
+        let rot = orientationStateRef.current.rotation;
+        if (!rot || rot === 0) {
+          if (lastAccRef.current && Math.abs(lastAccRef.current.ax) > Math.abs(lastAccRef.current.ay)) {
+            rot = lastAccRef.current.ax > 0 ? -90 : 90;
+          } else if (typeof window.orientation !== 'undefined' && Math.abs(Number(window.orientation)) === 90) {
+            rot = Number(window.orientation) === 90 ? -90 : 90;
+          } else {
+            rot = -90; // 일반적인 가로 촬영 기본값
+          }
+        }
         context.rotate(rot * Math.PI / 180);
         const scale = Math.max(cWidth / v.videoHeight, cHeight / v.videoWidth);
         const dw = v.videoWidth * scale;
@@ -1317,6 +1379,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
           <div className="ar-capture-btn-group">
             <button className={`bottom-bar-btn ${!isCapturingVideo ? 'shot' : ''}`}
               onClick={() => {
+                requestMotionPermissionIfNeeded();
                 if (isCapturingVideo) return;
 
                 confetti({
