@@ -164,9 +164,8 @@
 
 .ar-zoom-group {
   display: flex;
-  /* background: #FFFFFF; */
   border-radius: 100px;
-  padding: 4px;
+  padding: 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
 }
 
@@ -174,7 +173,8 @@
   background: transparent;
   border: none;
   border-radius: 100px;
-  padding: 6px 14px;
+  padding: 6px;
+  width: 36px;
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
@@ -268,6 +268,7 @@
 
 .ar-bottom-control-bar .ar-capture-btn-group {
   padding: 0;
+  margin: 0;
 }
 
 .ar-bottom-control-bar button * {
@@ -1047,7 +1048,6 @@ button.ar-offline-turn-on-btn svg {
   padding: 16px 12px;
   max-width: 380px;
   margin: 0 auto;
-  width: 100%;
 }
 
 .ar-btn-countdown-wrap {
@@ -1075,6 +1075,9 @@ button.ar-offline-turn-on-btn svg {
   flex: none;
   margin: 0 8px;
   display: flex;
+  align-items: center;
+  display: flex;
+  justify-content: center;
   align-items: center;
   gap: 8px;
 }

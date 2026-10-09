@@ -154,19 +154,50 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
     return () => clearInterval(turnInterval);
   }, [language]);
 
-  // 화면 가로 회전 감지
+  // 스마트폰 하드웨어 자이로 센서 실시간 감지 (화면 회전 잠금 상태에서도 가로/세로 촬영 자동 감지)
   useEffect(() => {
-    const checkOrientation = () => {
-      if (window.innerWidth > window.innerHeight) {
+    const handleDeviceOrientation = (event: DeviceOrientationEvent) => {
+      const { gamma, beta } = event;
+      if (gamma === null || beta === null) return;
+
+      // 폰을 바닥에 완전히 눕힌 상태(|beta| < 15 && |gamma| < 15)는 무시
+      if (Math.abs(beta) < 15 && Math.abs(gamma) < 15) return;
+
+      // 스마트폰을 왼쪽으로 돌려 가로로 쥐었을 때 (gamma < -35)
+      if (gamma < -35 && Math.abs(beta) < 65) {
         setCaptureAspect('landscape');
+        setPhotoRotation(90);
+      }
+      // 스마트폰을 오른쪽으로 돌려 가로로 쥐었을 때 (gamma > 35)
+      else if (gamma > 35 && Math.abs(beta) < 65) {
+        setCaptureAspect('landscape');
+        setPhotoRotation(-90);
+      }
+      // 스마트폰을 세로로 세워 쥐었을 때 (|gamma| < 25 && beta > 25)
+      else if (Math.abs(gamma) < 25 && beta > 25) {
+        setCaptureAspect('portrait');
+        setPhotoRotation(0);
       }
     };
-    checkOrientation();
-    window.addEventListener('resize', checkOrientation);
-    window.addEventListener('orientationchange', checkOrientation);
+
+    const handleScreenResize = () => {
+      if (window.innerWidth > window.innerHeight) {
+        setCaptureAspect('landscape');
+        setPhotoRotation(0);
+      } else if (window.innerWidth < window.innerHeight) {
+        // 화면 리사이즈가 세로면 세로 기본값 유지 (센서 이벤트 우선)
+      }
+    };
+
+    handleScreenResize();
+    window.addEventListener('deviceorientation', handleDeviceOrientation, true);
+    window.addEventListener('resize', handleScreenResize);
+    window.addEventListener('orientationchange', handleScreenResize);
+
     return () => {
-      window.removeEventListener('resize', checkOrientation);
-      window.removeEventListener('orientationchange', checkOrientation);
+      window.removeEventListener('deviceorientation', handleDeviceOrientation, true);
+      window.removeEventListener('resize', handleScreenResize);
+      window.removeEventListener('orientationchange', handleScreenResize);
     };
   }, []);
 
