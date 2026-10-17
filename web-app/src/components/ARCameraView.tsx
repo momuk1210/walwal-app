@@ -121,20 +121,20 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
   const [ownerNoteTarget, setOwnerNoteTarget] = useState<DogProfile | null>(null);
   const [showTargetSelector, setShowTargetSelector] = useState<boolean>(false);
 
-  // 단독견 프리셋용 (프로필 데이터 연동)
-  const [myDogProfile] = useState<DogProfile>(() => {
+  // 단독견 프리셋용 (내 반려견 프로필 데이터 동적 연동 - 반려견 없을 때 보리로 폴백 금지)
+  const getMyDogProfile = (): DogProfile | null => {
     try {
       const saved = localStorage.getItem('WALWAL_PETS');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
           const list = sanitizePetList(parsed, language);
-          return list[0] || getMockDogs(language)[0];
+          if (list.length > 0) return list[0];
         }
       }
     } catch (e) { }
-    return getMockDogs(language)[0];
-  });
+    return null;
+  };
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const liveStreamRef = useRef<MediaStream | null>(null);
@@ -1482,7 +1482,16 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
                   origin: { y: 0.8 }
                 });
 
-                const targetDog = anglePreset === 'pack3' ? getMockDogs(language)[1] : (myDogProfile || getMockDogs(language)[0]);
+                const myDog = getMyDogProfile();
+                if (!myDog && anglePreset !== 'pack3') {
+                  alert(language === 'ko'
+                    ? '등록된 내 반려견이 없습니다.\n마이펫 탭에서 먼저 반려견을 등록해 주세요!'
+                    : 'No registered pet found. Please register your pet in My Pet first!');
+                  window.dispatchEvent(new CustomEvent('walwal_switch_tab', { detail: 'profile' }));
+                  return;
+                }
+
+                const targetDog = anglePreset === 'pack3' ? getMockDogs(language)[1] : myDog!;
                 const targetThought = isCameraLive
                   ? (isDogInView ? aiThoughtText : (LANG_CONFIG[language] || LANG_CONFIG.ko).noDogThought)
                   : currentTurn.dogs[1].thought;
@@ -1671,7 +1680,16 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
                 origin: { y: 0.8 }
               });
 
-              const targetDog = anglePreset === 'pack3' ? getMockDogs(language)[1] : (myDogProfile || getMockDogs(language)[0]);
+              const myDog = getMyDogProfile();
+              if (!myDog && anglePreset !== 'pack3') {
+                alert(language === 'ko'
+                  ? '등록된 내 반려견이 없습니다.\n마이펫 탭에서 먼저 반려견을 등록해 주세요!'
+                  : 'No registered pet found. Please register your pet in My Pet first!');
+                window.dispatchEvent(new CustomEvent('walwal_switch_tab', { detail: 'profile' }));
+                return;
+              }
+
+              const targetDog = anglePreset === 'pack3' ? getMockDogs(language)[1] : myDog!;
               const targetThought = isCameraLive
                 ? (isDogInView ? aiThoughtText : (LANG_CONFIG[language] || LANG_CONFIG.ko).noDogThought)
                 : currentTurn.dogs[1].thought;
@@ -1689,9 +1707,9 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
               }
 
               if (onCaptureToSnaps) {
-                onCaptureToSnaps(targetDog || myDogProfile, targetThought, snapshot);
+                onCaptureToSnaps(targetDog, targetThought, snapshot);
               } else if (onCaptureToFeed) {
-                onCaptureToFeed(targetDog || myDogProfile, targetThought, snapshot);
+                onCaptureToFeed(targetDog, targetThought, snapshot);
               }
             }}
             title={t.ar.capturePhotoTitle || "피드샷 추가"}

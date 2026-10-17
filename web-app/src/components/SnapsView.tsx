@@ -191,6 +191,14 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!petOptions || petOptions.length === 0) {
+      alert(language === 'ko'
+        ? '등록된 내 반려견이 없습니다.\n마이펫 탭에서 먼저 반려견을 등록해 주세요!'
+        : 'No registered pet found. Please register your pet in My Pet first!');
+      if (e.target) e.target.value = '';
+      window.dispatchEvent(new CustomEvent('walwal_switch_tab', { detail: 'profile' }));
+      return;
+    }
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
@@ -1306,6 +1314,15 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
   const handlePostFeedDraft = async () => {
     if (!feedDraft) return;
 
+    if (!petOptions || petOptions.length === 0) {
+      alert(language === 'ko'
+        ? '등록된 내 반려견이 없습니다.\n마이펫 탭에서 먼저 반려견을 등록해 주세요!'
+        : 'No registered pet found. Please register your pet in My Pet first!');
+      handleClearFeedDraft();
+      window.dispatchEvent(new CustomEvent('walwal_switch_tab', { detail: 'profile' }));
+      return;
+    }
+
     try {
       const validation = validateUserContent(draftText);
       if (!validation.isValid) {
@@ -1315,8 +1332,8 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
 
       confetti({ particleCount: 30, spread: 50, origin: { y: 0.6 } });
 
-      // Robust pet fallback resolution - NEVER undefined!
-      const fallbackDog = feedDraft.dog || (petOptions && petOptions.length > 0 ? petOptions[0] : null) || getMockDogs(language)[0];
+      // Robust pet fallback resolution - NEVER fallback to mock Bori!
+      const fallbackDog = (petOptions && petOptions.length > 0 ? petOptions[0] : null) || feedDraft.dog;
       const selectedPets = (petOptions || []).filter(o => selectedPetIds.includes(o.id));
       const activePets = selectedPets.length > 0 ? selectedPets : [fallbackDog];
       const firstPet = activePets[0] || fallbackDog;

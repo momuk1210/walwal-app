@@ -15,7 +15,7 @@ import { AllServicesModal } from './components/AllServicesModal';
 import { ServiceFeedbackModal } from './components/ServiceFeedbackModal';
 import { LegalView, LegalViewType } from './components/LegalView';
 // VirtualChatModal replaced by AR Camera 2-Dog Interaction Mode
-import { DogProfile, MOCK_DOGS, getMockDogs } from './data/mockDogs';
+import { DogProfile, MOCK_DOGS, getMockDogs, sanitizePetList } from './data/mockDogs';
 import { auth } from './firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { Bell } from 'lucide-react';
@@ -128,8 +128,20 @@ function WalWalMain() {
     return () => window.removeEventListener('walwal_switch_tab', handleSwitchTab);
   }, []);
 
-  const [studioTargetDog, setStudioTargetDog] = useState<DogProfile>(() => getMockDogs(language)[0]);
-  const [studioThought, setStudioThought] = useState<string>(() => getMockDogs(language)[0].recentThought);
+  const [studioTargetDog, setStudioTargetDog] = useState<DogProfile | null>(() => {
+    try {
+      const saved = localStorage.getItem('WALWAL_PETS');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const list = sanitizePetList(parsed, language);
+          if (list.length > 0) return list[0];
+        }
+      }
+    } catch (e) { }
+    return null;
+  });
+  const [studioThought, setStudioThought] = useState<string>('');
   const [studioSnapshot, setStudioSnapshot] = useState<string | undefined>(undefined);
   const [studioPoster, setStudioPoster] = useState<string | undefined>(undefined);
   const [interactionPair, setInteractionPair] = useState<{ dog1: DogProfile; dog2: DogProfile } | null>(null);
