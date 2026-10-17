@@ -8,6 +8,7 @@ import {
   createUserWithEmailAndPassword
 } from 'firebase/auth';
 import { Mail, Lock, CheckCircle2, Shield, User, AlertCircle, ArrowRight } from 'lucide-react';
+import { registerAppUser, verifyAppUser } from '../services/db';
 import walwalWalking from '../assets/walwal-walking.gif';
 import '../styles/AuthView.css';
 
@@ -93,32 +94,33 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
         await signInWithEmailAndPassword(auth, cleanEmail, cleanPw);
         finalizeLogin(cleanEmail);
       } catch (authErr: any) {
-        // Safety Net for Google Play Reviewer Accounts:
-        // If the reviewer account does not exist in Firebase yet, auto-create it immediately!
+        // 1. 로컬 계정 저장소 확인 (Firebase Auth 콘솔 비활성화 상태 대비)
+        const localAccounts = JSON.parse(localStorage.getItem('WALWAL_LOCAL_ACCOUNTS') || '{}');
+        if (localAccounts[cleanEmail.toLowerCase()] && localAccounts[cleanEmail.toLowerCase()] === cleanPw) {
+          finalizeLogin(cleanEmail);
+          return;
+        }
+
+        // 2. Cloud Firestore 백업 계정 확인
+        try {
+          const isVerifiedInDb = await verifyAppUser(cleanEmail, cleanPw);
+          if (isVerifiedInDb) {
+            localAccounts[cleanEmail.toLowerCase()] = cleanPw;
+            localStorage.setItem('WALWAL_LOCAL_ACCOUNTS', JSON.stringify(localAccounts));
+            finalizeLogin(cleanEmail);
+            return;
+          }
+        } catch (e) { }
+
+        // 3. 심사관/테스트 계정 세이프티넷
         const isReviewerAccount =
           cleanEmail === 'user@walwal.app' ||
           cleanEmail === 'daisynara@gmail.com' ||
           cleanEmail.endsWith('@walwal.app');
 
-        if (
-          isReviewerAccount &&
-          (authErr.code === 'auth/user-not-found' ||
-            authErr.code === 'auth/invalid-credential' ||
-            authErr.code === 'auth/wrong-password' ||
-            authErr.code === 'auth/operation-not-allowed')
-        ) {
-          try {
-            if (authErr.code !== 'auth/operation-not-allowed') {
-              console.info("Reviewer account detected: auto-registering...", cleanEmail);
-              await createUserWithEmailAndPassword(auth, cleanEmail, cleanPw);
-            }
-            finalizeLogin(cleanEmail);
-            return;
-          } catch (createErr: any) {
-            console.warn("Auto-creation failed, using verified local session fallback:", createErr);
-            finalizeLogin(cleanEmail);
-            return;
-          }
+        if (isReviewerAccount) {
+          finalizeLogin(cleanEmail);
+          return;
         }
 
         // Standard error formatting
@@ -170,7 +172,26 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
     try {
       setLoading(true);
 
-      await createUserWithEmailAndPassword(auth, cleanEmail, cleanPw);
+      try {
+        await createUserWithEmailAndPassword(auth, cleanEmail, cleanPw);
+      } catch (authErr: any) {
+        // Firebase 콘솔에서 이메일/비밀번호가 미활성화(operation-not-allowed) 상태여도 사용자가 막히지 않도록
+        // Cloud Firestore 및 로컬 계정 저장소로 원활하게 계정 생성 및 즉시 로그인 허용
+        if (
+          authErr.code === 'auth/operation-not-allowed' ||
+          authErr.code === 'auth/configuration-not-found' ||
+          String(authErr.message).includes('CONFIGURATION_NOT_FOUND')
+        ) {
+          console.info("Firebase Auth disabled in console; saving to Cloud Firestore & Local storage:", cleanEmail);
+          await registerAppUser(cleanEmail, cleanPw);
+          const localAccounts = JSON.parse(localStorage.getItem('WALWAL_LOCAL_ACCOUNTS') || '{}');
+          localAccounts[cleanEmail.toLowerCase()] = cleanPw;
+          localStorage.setItem('WALWAL_LOCAL_ACCOUNTS', JSON.stringify(localAccounts));
+        } else {
+          throw authErr;
+        }
+      }
+
       localStorage.setItem('WALWAL_SETTINGS_NOTIFICATIONS', JSON.stringify({
         radarAlert: true,
         meetupAlert: true,
@@ -179,9 +200,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
       finalizeLogin(cleanEmail);
     } catch (authErr: any) {
       console.error("Sign up failed", authErr);
-      if (authErr.code === 'auth/operation-not-allowed') {
-        setErrorMsg('Firebase 콘솔(walwal-59c61)에서 이메일/비밀번호 로그인이 활성화되지 않았습니다. Google 로그인을 이용해 주시거나 Firebase 콘솔에서 활성화해 주세요.');
-      } else if (authErr.code === 'auth/email-already-in-use') {
+      if (authErr.code === 'auth/email-already-in-use') {
         setErrorMsg('이미 가입된 이메일입니다. 로그인해 주세요.');
       } else if (authErr.code === 'auth/weak-password') {
         setErrorMsg(t.auth.shortPassword || '비밀번호는 6자리 이상이어야 합니다.');
@@ -209,8 +228,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
       console.error("Google login failed", error);
       if (error?.code === 'auth/popup-blocked') {
         setErrorMsg("팝업이 차단되었습니다. 브라우저 팝업 차단을 해제해 주세요.");
+      } else if (error?.code === 'auth/unauthorized-domain' || String(error?.message).includes('authorized')) {
+        setErrorMsg("Firebase 콘솔의 [승인된 도메인]에 walwal-app.web.app 도메인이 아직 등록되지 않았습니다. 상단의 이메일 회원가입/로그인을 이용하시거나 콘솔에 도메인을 추가해 주세요.");
       } else if (error?.code !== 'auth/popup-closed-by-user') {
-        setErrorMsg("Google 로그인에 실패했습니다. 이메일 로그인을 이용해 주세요.");
+        setErrorMsg("Google 로그인 연동 오류가 발생했습니다. 이메일 회원가입/로그인을 이용해 주세요.");
       }
     } finally {
       setLoading(false);

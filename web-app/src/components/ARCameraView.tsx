@@ -1213,7 +1213,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
         {isCapturingVideo && (
           <div className="ar-recording-badge">
             <div className="ar-recording-dot" />
-            <span>
+            <span className="text-sm">
               {(t.ar.recordingVideo || '3초 비디오 녹화 중... ({sec}s)').replace('{sec}', String(captureCountdown > 0 ? captureCountdown : 1))}
             </span>
           </div>

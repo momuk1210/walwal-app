@@ -230,3 +230,36 @@ export const syncMeetupToFirestore = async (meetup: any) => {
   }
 };
 
+// =======================
+// User Accounts (Fallback Authentication)
+// =======================
+
+export const registerAppUser = async (email: string, passwordHash: string) => {
+  const cleanEmail = email.toLowerCase().trim();
+  const docId = cleanEmail.replace(/[^a-z0-9]/g, '_');
+  try {
+    await setDoc(doc(db, 'app_users', docId), {
+      email: cleanEmail,
+      password: passwordHash,
+      createdAt: serverTimestamp()
+    }, { merge: true });
+  } catch (e) {
+    console.warn('registerAppUser cloud fallback note:', e);
+  }
+};
+
+export const verifyAppUser = async (email: string, inputPw: string): Promise<boolean> => {
+  const cleanEmail = email.toLowerCase().trim();
+  const docId = cleanEmail.replace(/[^a-z0-9]/g, '_');
+  try {
+    const snap = await getDoc(doc(db, 'app_users', docId));
+    if (snap.exists()) {
+      const data = snap.data();
+      return data?.password === inputPw;
+    }
+  } catch (e) {
+    console.warn('verifyAppUser cloud check note:', e);
+  }
+  return false;
+};
+

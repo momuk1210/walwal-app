@@ -832,6 +832,10 @@ button.ar-offline-turn-on-btn svg {
   border-radius: 50%;
 }
 
+.ar-recording-dot span {
+  font-size: .7rem;
+}
+
 /* 카메라 뷰포트 레이어 */
 .ar-viewport-layer {
   position: absolute;
