@@ -15,8 +15,8 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onChangeTab })
   const tabs = [
     { id: 'ar' as NavTab, label: t.tabs.ar, icon: Camera },
     { id: 'nearby' as NavTab, label: t.tabs.nearby, icon: LocateFixed },
-    { id: 'snaps' as NavTab, label: t.tabs.snaps, icon: Bone, style: { transform: 'rotate(45deg)' } },
     { id: 'community' as NavTab, label: t.tabs.community, icon: PawPrint },
+    { id: 'snaps' as NavTab, label: t.tabs.snaps, icon: Bone, style: { transform: 'rotate(45deg)' } },
     { id: 'profile' as NavTab, label: t.tabs.profile, icon: Dog }
   ];
 
@@ -32,7 +32,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onChangeTab })
             className="nav-btn"
           >
             <div className={`nav-btn__icon${isActive ? ' active' : ''}`}>
-              <Icon size={28} color={isActive ? '#FFB320' : '#3b4a5d'} style={tab.style} />
+              <Icon size={28} color={isActive ? '#FF9E58' : '#222'} style={tab.style} />
             </div>
             <span className={`nav-btn__label${isActive ? ' active' : ''}`}>
               {tab.label}

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Send, MapPin, Users, Clock, Sparkles, MoreVertical, Edit3, Trash2, Flag, ShieldAlert } from 'lucide-react';
+import { X, Send, MapPin, Users, Clock, Sparkles, MoreVertical, Edit3, Trash2, Flag, ShieldAlert, ChevronLeft } from 'lucide-react';
 import { WalkMeetup } from './CommunityView';
 import { getMockDogs, getDefaultDogAvatar, isSameDogName, getLiveDogAvatar, getLiveDogProfile, localizeBreed, localizePersonalityTags } from '../data/mockDogs';
 import { TRANSLATIONS, Language } from '../i18n/translations';
@@ -8,6 +8,7 @@ import { DogProfileModal } from './DogProfileModal';
 import { ReportModal, ReportModalTarget } from './ReportModal';
 import { isUserBlocked, blockUser } from '../services/moderationService';
 import { validateUserContent, maskProfanity } from '../utils/profanityFilter';
+import { auth } from '../firebase';
 import '../styles/OwnerNoteModal.css';
 
 interface MeetupChatModalProps {
@@ -81,7 +82,7 @@ export const MeetupChatModal: React.FC<MeetupChatModalProps> = ({ meetup, onClos
     };
   }, []);
 
-  // 내 전체 반려견 목록
+  // 내 전체 반려견 목록 (등록된 반려견이 없으면 빈 배열)
   const allMyPets = React.useMemo(() => {
     try {
       const saved = localStorage.getItem('WALWAL_PETS');
@@ -94,10 +95,12 @@ export const MeetupChatModal: React.FC<MeetupChatModalProps> = ({ meetup, onClos
         }
       }
     } catch (e) { }
-    return [getMockDogs(language)[0]];
+    return [];
   }, [language, petUpdateTrigger]);
 
-  const activePet = allMyPets[0] || getMockDogs(language)[0];
+  const activePet = allMyPets[0] || null;
+  const currentUserEmail = (auth?.currentUser?.email || localStorage.getItem('WALWAL_USER_EMAIL') || localStorage.getItem('walwal_user_email') || '').toLowerCase().trim();
+  const defaultDisplayName = currentUserEmail ? currentUserEmail.split('@')[0] : (language === 'ko' ? '보호자' : 'Owner');
 
   const hostLiveAvatar = getLiveDogAvatar(meetup.hostDog, meetup.avatar);
 
@@ -154,15 +157,20 @@ export const MeetupChatModal: React.FC<MeetupChatModalProps> = ({ meetup, onClos
 
     const now = Date.now();
     const currentText = inputText.trim();
+    const senderName = activePet?.name || defaultDisplayName;
+    const senderOwnerName = activePet?.ownerName || (activePet ? `${activePet.name} 엄마` : defaultDisplayName);
+    const senderAvatar = activePet ? getLiveDogAvatar(activePet.name, activePet.avatar) : getDefaultDogAvatar();
+    const senderBreed = activePet?.breed || (language === 'ko' ? '보호자' : 'Owner');
+
     const newMessage = {
       id: `my_msg_${now}`,
       timestamp: now,
       isMyMessage: true,
       sender: {
-        name: activePet.name,
-        ownerName: activePet.ownerName || `${activePet.name} 엄마`,
-        avatar: getLiveDogAvatar(activePet.name, activePet.avatar),
-        breed: activePet.breed
+        name: senderName,
+        ownerName: senderOwnerName,
+        avatar: senderAvatar,
+        breed: senderBreed
       },
       text: currentText,
       time: formatChatTime(now, language)
@@ -181,9 +189,36 @@ export const MeetupChatModal: React.FC<MeetupChatModalProps> = ({ meetup, onClos
       <div className="own-message-modal-container" style={{ position: 'relative' }}>
 
         {/* Header */}
-        <div className="own-message-modal-header" style={{ padding: '16px 16px 14px' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', width: '100%' }}>
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', flex: 1, minWidth: 0 }}>
+        <div className="own-message-modal-header" style={{ padding: '12px 14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '8px' }}>
+            {/* 좌측 뒤로가기 버튼 (명확하고 큰 버튼) */}
+            <button
+              onClick={onClose}
+              type="button"
+              className="btn-ghost own-message-modal-back-btn"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '36px',
+                height: '36px',
+                borderRadius: '50%',
+                background: 'rgba(255,255,255,0.25)',
+                color: '#FFFFFF',
+                border: 'none',
+                cursor: 'pointer',
+                flexShrink: 0,
+                padding: 0,
+                transition: 'background 0.2s'
+              }}
+              title={language === 'ko' ? '뒤로 가기' : 'Back'}
+              aria-label={language === 'ko' ? '뒤로 가기' : 'Back'}
+            >
+              <ChevronLeft size={24} strokeWidth={2.5} />
+            </button>
+
+            {/* 중앙 호스트 정보 및 타이틀 */}
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flex: 1, minWidth: 0 }}>
               <div className="own-message-modal-avatar-container" style={{ flexShrink: 0 }}>
                 <img
                   src={hostLiveAvatar}
@@ -196,23 +231,24 @@ export const MeetupChatModal: React.FC<MeetupChatModalProps> = ({ meetup, onClos
                     breed: '호스트 반려견',
                     personality: [meetup.tag]
                   })}
-                  style={{ cursor: 'pointer' }}
+                  style={{ cursor: 'pointer', width: '36px', height: '36px' }}
                   title="호스트 프로필 보기"
                 />
                 <div className="own-message-modal-status-dot" />
               </div>
 
               <div style={{ flex: 1, minWidth: 0 }}>
-                {/* Title */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                  <span className="own-message-modal-owner-name" style={{ fontSize: '0.95rem' }}>{meetup.title}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span className="own-message-modal-owner-name" style={{ fontSize: '0.92rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                    {meetup.title}
+                  </span>
                 </div>
 
-                {/* Participants Facepile (참여중인 이웃 프로필 사진들) */}
+                {/* Participants Facepile */}
                 {meetup.participants && meetup.participants.length > 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
                     <div style={{ display: 'flex', alignItems: 'center' }}>
-                      {meetup.participants.map((p: any, idx: number) => {
+                      {meetup.participants.slice(0, 5).map((p: any, idx: number) => {
                         const avatarUrl = getLiveDogAvatar(p.name, p.avatar);
                         return (
                           <img
@@ -222,30 +258,21 @@ export const MeetupChatModal: React.FC<MeetupChatModalProps> = ({ meetup, onClos
                             title={`${p.name} (${p.ownerName || '견주'})`}
                             onClick={() => setSelectedProfileDog(getLiveDogProfile(p.name, language) || { ...p, avatar: avatarUrl })}
                             style={{
-                              width: '24px',
-                              height: '24px',
+                              width: '20px',
+                              height: '20px',
                               borderRadius: '50%',
                               objectFit: 'cover',
                               border: '1.5px solid #FFFFFF',
-                              marginLeft: idx === 0 ? 0 : '-6px',
+                              marginLeft: idx === 0 ? 0 : '-5px',
                               cursor: 'pointer',
                               position: 'relative',
-                              zIndex: 10 - idx,
-                              transition: 'transform 0.15s, box-shadow 0.15s'
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.transform = 'scale(1.25)';
-                              e.currentTarget.style.zIndex = '30';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.transform = 'scale(1)';
-                              e.currentTarget.style.zIndex = String(10 - idx);
+                              zIndex: 10 - idx
                             }}
                           />
                         );
                       })}
                     </div>
-                    <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.95)', fontWeight: 700, flexShrink: 0, marginLeft: '2px' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.95)', fontWeight: 700, flexShrink: 0, marginLeft: '2px' }}>
                       {meetup.participantsCount || (meetup.participants?.length || 1)}/{meetup.maxParticipants || (meetup.participants?.length || 1)}
                     </span>
                   </div>
@@ -253,10 +280,14 @@ export const MeetupChatModal: React.FC<MeetupChatModalProps> = ({ meetup, onClos
               </div>
             </div>
 
+            {/* 우측 닫기 버튼 */}
             <button
               onClick={onClose}
+              type="button"
               className="btn-ghost own-message-modal-close-btn"
-              style={{ flexShrink: 0, marginLeft: '8px' }}
+              style={{ flexShrink: 0, marginLeft: '2px' }}
+              title={language === 'ko' ? '닫기' : 'Close'}
+              aria-label={language === 'ko' ? '닫기' : 'Close'}
             >
               <X size={22} />
             </button>
@@ -273,22 +304,22 @@ export const MeetupChatModal: React.FC<MeetupChatModalProps> = ({ meetup, onClos
             justifyContent: 'space-between',
             gap: '8px',
             fontSize: '0.76rem',
-            color: '#4A5568',
+            color: '#121212',
             borderBottom: '1px solid #E2E8F0',
             boxSizing: 'border-box',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flex: 1, minWidth: 0 }}>
-            <MapPin size={14} color="#FFB320" style={{ flexShrink: 0 }} />
-            <span style={{ fontWeight: 600, color: '#2D3748', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <MapPin size={14} color="#FF9E58" style={{ flexShrink: 0 }} />
+            <span style={{ fontWeight: 600, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {meetup.location}
             </span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <Clock size={13} color="#718096" style={{ flexShrink: 0 }} />
-              <span style={{ fontWeight: 500, color: '#4A5568', whiteSpace: 'nowrap' }}>
+              <Clock size={13} color="#121212" style={{ flexShrink: 0 }} />
+              <span style={{ fontWeight: 500, color: '#121212', whiteSpace: 'nowrap' }}>
                 {meetup.time}
               </span>
             </div>
@@ -305,18 +336,18 @@ export const MeetupChatModal: React.FC<MeetupChatModalProps> = ({ meetup, onClos
                   borderRadius: '50%',
                   background: showMenu ? '#E2E8F0' : 'transparent',
                   border: 'none',
-                  color: '#718096',
+                  color: '#121212',
                   cursor: 'pointer',
                   padding: 0,
                   transition: 'background 0.2s, color 0.2s'
                 }}
                 onMouseEnter={e => {
                   e.currentTarget.style.background = '#E2E8F0';
-                  e.currentTarget.style.color = '#1E293B';
+                  e.currentTarget.style.color = '#000';
                 }}
                 onMouseLeave={e => {
                   if (!showMenu) e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = '#718096';
+                  e.currentTarget.style.color = '#121212';
                 }}
                 title={isHost ? "모임 관리" : "더보기"}
               >
@@ -392,7 +423,7 @@ export const MeetupChatModal: React.FC<MeetupChatModalProps> = ({ meetup, onClos
                         onMouseEnter={(e) => (e.currentTarget.style.background = '#F7FAFC')}
                         onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
                       >
-                        <ShieldAlert size={15} color="#718096" />
+                        <ShieldAlert size={15} color="#121212" />
                         <span>호스트 차단하기</span>
                       </button>
                     </>
@@ -432,7 +463,7 @@ export const MeetupChatModal: React.FC<MeetupChatModalProps> = ({ meetup, onClos
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start', maxWidth: '75%', position: 'relative' }}>
                     {!isMe && (
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '0.75rem', color: '#718096', marginLeft: '4px', fontWeight: 600 }}>
+                        <span style={{ fontSize: '0.75rem', color: '#121212', marginLeft: '4px', fontWeight: 600 }}>
                           {msg.sender.name} <span style={{ opacity: 0.7, fontWeight: 400 }}>{msg.sender.ownerName ? msg.sender.ownerName.replace(msg.sender.name, '').replace(/맘/g, '엄마').trim() : ''}</span>
                         </span>
                         <div className="msg-options-wrapper" style={{ position: 'relative' }}>
@@ -522,7 +553,7 @@ export const MeetupChatModal: React.FC<MeetupChatModalProps> = ({ meetup, onClos
                                   border: 'none',
                                   background: 'none',
                                   fontSize: '0.8rem',
-                                  color: '#718096',
+                                  color: '#121212',
                                   cursor: 'pointer',
                                   textAlign: 'left'
                                 }}
@@ -559,7 +590,11 @@ export const MeetupChatModal: React.FC<MeetupChatModalProps> = ({ meetup, onClos
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleSend(); }}
-            placeholder={(t.community?.chatPlaceholder || '{name}(으)로 메시지 입력...').replace('{name}', activePet.name)}
+            placeholder={
+              activePet
+                ? (t.community?.chatPlaceholder || '{name}(으)로 메시지 입력...').replace('{name}', activePet.name)
+                : (language === 'ko' ? '메시지를 입력하세요...' : 'Type a message...')
+            }
             className="own-message-input"
           />
           <button

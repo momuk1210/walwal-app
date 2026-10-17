@@ -78,14 +78,14 @@ export const ShareExportModal: React.FC<ShareExportModalProps> = ({
 
         // Border around photo
         ctx.lineWidth = 12;
-        ctx.strokeStyle = '#FF7E36';
+        ctx.strokeStyle = '#FF9E58';
         ctx.beginPath();
         ctx.roundRect(80, 260, 920, 1050, 48);
         ctx.stroke();
 
         // Top Header
         ctx.font = '900 52px sans-serif';
-        ctx.fillStyle = templateType === 'webtoon' ? '#FFB320' : '#38c5b7';
+        ctx.fillStyle = templateType === 'webtoon' ? '#FF9E58' : '#38c5b7';
         ctx.fillText(`${t.share.watermarkTop} ${breedKr} ${t.share.watermarkTopSuffix}`, 90, 180);
 
         // 3. Speech Bubble
@@ -94,15 +94,15 @@ export const ShareExportModal: React.FC<ShareExportModalProps> = ({
         ctx.roundRect(80, 1370, 920, 360, 36);
         ctx.fill();
         ctx.lineWidth = 8;
-        ctx.strokeStyle = '#FFB320';
+        ctx.strokeStyle = '#FF9E58';
         ctx.stroke();
 
         ctx.font = 'bold 44px sans-serif';
-        ctx.fillStyle = '#FFB320';
+        ctx.fillStyle = '#FF9E58';
         ctx.fillText(`${dogName} (${breedKr} ${t.share.speechTitleSuffix})`, 130, 1450);
 
         ctx.font = 'bold 50px sans-serif';
-        ctx.fillStyle = '#2D3748';
+        ctx.fillStyle = '#333';
 
         const words = thought.split(' ');
         let line = '';
@@ -122,7 +122,7 @@ export const ShareExportModal: React.FC<ShareExportModalProps> = ({
 
         // Watermark Footer
         ctx.font = '600 32px sans-serif';
-        ctx.fillStyle = '#94A3B8';
+        ctx.fillStyle = '#c8c8c8';
         ctx.textAlign = 'center';
         ctx.fillText(isProUser ? (t.snaps || t.studio).watermarkFree : t.share.watermarkFooter, 540, 1820);
 
@@ -274,7 +274,7 @@ export const ShareExportModal: React.FC<ShareExportModalProps> = ({
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
-            color: '#2D3748'
+            color: '#333'
           }}
         >
           <X size={20} />
@@ -306,7 +306,7 @@ export const ShareExportModal: React.FC<ShareExportModalProps> = ({
           alt={dogName}
           style={{ width: '100%', height: '62%', objectFit: 'cover' }}
         />
-        <div style={{ position: 'absolute', top: '12px', left: '12px', background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(8px)', padding: '3px 8px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 800, color: '#FFB320' }}>
+        <div style={{ position: 'absolute', top: '12px', left: '12px', background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(8px)', padding: '3px 8px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 800, color: '#FF9E58' }}>
           [WalWal] {breedKr}
         </div>
 
@@ -320,14 +320,14 @@ export const ShareExportModal: React.FC<ShareExportModalProps> = ({
           background: '#FFFFFF',
         }}>
           <div>
-            <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#FFB320', marginBottom: '3px' }}>
+            <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#FF9E58', marginBottom: '3px' }}>
               {dogName}
             </div>
-            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#2D3748', lineHeight: 1.35, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
+            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#333', lineHeight: 1.35, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
               "{thought}"
             </div>
           </div>
-          <div style={{ fontSize: '0.58rem', color: '#3b4a5d', textAlign: 'center' }}>
+          <div style={{ fontSize: '0.58rem', color: '#222', textAlign: 'center' }}>
             {t.share.watermarkFooter}
           </div>
         </div>
@@ -375,7 +375,7 @@ export const ShareExportModal: React.FC<ShareExportModalProps> = ({
               <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
             </svg>
           </div>
-          <span style={{ fontSize: '0.72rem', color: '#2D3748', fontWeight: 700 }}>Instagram</span>
+          <span style={{ fontSize: '0.72rem', color: '#333', fontWeight: 700 }}>Instagram</span>
         </button>
 
         {/* 2. TikTok */}
@@ -409,7 +409,7 @@ export const ShareExportModal: React.FC<ShareExportModalProps> = ({
               <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.29 0 .58.04.85.12V9.4a6.33 6.33 0 0 0-.85-.06A6.34 6.34 0 0 0 3.14 15.7a6.34 6.34 0 0 0 9.06 5.67V12.1a8.16 8.16 0 0 0 5.14 1.83v-3.47a4.85 4.85 0 0 1-2.25-.77 4.8 4.8 0 0 1-1.5-1.92z" />
             </svg>
           </div>
-          <span style={{ fontSize: '0.72rem', color: '#2D3748', fontWeight: 700 }}>TikTok</span>
+          <span style={{ fontSize: '0.72rem', color: '#333', fontWeight: 700 }}>TikTok</span>
         </button>
 
         {/* 3. YouTube */}
@@ -443,7 +443,7 @@ export const ShareExportModal: React.FC<ShareExportModalProps> = ({
               <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.5 12 3.5 12 3.5s-7.505 0-9.377.55a3.016 3.016 0 0 0-2.122 2.136C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.55 9.376.55 9.376.55s7.505 0 9.377-.55a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
             </svg>
           </div>
-          <span style={{ fontSize: '0.72rem', color: '#2D3748', fontWeight: 700 }}>YouTube</span>
+          <span style={{ fontSize: '0.72rem', color: '#333', fontWeight: 700 }}>YouTube</span>
         </button>
 
         {/* 4. 다운로드 */}
@@ -472,9 +472,9 @@ export const ShareExportModal: React.FC<ShareExportModalProps> = ({
             transform: selectedPlatform === 'download' ? 'scale(1.08)' : 'scale(1)',
             transition: 'all 0.2s'
           }}>
-            <Download size={24} color="#2D3748" />
+            <Download size={24} color="#333" />
           </div>
-          <span style={{ fontSize: '0.72rem', color: '#2D3748', fontWeight: 700 }}>{t.share.download}</span>
+          <span style={{ fontSize: '0.72rem', color: '#333', fontWeight: 700 }}>{t.share.download}</span>
         </button>
 
         {/* 5. 더 보기 */}
@@ -499,14 +499,14 @@ export const ShareExportModal: React.FC<ShareExportModalProps> = ({
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
-            color: '#4A5568',
+            color: '#121212',
             boxShadow: '0 10px 20px rgba(0, 0, 0, 0.05)',
             transform: selectedPlatform === 'more' ? 'scale(1.08)' : 'scale(1)',
             transition: 'all 0.2s'
           }}>
             <Share2 size={24} />
           </div>
-          <span style={{ fontSize: '0.72rem', color: '#2D3748', fontWeight: 700 }}>{t.share.more}</span>
+          <span style={{ fontSize: '0.72rem', color: '#333', fontWeight: 700 }}>{t.share.more}</span>
         </button>
       </div>
 
@@ -518,7 +518,7 @@ export const ShareExportModal: React.FC<ShareExportModalProps> = ({
           background: 'rgba(255, 255, 255, 0.95)',
           borderRadius: '24px',
           padding: '12px 24px',
-          color: '#2D3748',
+          color: '#333',
           fontSize: '0.85rem',
           fontWeight: 800,
           boxShadow: '0 15px 35px rgba(0,0,0,0.1)',
@@ -528,7 +528,7 @@ export const ShareExportModal: React.FC<ShareExportModalProps> = ({
           animation: 'fadeInUp 0.3s ease',
           zIndex: 4000
         }}>
-          <Sparkles size={18} color="#FFB320" />
+          <Sparkles size={18} color="#FF9E58" />
           <span>{toastMessage}</span>
         </div>
       )}

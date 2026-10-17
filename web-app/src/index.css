@@ -1,21 +1,21 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
 
 :root {
-  --primary: #FFB320;
+  --primary: #FF9E58;
   /* 펫 입양 앱의 옐로우/오렌지 포인트 컬러 */
   --primary-glow: rgba(255, 179, 32, 0.4);
   --primary-light: #FFF8E7;
   --secondary: #FF8A4C;
-  --accent-yellow: #FFB320;
+  --accent-yellow: #FF9E58;
   --accent-purple: #8338EC;
   --bg-dark: #FFFFFF;
   /* 완전 화이트 앱 배경 */
   --card-dark: #FFFFFF;
   /* 완전 화이트 카드 */
   --card-border: rgba(0, 0, 0, 0.04);
-  --text-main: #2D3748;
+  --text-main: #333;
   /* 가독성 높은 다크 그레이 */
-  --text-muted: #3b4a5d;
+  --text-muted: #222;
   /* 부드러운 서브 텍스트 */
   --radius-lg: 32px;
   /* 매우 둥근 쉐입 */
@@ -28,7 +28,7 @@
   margin: 0;
   padding: 0;
   -webkit-font-smoothing: antialiased;
-  color: #0F172A;
+  color: #111;
 }
 
 html,
@@ -72,6 +72,7 @@ body {
     border: 12px solid #FFFFFF;
     box-shadow: 0 30px 60px rgba(0, 0, 0, 0.18);
     margin: auto;
+    transform: translateZ(0);
   }
 }
 

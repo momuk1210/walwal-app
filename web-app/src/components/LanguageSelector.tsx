@@ -31,7 +31,7 @@ export const LanguageSelector: React.FC = () => {
           key={opt.code}
           onClick={() => setLanguage(opt.code)}
           style={{
-            background: language === opt.code ? '#FF7E36' : 'transparent',
+            background: language === opt.code ? '#FF9E58' : 'transparent',
             border: 'none',
             color: language === opt.code ? '#fff' : '#CBD5E1',
             borderRadius: '9999px',

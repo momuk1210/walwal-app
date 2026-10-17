@@ -1,13 +1,24 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Calendar, MapPin, Heart, MessageSquare, Plus, CheckCircle2, Navigation, X, Send, PawPrint, Crown, LogOut, MoreVertical, Edit3, Trash2, ChevronDown, RotateCcw, Sparkles, Filter, Check, SlidersHorizontal, Menu, ShieldAlert, Flag } from 'lucide-react';
-import { MOCK_DOGS, getMockDogs, isSameDogName, getDefaultDogAvatar, normalizeDogProfile, getLiveDogAvatar, getLiveDogProfile, localizeBreed, localizePersonalityTags, localizeDogName, sanitizePetList } from '../data/mockDogs';
+import { Calendar, MapPin, Heart, MessageSquare, Plus, CheckCircle2, Navigation, X, Send, PawPrint, Crown, LogOut, MoreVertical, Edit3, Trash2, ChevronDown, RotateCcw, Sparkles, Filter, Check, SlidersHorizontal, Menu, ShieldAlert, Flag, Clock, Flame, Play, Pause, Square, ChevronRight, ArrowLeft } from 'lucide-react';
+import { DogProfile, MOCK_DOGS, getMockDogs, isSameDogName, getDefaultDogAvatar, normalizeDogProfile, getLiveDogAvatar, getLiveDogProfile, localizeBreed, localizePersonalityTags, localizeDogName, sanitizePetList } from '../data/mockDogs';
 import { MeetupChatModal } from './MeetupChatModal';
 import { DogProfileModal } from './DogProfileModal';
 import { ReportModal, ReportModalTarget } from './ReportModal';
+import { WalkHistoryModal } from './WalkHistoryModal';
+import {
+  ActiveWalkSession,
+  getActiveWalkSession,
+  startWalk,
+  pauseWalk,
+  resumeWalk,
+  stopWalk,
+  addSimulatedWalkDistance,
+  isDogInActiveSession
+} from '../services/walkTrackerService';
 import { isUserBlocked, blockUser } from '../services/moderationService';
 import { validateUserContent } from '../utils/profanityFilter';
 import { useTranslation } from '../i18n/LanguageContext';
-import { db } from '../firebase';
+import { auth, db } from '../firebase';
 import { deleteDoc, doc, collection, onSnapshot } from 'firebase/firestore';
 import { syncMeetupToFirestore } from '../services/db';
 import { formatMeetupDisplay, extractMeetupDateTime, getMeetupDynamicStatus } from '../utils/meetupTime';
@@ -19,6 +30,8 @@ export interface WalkMeetup {
   location: string;
   lat: number;
   lng: number;
+  creatorEmail?: string;
+  creatorId?: string;
   time: string;
   date?: string;
   dateTime?: string;
@@ -42,7 +55,6 @@ export interface WalkMeetup {
 const INITIAL_MEETUPS: WalkMeetup[] = [];
 
 interface CommunityViewProps {
-  onNavigateToRadar?: (meetup: { lat: number; lng: number; name: string }) => void;
 }
 
 const getTodayDateStr = () => {
@@ -123,6 +135,35 @@ const formatMeetupDateTime = (dateStr: string, timeStr: string, lang: string = '
   }
 };
 
+export const normalizeHostOwnerName = (ownerName: string, lang: string = 'ko'): string => {
+  if (!ownerName) return '';
+  let cleaned = ownerName.replace(/맘/g, '엄마');
+  if (lang === 'ko') {
+    return cleaned
+      .replace(/ママ/g, '엄마')
+      .replace(/パパ/g, '아빠')
+      .replace(/Mom/ig, '엄마')
+      .replace(/Dad/ig, '아빠')
+      .replace(/Strawberry/ig, '딸기')
+      .replace(/イチゴ/g, '딸기');
+  } else if (lang === 'ja') {
+    return cleaned
+      .replace(/엄마/g, 'ママ')
+      .replace(/아빠/g, 'パパ')
+      .replace(/Mom/ig, 'ママ')
+      .replace(/Dad/ig, 'パパ')
+      .replace(/Strawberry/ig, '딸기');
+  } else if (lang === 'en') {
+    return cleaned
+      .replace(/엄마/g, 'Mom')
+      .replace(/아빠/g, 'Dad')
+      .replace(/ママ/g, 'Mom')
+      .replace(/パパ/g, 'Dad')
+      .replace(/Strawberry/ig, '딸기');
+  }
+  return cleaned;
+};
+
 const parseMeetupDateTime = (timeText: string): { date: string; time: string } => {
   const todayStr = getTodayDateStr();
   if (!timeText) {
@@ -198,7 +239,7 @@ const parseMeetupDateTime = (timeText: string): { date: string; time: string } =
   };
 };
 
-export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar }) => {
+export const CommunityView: React.FC<CommunityViewProps> = () => {
   const { t, language } = useTranslation();
   const filterT = (t.community as any)?.filters || {};
 
@@ -220,17 +261,11 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
             return true;
           });
           return filtered.map((m: WalkMeetup) => {
-            let cleanedHostOwner = m.hostOwner ? m.hostOwner.replace(/맘/g, '엄마') : m.hostOwner;
+            let cleanedHostOwner = normalizeHostOwnerName(m.hostOwner, language);
             let cleanedHostDog = m.hostDog;
-            if (language === 'ko' && cleanedHostOwner) {
-              cleanedHostOwner = cleanedHostOwner.replace(/Strawberry/ig, '딸기').replace(/Mom/ig, '엄마').replace(/Dad/ig, '아빠');
-              if (cleanedHostDog) cleanedHostDog = localizeDogName(cleanedHostDog, 'ko');
-            } else if (language === 'en' && cleanedHostOwner) {
-              cleanedHostOwner = cleanedHostOwner.replace(/딸기/g, 'Strawberry').replace(/엄마/g, 'Mom').replace(/아빠/g, 'Dad');
-              if (cleanedHostDog) cleanedHostDog = localizeDogName(cleanedHostDog, 'en');
-            }
+            if (cleanedHostDog) cleanedHostDog = localizeDogName(cleanedHostDog, language);
             if (m.id === 'm1' || m.hostDog === '보리') {
-              return { ...m, hostOwner: language === 'ko' ? '보리 엄마' : 'Bori Mom', joined: true };
+              return { ...m, hostOwner: language === 'ko' ? '보리 엄마' : 'Bori Mom' };
             }
             const cleanedParticipants = (m.participants || []).map((p: any) => ({
               ...p,
@@ -291,20 +326,8 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
   // Sync loaded meetups when language changes
   React.useEffect(() => {
     setMeetups(prev => prev.map(m => {
-      let cleanedHostOwner = m.hostOwner;
-      let cleanedHostDog = m.hostDog;
-      if (cleanedHostOwner) {
-        if (language === 'ko') {
-          cleanedHostOwner = cleanedHostOwner.replace(/Strawberry/ig, '딸기').replace(/Mom/ig, '엄마').replace(/Dad/ig, '아빠');
-          if (cleanedHostDog) cleanedHostDog = localizeDogName(cleanedHostDog, 'ko');
-        } else if (language === 'en') {
-          cleanedHostOwner = cleanedHostOwner.replace(/딸기/g, 'Strawberry').replace(/엄마/g, 'Mom').replace(/아빠/g, 'Dad');
-          if (cleanedHostDog) cleanedHostDog = localizeDogName(cleanedHostDog, 'en');
-        } else if (language === 'ja') {
-          cleanedHostOwner = cleanedHostOwner.replace(/Strawberry/ig, 'イチゴ').replace(/딸기/g, 'イチゴ').replace(/Mom/ig, 'ママ').replace(/엄마/g, 'ママ').replace(/Dad/ig, 'パパ').replace(/아빠/g, 'パパ');
-          if (cleanedHostDog) cleanedHostDog = localizeDogName(cleanedHostDog, 'ja');
-        }
-      }
+      let cleanedHostOwner = normalizeHostOwnerName(m.hostOwner, language);
+      let cleanedHostDog = m.hostDog ? localizeDogName(m.hostDog, language) : m.hostDog;
       const cleanedParticipants = (m.participants || []).map((p: any) => ({
         ...p,
         name: localizeDogName(p.name, language),
@@ -413,7 +436,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
     };
   }, []);
 
-  // 내 전체 반려견 목록 (다견 지원)
+  // 내 전체 반려견 목록 (다견 지원 - 등록된 반려견이 없으면 빈 배열)
   const myPets = React.useMemo(() => {
     try {
       const saved = localStorage.getItem('WALWAL_PETS');
@@ -424,10 +447,79 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
         }
       }
     } catch (e) { }
-    return [getMockDogs(language)[0]];
+    return [];
   }, [language, petVersion]);
 
-  const myDog = myPets[0] || getMockDogs("ko")[0];
+  const myDog = myPets[0] || null;
+
+  // 실시간 산책 트래커 연동 상태
+  const [activeSession, setActiveSession] = useState<ActiveWalkSession | null>(() => getActiveWalkSession());
+  const [selectedWalkDogIds, setSelectedWalkDogIds] = useState<string[]>(() => myPets.map(p => p.id || p.name));
+  const [showWalkHistoryModal, setShowWalkHistoryModal] = useState<boolean>(false);
+  const [walkHistoryTab, setWalkHistoryTab] = useState<'distance' | 'time'>('distance');
+
+  useEffect(() => {
+    const handleUpdate = (e: any) => {
+      setActiveSession(e.detail ? { ...e.detail } : getActiveWalkSession());
+    };
+    const handleStarted = (e: any) => {
+      setActiveSession(e.detail ? { ...e.detail } : getActiveWalkSession());
+    };
+    const handleStopped = () => {
+      setActiveSession(null);
+    };
+
+    window.addEventListener('walwal_walk_tracker_update', handleUpdate);
+    window.addEventListener('walwal_walk_tracker_started', handleStarted);
+    window.addEventListener('walwal_walk_tracker_stopped', handleStopped);
+
+    return () => {
+      window.removeEventListener('walwal_walk_tracker_update', handleUpdate);
+      window.removeEventListener('walwal_walk_tracker_started', handleStarted);
+      window.removeEventListener('walwal_walk_tracker_stopped', handleStopped);
+    };
+  }, []);
+
+  const formatTimer = (totalSeconds: number) => {
+    const hrs = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
+    if (hrs > 0) {
+      return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const isAllDogsSelected = myPets.length > 0 && selectedWalkDogIds.length === myPets.length;
+
+  const handleToggleDog = (dogKey: string) => {
+    setSelectedWalkDogIds(prev => {
+      if (prev.includes(dogKey)) {
+        return prev.filter(k => k !== dogKey);
+      } else {
+        return [...prev, dogKey];
+      }
+    });
+  };
+
+  const handleToggleAllDogs = () => {
+    const allKeys = myPets.map(p => p.id || p.name);
+    if (selectedWalkDogIds.length === allKeys.length) {
+      setSelectedWalkDogIds([]);
+    } else {
+      setSelectedWalkDogIds(allKeys);
+    }
+  };
+
+  const targetWalkDog = React.useMemo(() => {
+    const found = myPets.find(p => selectedWalkDogIds.includes(p.id || p.name));
+    return found || myDog;
+  }, [selectedWalkDogIds, myPets, myDog]);
+
+  const getTargetDogsToStart = (): DogProfile[] => {
+    const selected = myPets.filter(p => selectedWalkDogIds.includes(p.id || p.name));
+    return selected.length > 0 ? selected : myPets;
+  };
 
   const getLiveDogAvatar = (name?: string, fallbackAvatar?: string): string => {
     if (!name) return fallbackAvatar || '';
@@ -456,8 +548,62 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
   };
 
   const isUserHost = (m: WalkMeetup): boolean => {
-    return myPets.some(p => isSameDogName(p.name, m.hostDog) || (p.ownerName && p.ownerName === m.hostOwner)) ||
-      m.hostDog === myDog.name || m.hostOwner === myDog.ownerName;
+    const currentEmail = (auth?.currentUser?.email || localStorage.getItem('WALWAL_USER_EMAIL') || localStorage.getItem('walwal_user_email') || '').toLowerCase().trim();
+    const currentUid = auth?.currentUser?.uid || '';
+
+    // 1. 작성자 계정(이메일 또는 UID)이 명시적으로 일치하는 경우
+    if (m.creatorEmail && currentEmail && m.creatorEmail.toLowerCase().trim() === currentEmail) {
+      return true;
+    }
+    if (m.creatorId && currentUid && m.creatorId === currentUid) {
+      return true;
+    }
+
+    // 2. 등록된 내 반려견이 아예 없는 계정은 절대 타인 모임의 호스트가 될 수 없음
+    if (!myPets || myPets.length === 0) {
+      return false;
+    }
+
+    // 3. 내 실제 등록된 반려견과 매칭되는지 확인
+    const isDogMatched = myPets.some(p => isSameDogName(p.name, m.hostDog) || (p.ownerName && p.ownerName === m.hostOwner));
+    if (isDogMatched) {
+      // 시스템 기본 모임(보리, 딸기 등)은 daisynara 관리자/개발자 계정만 호스트로 인정
+      if (isSameDogName(m.hostDog, '보리') || isSameDogName(m.hostDog, 'Bori') || isSameDogName(m.hostDog, '딸기') || isSameDogName(m.hostDog, 'Strawberry')) {
+        return currentEmail.includes('daisynara');
+      }
+      return true;
+    }
+
+    return false;
+  };
+
+  // 모임 참가 여부 엄격 검증 (호스트이거나, 등록된 내 반려견이 실제 참가자 목록에 포함된 경우만)
+  const isUserJoined = (m: WalkMeetup): boolean => {
+    if (isUserHost(m)) return true;
+    if (!myPets || myPets.length === 0) return false;
+    const myPetKeys = new Set(myPets.map(p => (p.id || p.name).toLowerCase()));
+    if (m.joinedPetIds && m.joinedPetIds.some(id => myPetKeys.has(id.toLowerCase()))) return true;
+    if (m.userJoinedPets && m.userJoinedPets.some(p => myPetKeys.has((p.id || p.name).toLowerCase()))) return true;
+    if (m.participants && m.participants.some(p => myPetKeys.has((p.name || '').toLowerCase()))) return true;
+    return false;
+  };
+
+  // 모임 톡방 입장 핸들러 (참가하지 않았거나 마감된 모임 입장 가드)
+  const handleEnterChat = (m: WalkMeetup) => {
+    const isClosed = isMeetupClosed(m);
+    const joined = isUserJoined(m);
+
+    if (!joined) {
+      if (isClosed) {
+        alert(language === 'ko' ? '마감된 모임입니다. 참가자만 톡방에 입장할 수 있습니다.' : 'This meetup is closed. Only participants can enter the chat room.');
+      } else {
+        alert(t.community?.joinReqBeforeChat || (language === 'ko' ? '모임에 먼저 참가 신청을 해야 톡방에 입장할 수 있습니다.' : 'Please join the meetup first to enter the chat room.'));
+      }
+      return;
+    }
+
+    setMeetups(prev => prev.map(item => item.id === m.id ? { ...item, unreadCount: 0 } : item));
+    setActiveChatMeetup({ ...m, unreadCount: 0 });
   };
 
   // 모임 정보 수정 상태
@@ -597,7 +743,26 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
   const [selectedCreatePetIds, setSelectedCreatePetIds] = useState<string[]>([]);
 
   const openCreateModal = () => {
-    setSelectedCreatePetIds(myPets.length > 0 ? [myPets[0].id || myPets[0].name] : []);
+    if (!myPets || myPets.length === 0) {
+      const msg = language === 'ko'
+        ? '산책 모임 개설은 등록된 반려견이 있을 경우에만 이용할 수 있습니다.\n반려견 등록 페이지로 이동합니다.'
+        : language === 'ja'
+          ? 'お散歩の集まりを作成するには、登録された愛犬が必要です。\n愛犬登録ページへ移動します。'
+          : language === 'es'
+            ? 'Para crear un encuentro debes tener un perro registrado.\nRedirigiendo a la página de registro.'
+            : language === 'zh'
+              ? '创建散步聚会需要已登记的宠物。\n即将前往宠物登记页面。'
+              : language === 'fr'
+                ? 'Pour créer une rencontre, un chien enregistré est requis.\nRedirection vers la page d\'inscription.'
+                : 'Please register a pet before creating a walk meetup.\nRedirecting to pet registration page.';
+      alert(msg);
+      window.dispatchEvent(new CustomEvent('walwal_switch_tab', { detail: 'profile' }));
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('walwal_open_pet_register'));
+      }, 150);
+      return;
+    }
+    setSelectedCreatePetIds([myPets[0].id || myPets[0].name]);
     setShowCreateModal(true);
   };
 
@@ -642,12 +807,17 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
     const hostOwnerName = `${hostDogName} ${ownerSuffix}`;
 
     const nowTimestamp = Date.now();
+    const currentEmail = (auth?.currentUser?.email || localStorage.getItem('WALWAL_USER_EMAIL') || localStorage.getItem('walwal_user_email') || '').toLowerCase().trim();
+    const currentUid = auth?.currentUser?.uid || '';
+
     const newMeetup: WalkMeetup = {
       id: `m_${nowTimestamp}`,
       title: formTitle,
       location: formLocation,
       lat: 37.5445,
       lng: 127.0374,
+      creatorEmail: currentEmail,
+      creatorId: currentUid,
       date: formDate,
       timeStr: formTimeStr,
       dateTime: `${formDate}T${formTimeStr}:00`,
@@ -706,7 +876,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
     }
 
     // 이미 참여한 모임이면 -> 취소 처리
-    if (targetMeetup.joined) {
+    if (isUserJoined(targetMeetup)) {
       setMeetups(prev =>
         prev.map(m => {
           if (m.id === id) {
@@ -732,6 +902,12 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
     if (myPets.length > 1) {
       setJoinPetSelectionMeetup(targetMeetup);
       setSelectedJoinPetIds(myPets.map((p: any) => p.id || p.name));
+      return;
+    }
+
+    // 반려견이 0마리인 경우 -> 참여 불가 안내
+    if (myPets.length === 0 || !myDog) {
+      alert(language === 'ko' ? '반려견을 등록한 후 산책 모임에 참가할 수 있습니다.' : 'Please register a pet before joining a meetup.');
       return;
     }
 
@@ -798,10 +974,48 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
   };
 
   const handleLocationClick = (m: WalkMeetup) => {
-    if (onNavigateToRadar) {
-      onNavigateToRadar({ lat: m.lat, lng: m.lng, name: m.location });
+    if (!m.location) return;
+    const query = encodeURIComponent(m.location);
+
+    // 1. 캐시된 사용자 최근 좌표 확인
+    let coords: { lat: number; lng: number } | null = null;
+    try {
+      const saved = localStorage.getItem('WALWAL_LAST_COORDS');
+      if (saved) coords = JSON.parse(saved);
+    } catch (e) { }
+
+    const openMap = (lat?: number, lng?: number) => {
+      // 내 현재 위치 좌표가 있으면 구글맵 중심(@lat,lng,14z)을 잡아 내 위치에서 가장 가까운 장소를 최우선 표시
+      if (lat && lng) {
+        window.open(`https://www.google.com/maps/search/${query}/@${lat},${lng},14z`, '_blank');
+      } else {
+        window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
+      }
+    };
+
+    if (coords && coords.lat && coords.lng) {
+      openMap(coords.lat, coords.lng);
+      return;
+    }
+
+    // 좌표가 아직 없으면 브라우저 Geolocation으로 즉시 확인 후 열기
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          try {
+            localStorage.setItem('WALWAL_LAST_COORDS', JSON.stringify({ lat, lng }));
+          } catch (e) { }
+          openMap(lat, lng);
+        },
+        () => {
+          openMap();
+        },
+        { timeout: 2000, maximumAge: 300000 }
+      );
     } else {
-      window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.location)}`, '_blank');
+      openMap();
     }
   };
 
@@ -840,8 +1054,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
 
       // 1. Tab filter
       if (meetupStatusFilter === 'joined') {
-        const isJoinedOrHost = m.joined || isUserHost(m);
-        if (!isJoinedOrHost) return false;
+        if (!isUserJoined(m)) return false;
       }
 
       const isClosed = isMeetupClosed(m);
@@ -923,7 +1136,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
         const matchesLarge = (myDog.breed.includes('리트리버') || myDog.breed.includes('허스키')) && (m.tag.includes('대형') || m.title.includes('대형'));
         const matchesMedium = (myDog.breed.includes('코기') || myDog.breed.includes('시바')) && (m.tag.includes('숏다리') || m.tag.includes('중형') || m.title.includes('코기'));
         const matchesSmall = (myDog.breed.includes('포메') || myDog.breed.includes('말티')) && (m.tag.includes('소형') || m.title.includes('소형') || m.title.includes('솜뭉치'));
-        const isParticipating = m.joined || isUserHost(m);
+        const isParticipating = isUserJoined(m);
 
         if (!matchesBreed && !matchesLarge && !matchesMedium && !matchesSmall && !isParticipating) {
           return false;
@@ -942,8 +1155,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
       }
 
       if (meetupStatusFilter === 'joined') {
-        const isJoinedOrHost = m.joined || isUserHost(m);
-        if (!isJoinedOrHost) return false;
+        if (!isUserJoined(m)) return false;
       }
       const isClosed = isMeetupClosed(m);
       if (draftOpenOnly && isClosed) return false;
@@ -1014,7 +1226,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
         const matchesLarge = (myDog.breed.includes('리트리버') || myDog.breed.includes('허스키')) && (m.tag.includes('대형') || m.title.includes('대형'));
         const matchesMedium = (myDog.breed.includes('코기') || myDog.breed.includes('시바')) && (m.tag.includes('숏다리') || m.tag.includes('중형') || m.title.includes('코기'));
         const matchesSmall = (myDog.breed.includes('포메') || myDog.breed.includes('말티')) && (m.tag.includes('소형') || m.title.includes('소형') || m.title.includes('솜뭉치'));
-        const isParticipating = m.joined || isUserHost(m);
+        const isParticipating = isUserJoined(m);
 
         if (!matchesBreed && !matchesLarge && !matchesMedium && !matchesSmall && !isParticipating) {
           return false;
@@ -1025,15 +1237,32 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
     }).length;
   }, [meetups, meetupStatusFilter, draftOpenOnly, draftDogSize, draftWalkStyle, draftDistanceFilter, draftDateFilter, draftCustomDate, draftTimeSlotFilter, draftMyDogMatch, myDog, blockedVersion]);
 
+  if (showWalkHistoryModal) {
+    return (
+      <WalkHistoryModal
+        dog={targetWalkDog}
+        allPets={myPets}
+        initialWalkTargetMode={isAllDogsSelected ? 'all' : (selectedWalkDogIds[0] || 'all')}
+        initialTab={walkHistoryTab}
+        onClose={() => setShowWalkHistoryModal(false)}
+      />
+    );
+  }
+
   return (
-    <div className="page-root">
+    <div className={`page-root community-page-root ${activeSession ? 'tracking-active' : ''}`}>
       {/* Header */}
       <div className="page-header row-between">
-        <div>
-          <h2 className="title-lg">{t.tabs.community}</h2>
-          <p className="text-sub">{t.community.subtitle}</p>
-        </div>
+        <h2 className="title-lg">{t.tabs.community}</h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => setShowWalkHistoryModal(true)}
+            title={language === 'ko' ? '산책 일지' : 'Walk Logs'}
+          >
+            <PawPrint size={22} />
+          </button>
           <button
             className="btn-ghost"
             onClick={openCreateModal}
@@ -1051,6 +1280,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
         </div>
       </div>
 
+
       {/* Content: Top Tab Row (Left: [함께산책해요] [내 산책] | Right: Filter Icon Button) */}
       <div className="community-filter-row">
         <div className="community-tab-group">
@@ -1060,10 +1290,10 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
           >
             {t.community?.filterUpcoming ||
               (language === 'zh' ? '聚会活动' :
-               language === 'fr' ? 'Rencontres' :
-               language === 'ja' ? '一緒にお散歩' :
-               language === 'es' ? 'Encuentros' :
-               language === 'en' ? 'Meetups' : '함께산책해요')}
+                language === 'fr' ? 'Rencontres' :
+                  language === 'ja' ? '一緒にお散歩' :
+                    language === 'es' ? 'Encuentros' :
+                      language === 'en' ? 'Meetups' : '함께산책해요')}
           </button>
           <button
             className={`community-tab-btn ${meetupStatusFilter === 'joined' ? 'active' : ''}`}
@@ -1071,10 +1301,10 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
           >
             {t.community?.filterJoined ||
               (language === 'zh' ? '我的聚会' :
-               language === 'fr' ? 'Mes rencontres' :
-               language === 'ja' ? '私のお散歩' :
-               language === 'es' ? 'Mis Encuentros' :
-               language === 'en' ? 'My Meetups' : '내 산책')}
+                language === 'fr' ? 'Mes rencontres' :
+                  language === 'ja' ? '私のお散歩' :
+                    language === 'es' ? 'Mis Encuentros' :
+                      language === 'en' ? 'My Meetups' : '내 산책')}
           </button>
         </div>
 
@@ -1096,30 +1326,64 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
           <div className="community-empty-card">
             <div className="community-empty-icon-wrap">
               <div className="community-empty-icon-circle">
-                <PawPrint size={30} color="#94A3B8" />
+                <PawPrint size={30} color="#c8c8c8" />
               </div>
             </div>
             <h4 className="community-empty-title">
-              {filterT.emptyTitle || '조건에 맞는 산책 모임이 없어요'}
+              {meetupStatusFilter === 'joined'
+                ? (language === 'ko' ? '아직 참여한 산책모임이 없어요.'
+                  : language === 'ja' ? 'まだ参加したお散歩の集まりがありません。'
+                    : language === 'es' ? 'Aún no te has unido a ningún paseo.'
+                      : language === 'zh' ? '尚未参加任何散步聚会。'
+                        : language === 'fr' ? 'Vous n\'avez pas encore rejoint de promenade.'
+                          : 'You haven\'t joined any walk meetups yet.')
+                : (filterT.emptyTitle || (language === 'ko' ? '조건에 맞는 산책 모임이 없어요' : 'No meetups match your criteria'))}
             </h4>
             <p className="community-empty-desc">
-              {filterT.emptySub || '필터를 변경하거나 직접 새로운 번개 모임을 개설해보세요!'}
+              {meetupStatusFilter === 'joined'
+                ? (language === 'ko' ? '함께 산책할 모임을 찾아보거나 직접 새로운 모임을 개설해보세요.'
+                  : language === 'ja' ? '一緒に散歩する集まりを探すか、新しい集まりを作成してみましょう。'
+                    : language === 'es' ? 'Encuentra un grupo para pasear juntos o crea tu propio encuentro.'
+                      : language === 'zh' ? '寻找一起散步的聚会，或直接创建新的聚会。'
+                        : language === 'fr' ? 'Trouvez une rencontre ou créez votre propre groupe.'
+                          : 'Explore meetups to join or create a new walk meetup yourself.')
+                : (filterT.emptySub || (language === 'ko' ? '필터를 변경하거나 직접 새로운 모임을 개설해보세요!' : 'Try changing filters or create a new meetup!'))}
             </p>
             <div className="community-empty-btn-group">
-              {hasActiveFilters && (
-                <button
-                  className="tap-btn community-empty-reset-btn"
-                  onClick={resetAllFilters}
-                >
-                  <RotateCcw size={13} style={{ marginRight: '4px' }} /> {filterT.emptyResetBtn || '필터 초기화'}
-                </button>
+              {meetupStatusFilter === 'joined' ? (
+                <>
+                  <button
+                    className="tap-btn community-empty-reset-btn"
+                    onClick={() => setMeetupStatusFilter('all')}
+                  >
+                    <PawPrint size={14} style={{ marginRight: '4px' }} />
+                    {language === 'ko' ? '모임 찾아보기' : language === 'ja' ? '集まりを探す' : 'Explore Meetups'}
+                  </button>
+                  <button
+                    className="btn-primary community-empty-create-btn"
+                    onClick={openCreateModal}
+                  >
+                    <Plus size={16} /> {filterT.emptyCreateBtn || (language === 'ko' ? '모임 개설하기' : 'Create Meetup')}
+                  </button>
+                </>
+              ) : (
+                <>
+                  {hasActiveFilters && (
+                    <button
+                      className="tap-btn community-empty-reset-btn"
+                      onClick={resetAllFilters}
+                    >
+                      <RotateCcw size={13} style={{ marginRight: '4px' }} /> {filterT.emptyResetBtn || (language === 'ko' ? '필터 초기화' : 'Reset Filters')}
+                    </button>
+                  )}
+                  <button
+                    className="btn-primary community-empty-create-btn"
+                    onClick={openCreateModal}
+                  >
+                    <Plus size={16} /> {filterT.emptyCreateBtn || (language === 'ko' ? '모임 개설하기' : 'Create Meetup')}
+                  </button>
+                </>
               )}
-              <button
-                className="btn-primary community-empty-create-btn"
-                onClick={openCreateModal}
-              >
-                <Plus size={16} /> {filterT.emptyCreateBtn || '모임 개설하기'}
-              </button>
             </div>
           </div>
         ) : filteredMeetups.map(m => {
@@ -1127,7 +1391,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
           return (
             <div
               key={m.id}
-              className={`card-lg${m.joined ? ' card-joined' : ''}`}
+              className={`card-lg${isUserJoined(m) ? ' card-joined' : ''}`}
             >
               <div className="row-between meetup-card-top">
                 <div className="row gap-12 meetup-card-left">
@@ -1151,14 +1415,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
                     }}
                   />
                   <div className="host-info-wrapper meetup-host-info-wrap"
-                    onClick={() => {
-                      if (!m.joined) {
-                        alert(t.community.joinReqBeforeChat || '모임에 참가 신청 후 톡방에 입장할 수 있습니다.');
-                        return;
-                      }
-                      setMeetups(prev => prev.map(item => item.id === m.id ? { ...item, unreadCount: 0 } : item));
-                      setActiveChatMeetup({ ...m, unreadCount: 0 });
-                    }}
+                    onClick={() => handleEnterChat(m)}
                   >
                     <div className="row-between gap-12 meetup-tag-row">
                       <div className="meetup-badge-group">
@@ -1168,7 +1425,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
                       <div className="meetup-host-row">
                         <div className="text-sub meetup-host-text">
                           <Crown size={14} className="meetup-crown-icon" />
-                          {m.hostOwner ? m.hostOwner.replace(/맘/g, '엄마') : ''}
+                          {normalizeHostOwnerName(m.hostOwner, language)}
                         </div>
                         <div className="meetup-menu-wrapper" style={{ position: 'relative' }}>
                           <button
@@ -1251,7 +1508,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
                                     onMouseEnter={(e) => (e.currentTarget.style.background = '#F7FAFC')}
                                     onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
                                   >
-                                    <ShieldAlert size={15} color="#718096" />
+                                    <ShieldAlert size={15} color="#121212" />
                                     <span>작성자 차단하기</span>
                                   </button>
                                 </>
@@ -1284,12 +1541,12 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
                     <MapPin size={16} />
                     <span className="meetup-location-link">{m.location}</span>
                   </button>
-                </div>
-                <div className="info-row justify-start">
-                  <Calendar size={16} />
-                  <span>
-                    {formatMeetupDisplay(m, language)}
-                  </span>
+                  <div className="info-row justify-start">
+                    <Calendar size={16} />
+                    <span>
+                      {formatMeetupDisplay(m, language)}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -1323,12 +1580,12 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
                 </div>
                 <button
                   onClick={() => !isClosed && handleJoin(m.id)}
-                  className={`meetup-join-btn ${isClosed ? 'btn-disabled closed' : ((m.joined || isUserHost(m)) ? 'btn-dark-line' : 'btn-primary')}`}
+                  className={`meetup-join-btn ${isClosed ? 'btn-disabled closed' : ((isUserJoined(m) || isUserHost(m)) ? 'btn-dark-line' : 'btn-primary')}`}
                   disabled={isClosed}
                 >
                   {isClosed ? (
                     t.community?.closedBtn || (language === 'ko' ? '마감' : language === 'ja' ? '締切' : language === 'es' ? 'Cerrado' : 'Closed')
-                  ) : (m.joined || isUserHost(m)) ? (
+                  ) : (isUserJoined(m) || isUserHost(m)) ? (
                     <><LogOut size={20} /></>
                   ) : (
                     <><PawPrint size={20} />In</>
@@ -1348,7 +1605,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
               <div className="modal-header-row">
                 <h3 className="modal-title-text">{t.community.modalCreateTitle}</h3>
                 <button type="button" onClick={() => setShowCreateModal(false)} className="modal-close-icon-btn">
-                  <X size={24} color="#3b4a5d" />
+                  <X size={24} color="#222" />
                 </button>
               </div>
 
@@ -1487,7 +1744,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
                 </h3>
 
                 <button type="button" onClick={() => setShowParticipantsModal(null)} className="modal-close-icon-btn">
-                  <X size={24} color="#3b4a5d" />
+                  <X size={24} color="#222" />
                 </button>
               </div>
 
@@ -1624,10 +1881,10 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
           <div className="community-modal-content">
             <div className="modal-header-row">
               <h3 className="modal-title-text" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Crown size={18} color="#FFB320" /> {t.community?.editModalTitle || (language === 'ko' ? '모임 정보 수정' : language === 'ja' ? '集まりの情報を編集' : 'Edit Meetup Info')}
+                <Crown size={18} color="#FF9E58" /> {t.community?.editModalTitle || (language === 'ko' ? '모임 정보 수정' : language === 'ja' ? '集まりの情報を編集' : 'Edit Meetup Info')}
               </h3>
               <button type="button" onClick={() => setEditingMeetup(null)} className="modal-close-icon-btn">
-                <X size={24} color="#3b4a5d" />
+                <X size={24} color="#222" />
               </button>
             </div>
 
@@ -1758,8 +2015,8 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
             {/* Modal Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', paddingBottom: '12px', borderBottom: '1px solid #F1F5F9' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <SlidersHorizontal size={20} color="#1E293B" />
-                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#1E293B', margin: 0 }}>
+                <SlidersHorizontal size={20} color="#000" />
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#000', margin: 0 }}>
                   {filterT.modalTitle || '상세 필터 검색'}
                 </h3>
               </div>
@@ -2006,7 +2263,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
                   className={`filter-toggle-card ${draftMyDogMatch ? 'active' : ''}`}
                   onClick={() => setDraftMyDogMatch(prev => !prev)}
                 >
-                  <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#1E293B' }}>
+                  <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#000' }}>
                     {filterT.myDogMatchLabel || '내 강아지 참여 가능 여부'}
                   </span>
                   <div className={`filter-toggle-switch ${draftMyDogMatch ? 'active' : 'inactive'}`}>
@@ -2055,11 +2312,203 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ onNavigateToRadar 
         )
       }
 
-      {/* Report Modal */}
-      <ReportModal
-        target={reportTarget}
-        onClose={() => setReportTarget(null)}
-      />
-    </div >
+      {/* 하단 플로팅 산책 컨트롤러 (평상시: 시작하기 캡슐 버튼 / 진행중: 실시간 트래커 시트) */}
+      <div className={`community-bottom-walk-container ${activeSession ? 'active' : ''}`}>
+        {!activeSession ? (
+          <div className="community-bottom-start-wrapper">
+            {myPets.length > 1 && (
+              <div className="bottom-start-dog-chips">
+                <div>
+                  {myPets.map((p, idx) => {
+                    const dogKey = p.id || p.name;
+                    const isSelected = selectedWalkDogIds.includes(dogKey);
+                    return (
+                      <button
+                        key={p.id || idx}
+                        type="button"
+                        className={`bottom-dog-chip ${isSelected ? 'active' : ''}`}
+                        onClick={() => handleToggleDog(dogKey)}
+                      >
+                        <img src={p.avatar} alt={p.name} />
+                        <span>{p.name}</span>
+                        {isSelected && <Check size={12} strokeWidth={2.5} className="dog-chip-check-icon" />}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  className={`bottom-dog-chip all ${isAllDogsSelected ? 'active' : ''}`}
+                  onClick={handleToggleAllDogs}
+                >
+                  <Check size={12} strokeWidth={2.5} className="all-chip-check-icon" />
+                  <span>
+                    {language === 'ko' ? `모두 (${myPets.length}마리)`
+                      : language === 'ja' ? `みんな (${myPets.length}匹)`
+                        : language === 'es' ? `Todos (${myPets.length})`
+                          : language === 'zh' ? `一起 (${myPets.length}只)`
+                            : language === 'fr' ? `Tous (${myPets.length})`
+                              : `All (${myPets.length})`}
+                  </span>
+                </button>
+              </div>
+            )}
+
+            <button
+              type="button"
+              className="community-bottom-start-btn"
+              onClick={() => {
+                if (!myPets || myPets.length === 0) {
+                  const msg = language === 'ko'
+                    ? '산책 시작은 등록된 반려견이 있을 경우에만 이용할 수 있습니다.\n반려견 등록 페이지로 이동합니다.'
+                    : language === 'ja'
+                      ? 'お散歩は登録された愛犬がいる場合のみ利用できます。\n愛犬登録ページへ移動します。'
+                      : language === 'es'
+                        ? 'El seguimiento de paseo solo está disponible si tienes un perro registrado.\nRedirigiendo a la página de registro.'
+                        : language === 'zh'
+                          ? '散步仅在已登记宠物时可用。\n即将前往宠物登记页面。'
+                          : language === 'fr'
+                            ? 'La promenade est disponible uniquement avec un animal enregistré.\nRedirection vers la page d\'inscription.'
+                            : 'Walk tracking is available only when you have a registered pet.\nRedirecting to pet registration page.';
+                  alert(msg);
+                  window.dispatchEvent(new CustomEvent('walwal_switch_tab', { detail: 'profile' }));
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('walwal_open_pet_register'));
+                  }, 150);
+                  return;
+                }
+                const targetDogs = getTargetDogsToStart();
+                if (!targetDogs || targetDogs.length === 0) return;
+                startWalk(targetDogs);
+              }}
+            >
+              <span className="start-btn-label">
+                {language === 'ko' ? '산책 시작'
+                  : language === 'ja' ? 'お散歩スタート'
+                    : language === 'es' ? 'Empezar paseo'
+                      : language === 'zh' ? '开始散步'
+                        : language === 'fr' ? 'Commencer la promenade'
+                          : 'Start'}
+              </span>
+            </button>
+          </div>
+        ) : (
+          /* 산책 진행 중 / 일시정지: 하단 트래킹 시트 (Nike / Strava 스타일 - 사용자 스크린샷 4, 5 매칭) */
+          <div className={`community-bottom-tracking-sheet ${activeSession.isPaused ? 'paused' : ''}`}>
+            {/* 시트 상단 바: 반려견 이름 및 보조 액션 (+100m 테스트, 일지) */}
+            <div className="sheet-top-bar">
+              <div className="sheet-dog-info">
+                <span className={`sheet-live-dot ${activeSession.isPaused ? 'paused' : ''}`} />
+                <span className="sheet-dog-title">
+                  {activeSession.isPaused
+                    ? (language === 'ko' ? `${activeSession.dogName} 산책 일시정지됨`
+                      : language === 'ja' ? `${activeSession.dogName}のお散歩一時停止中`
+                        : language === 'es' ? `Paseo con ${activeSession.dogName} en pausa`
+                          : language === 'zh' ? `${activeSession.dogName} 散步已暂停`
+                            : language === 'fr' ? `Promenade avec ${activeSession.dogName} en pause`
+                              : `${activeSession.dogName} Paused`)
+                    : (language === 'ko' ? `${activeSession.dogName}와(과) 산책 중`
+                      : language === 'ja' ? `${activeSession.dogName}とお散歩中`
+                        : language === 'es' ? `Paseando con ${activeSession.dogName}`
+                          : language === 'zh' ? `与${activeSession.dogName}散步中`
+                            : language === 'fr' ? `En promenade avec ${activeSession.dogName}`
+                              : `Walking with ${activeSession.dogName}`)}
+                </span>
+              </div>
+              <div className="sheet-aux-actions">
+                <button
+                  type="button"
+                  className="sheet-aux-btn"
+                  onClick={() => addSimulatedWalkDistance(0.1)}
+                  title="실내 테스트: +0.1km 추가"
+                >
+                  +100m
+                </button>
+                <button
+                  type="button"
+                  className="sheet-aux-btn logs"
+                  onClick={() => setShowWalkHistoryModal(true)}
+                >
+                  {language === 'ko' ? '일지 보기' : language === 'ja' ? '記録' : language === 'es' ? 'Registros' : language === 'zh' ? '日志' : language === 'fr' ? 'Journal' : 'Logs'}
+                </button>
+              </div>
+            </div>
+
+            {/* 대형 핵심 메트릭 (스크린샷 4/5 스타일: 0.00 KM) */}
+            <div className="sheet-hero-metric-section">
+              <div className="sheet-hero-metric">
+                <span className="hero-metric-value">{activeSession.distanceKm.toFixed(2)}</span>
+                <span className="hero-metric-unit">KM</span>
+              </div>
+              <div className={`sheet-status-pill ${activeSession.isPaused ? 'paused' : ''}`}>
+                <PawPrint size={12} strokeWidth={2.5} />
+                <span>
+                  {activeSession.isPaused
+                    ? 'PAUSED'
+                    : 'START MOVING!'}
+                </span>
+              </div>
+            </div>
+
+
+
+            {/* 3단 메트릭 그리드 (스크린샷 4 & 5 매칭: DISTANCE / DURATION / CALORIES) */}
+            <div className="sheet-metrics-grid">
+              <div className="sheet-metric-col">
+                <span className="col-label">DISTANCE</span>
+                <span className="col-val"><strong>{activeSession.distanceKm.toFixed(2)} </strong><small>KM</small></span>
+              </div>
+              <div className="sheet-metric-col">
+                <span className="col-label">DURATION</span>
+                <span className="col-val"><strong>{formatTimer(activeSession.elapsedSeconds)}</strong></span>
+              </div>
+              <div className="sheet-metric-col">
+                <span className="col-label">CALORIES</span>
+                <span className="col-val"><strong>{activeSession.caloriesKcal} </strong><small>KCAL</small></span>
+              </div>
+            </div>
+
+            {/* 액션 컨트롤 버튼들 (스크린샷 4 & 5 매칭) */}
+            <div className="sheet-action-btns">
+              {!activeSession.isPaused ? (
+                /* 진행 중: 전체 너비 블랙 PAUSE RUN 버튼 (스크린샷 4) */
+                <button
+                  type="button"
+                  className="sheet-btn-pause-full"
+                  onClick={() => pauseWalk()}
+                >
+                  <Pause size={15} fill="currentColor" />
+                  <span>{language === 'ko' ? 'PAUSE RUN (일시정지)' : language === 'ja' ? '一時停止' : language === 'es' ? 'Pausar' : language === 'zh' ? '暂停' : language === 'fr' ? 'Pause' : 'PAUSE RUN'}</span>
+                </button>
+              ) : (
+                /* 일시정지 중: RESUME RUN(블랙) + FINISH(화이트 아웃라인) 나란히 배치 (스크린샷 5) */
+                <div className="sheet-btn-row-paused">
+                  <button
+                    type="button"
+                    className="sheet-btn-resume"
+                    onClick={() => resumeWalk()}
+                  >
+                    <Play size={15} fill="currentColor" />
+                    <span>{language === 'ko' ? 'RESUME RUN' : language === 'ja' ? 'RESUME RUN' : language === 'es' ? 'RESUME RUN' : language === 'zh' ? 'RESUME RUN' : language === 'fr' ? 'RESUME RUN' : 'RESUME RUN'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="sheet-btn-finish"
+                    onClick={() => {
+                      setActiveSession(null);
+                      stopWalk();
+                    }}
+                  >
+                    <Square size={15} fill="currentColor" />
+                    <span>{language === 'ko' ? 'FINISH (종료)' : language === 'ja' ? 'FINISH (終了)' : language === 'es' ? 'FINISH (Terminar)' : language === 'zh' ? 'FINISH (结束)' : language === 'fr' ? 'FINISH (Terminer)' : 'HOLD TO FINISH'}</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+    </div>
   );
 };

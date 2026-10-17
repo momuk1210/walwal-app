@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Wand2, Download, Share2, Sparkles, X, Bone, Bookmark, Camera } from 'lucide-react';
+import { Wand2, Download, Share2, Sparkles, X, Bone, Bookmark, Camera, Send } from 'lucide-react';
 import { BREED_DEFINITIONS, BreedDefinition } from '../data/breedProfiles';
 import confetti from 'canvas-confetti';
 import WalWalLogo from '../assets/walwal.svg';
@@ -167,7 +167,7 @@ export const ShortformStudio: React.FC<ShortformStudioProps> = ({
             ctx.fill();
 
             // Draw Text
-            ctx.fillStyle = '#2D3748';
+            ctx.fillStyle = '#333';
             ctx.textAlign = 'center';
             lines.forEach((l, i) => {
               ctx.fillText(l.trim(), 540, bubbleY + bubblePadding + 40 + (i * lineHeight));
@@ -409,7 +409,7 @@ export const ShortformStudio: React.FC<ShortformStudioProps> = ({
   };
 
   const handlePostToSnaps = async () => {
-    // 1. 새 스냅샷 게시물 생성
+    // 1. 새 피드샷 게시물 생성
     let finalPoster = initialPoster || '';
     if (!finalPoster && isVideo && initialImage) {
       try {
@@ -477,7 +477,7 @@ export const ShortformStudio: React.FC<ShortformStudioProps> = ({
       }
     }
 
-    // 2. localStorage에 저장 (스냅샷 최상단 저장 및 하위 호환)
+    // 2. localStorage에 저장 (피드샷 최상단 저장 및 하위 호환)
     try {
       const saved = localStorage.getItem('WALWAL_USER_SNAPS_POSTS') || localStorage.getItem('WALWAL_USER_FEED_POSTS');
       const posts = saved ? JSON.parse(saved) : [];
@@ -505,9 +505,9 @@ export const ShortformStudio: React.FC<ShortformStudioProps> = ({
     window.dispatchEvent(new Event('walwal_feed_updated'));
 
     // 4. 토스트 메시지
-    showToast((t.snaps || t.studio)?.postSuccess || (language === 'ko' ? '스냅샷에 저장되었습니다!' : 'Successfully saved to WalWal Snaps! 🎉'));
+    showToast((t.snaps || t.studio)?.postSuccess || (language === 'ko' ? '피드샷에 저장되었습니다!' : 'Successfully saved to WalWal Snaps! 🎉'));
 
-    // 5. 스냅샷 화면으로 이동
+    // 5. 피드샷 화면으로 이동
     setTimeout(() => {
       if (onPostSuccess) {
         onPostSuccess(postToSave);
@@ -563,7 +563,7 @@ export const ShortformStudio: React.FC<ShortformStudioProps> = ({
         <div className="snaps-modal-header row-between">
           <div className="snaps-modal-header-title ">
             <h2 className="title-lg">
-              {(t.tabs?.snaps || t.tabs?.studio) || (language === 'ko' ? ' 스냅샷' : 'Pet Studio')}</h2>
+              {(t.tabs?.snaps || t.tabs?.studio) || (language === 'ko' ? ' 피드샷' : 'Pet Studio')}</h2>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button
@@ -637,7 +637,7 @@ export const ShortformStudio: React.FC<ShortformStudioProps> = ({
           {/* 4. 다운로드 */}
           <button onClick={handleDownloadOnly}>
             <div className={`share-icon-btn download ${selectedPlatform === 'download' ? 'selected' : ''}`}>
-              <Download size={22} color="#4A5568" />
+              <Download size={22} />
             </div>
             <span>{t.share?.download || (language === 'ko' ? '다운로드' : 'Download')}</span>
           </button>
@@ -645,12 +645,12 @@ export const ShortformStudio: React.FC<ShortformStudioProps> = ({
           {/* 5. 더 보기 */}
           <button onClick={handleShareMore}>
             <div className={`share-icon-btn more ${selectedPlatform === 'more' ? 'selected' : ''}`}>
-              <Share2 size={22} color="#4A5568" />
+              <Send size={22} color="#121212" />
             </div>
             <span>{t.share?.more || (language === 'ko' ? '더 보기' : 'More')}</span>
           </button>
 
-          {/* 6. 스냅샷 (노란색 #FFB320 + 북마크 아이콘) */}
+          {/* 6. 피드샷 (노란색 #FF9E58 + 북마크 아이콘) */}
           <button onClick={handlePostToSnaps}>
             <div className="share-icon-btn snaps">
               <Bone size={22} color="#fff" />
@@ -663,7 +663,7 @@ export const ShortformStudio: React.FC<ShortformStudioProps> = ({
       {/* Floating Toast Message */}
       {toastMessage && (
         <div className="snaps-toast">
-          <Sparkles size={16} color="#FFB320" />
+          <Sparkles size={16} color="#FF9E58" />
           <span>{toastMessage}</span>
         </div>
       )}

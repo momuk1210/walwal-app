@@ -10,7 +10,6 @@ import 'leaflet/dist/leaflet.css';
 
 export interface NearbyViewProps {
   onStartVirtualChat: (dog1: DogProfile, dog2: DogProfile) => void;
-  targetLocation?: { lat: number; lng: number; name: string } | null;
 }
 
 export type RadarViewProps = NearbyViewProps;
@@ -34,7 +33,7 @@ const formatDistance = (meters: number): string => {
   return `${(meters / 1000).toFixed(1)}km`;
 };
 
-export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat, targetLocation }) => {
+export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat }) => {
   const { t, language } = useTranslation();
   const [nearbyZoom, setNearbyZoom] = useState<'300m' | '500m' | '1km'>('500m');
   const [ownerNoteTarget, setOwnerNoteTarget] = useState<DogProfile | null>(null);
@@ -60,7 +59,7 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat, targ
   const dogMarkersGroupRef = useRef<L.LayerGroup | null>(null);
   const radarCircleRef = useRef<L.Circle | null>(null);
 
-  // 1. 내 반려견 프로필 조회 (로컬 스토리지에 등록된 내 반려견들)
+  // 1. 내 반려견 프로필 조회 (로컬 스토리지에 등록된 내 반려견들 - 등록된 반려견이 없으면 빈 배열)
   const myPets = useMemo<DogProfile[]>(() => {
     try {
       const saved = localStorage.getItem('WALWAL_PETS');
@@ -71,20 +70,21 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat, targ
         }
       }
     } catch (e) { }
-    const fallback = getMockDogs(language)[0];
-    return [normalizeDogProfile(fallback, language)];
+    return [];
   }, [language, petsUpdateKey]);
 
   const primaryPet = myPets[0] || null;
 
-  // 선택된 핀 (기본값: 내 대표 반려견)
+  // 선택된 핀 (기본값: 내 대표 반려견이 있는 경우에만 선택)
   const [selectedPin, setSelectedPin] = useState<DogProfile | null>(() => primaryPet);
 
   useEffect(() => {
     if (!selectedPin && primaryPet) {
       setSelectedPin(primaryPet);
+    } else if (myPets.length === 0 && (selectedPin as any)?.isMyPet) {
+      setSelectedPin(null);
     }
-  }, [primaryPet]);
+  }, [primaryPet, myPets.length]);
 
   // Calculate meter distance to lat/lng offsets around actual user coordinates
   const getNearbyOffset = (meterDist: number, angleDeg: number) => {
@@ -200,10 +200,25 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat, targ
         return;
       }
 
-      const meters = getDistanceMeters(userCoords.lat, userCoords.lng, dog.lat, dog.lng);
+      let meters = getDistanceMeters(userCoords.lat, userCoords.lng, dog.lat, dog.lng);
+      let dogLat = dog.lat;
+      let dogLng = dog.lng;
+
+      // 핀 겹침 방지 (Anti-Collision): 내 위치 핀과 90m 이내로 겹치는 경우 최소 120m 이격 분리
+      if (meters < 90) {
+        const charSeed = (dog.id || dog.name || 'dog').split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+        const angleDeg = (charSeed * 53 + 45) % 360;
+        const adjustedPos = getNearbyOffset(120, angleDeg);
+        dogLat = adjustedPos.lat;
+        dogLng = adjustedPos.lng;
+        meters = 120;
+      }
+
       if (meters <= maxRadius) {
         list.push({
           ...normalizeDogProfile(dog, language),
+          lat: dogLat,
+          lng: dogLng,
           distance: formatDistance(meters),
           distanceMeters: meters,
           isMyPet: false
@@ -227,6 +242,9 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat, targ
     const applyCoords = async (latitude: number, longitude: number) => {
       setUserCoords({ lat: latitude, lng: longitude });
       setIsLocating(false);
+      try {
+        localStorage.setItem('WALWAL_LAST_COORDS', JSON.stringify({ lat: latitude, lng: longitude }));
+      } catch (e) {}
 
       if (leafletMapRef.current) {
         const targetZoom = nearbyZoom === '300m' ? 17 : nearbyZoom === '500m' ? 16 : 15;
@@ -356,14 +374,8 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat, targ
       }
     });
 
-    if (targetLocation) {
-      setUserCoords({ lat: targetLocation.lat, lng: targetLocation.lng });
-      setLocationLabel(`모임 장소 (${targetLocation.name})`);
-      map.setView([targetLocation.lat, targetLocation.lng], 16);
-    } else {
-      const isLocationAllowed = localStorage.getItem('WALWAL_PERM_LOCATION') !== 'false';
-      detectUserRealLocation(isLocationAllowed);
-    }
+    // 동네친구 탭 진입 시: 브라우저 위치 권한 팝업 없이 부드럽게 IP/동네 위치로 표시
+    detectUserRealLocation(false);
 
     return () => {
       map.remove();
@@ -411,10 +423,10 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat, targ
     } else {
       radarCircleRef.current = L.circle([userCoords.lat, userCoords.lng], {
         radius: radiusMeters,
-        color: '#FF7E36',
+        color: '#FF9E58',
         weight: 1.5,
         dashArray: '5, 8',
-        fillColor: '#FF7E36',
+        fillColor: '#FF9E58',
         fillOpacity: 0.06
       }).addTo(map);
     }
@@ -422,6 +434,29 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat, targ
     // 2. 지도 핀 렌더링: 내 반려견 + 실제 가입된 다른 사용자 반려견
     if (dogMarkersGroupRef.current) {
       dogMarkersGroupRef.current.clearLayers();
+
+      // 반려견이 등록되지 않은 사용자의 경우 지도 중앙 내 현재 위치 표시
+      if (myPets.length === 0 && userCoords.lat && userCoords.lng) {
+        const myLocationIcon = L.divIcon({
+          className: 'user-my-loc-marker',
+          html: `
+            <div style="display:flex;flex-direction:column;align-items:center;cursor:default;">
+              <div style="position:relative;width:20px;height:20px;background:#2EC4B6;border:3px solid #FFFFFF;border-radius:50%;box-shadow:0 0 12px rgba(46,196,182,0.8);">
+                <div style="position:absolute;inset:0;background:rgba(46,196,182,0.4);border-radius:50%;animation:pulse 2s infinite;"></div>
+              </div>
+              <div style="background:#2EC4B6;color:#FFFFFF;font-size:10px;font-weight:800;padding:2px 6px;border-radius:8px;margin-top:3px;box-shadow:0 2px 6px rgba(0,0,0,0.2);white-space:nowrap;">
+                ${language === 'ko' ? '내 위치' : 'My Location'}
+              </div>
+            </div>
+          `,
+          iconSize: [44, 44],
+          iconAnchor: [22, 22]
+        });
+        L.marker([userCoords.lat, userCoords.lng], {
+          icon: myLocationIcon,
+          zIndexOffset: 1000
+        }).addTo(dogMarkersGroupRef.current);
+      }
 
       displayDogs.forEach((dog) => {
         if (!dog.lat || !dog.lng) return;
@@ -433,11 +468,11 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat, targ
           className: 'dog-marker-icon',
           html: `
             <div style="cursor:pointer;display:flex;flex-direction:column;align-items:center;">
-              <div style="position:relative;width:${isSelected ? 52 : 44}px;height:${isSelected ? 52 : 44}px;border-radius:50%;border:${isMyPet ? '3px solid #FF7E36' : (isSelected ? '3px solid #2EC4B6' : '2px solid #FFFFFF')};box-shadow:${isSelected ? (isMyPet ? '0 0 20px rgba(255, 126, 54, 0.6)' : '0 0 20px rgba(46, 196, 182, 0.6)') : '0 4px 12px rgba(0,0,0,0.15)'};overflow:hidden;background:#FFFFFF;transition:all 0.2s;">
+              <div style="position:relative;width:${isSelected ? 52 : 44}px;height:${isSelected ? 52 : 44}px;border-radius:50%;border:${isMyPet ? '3px solid #FF9E58' : (isSelected ? '3px solid #2EC4B6' : '2px solid #FFFFFF')};box-shadow:${isSelected ? (isMyPet ? '0 0 20px rgba(255, 126, 54, 0.6)' : '0 0 20px rgba(46, 196, 182, 0.6)') : '0 4px 12px rgba(0,0,0,0.15)'};overflow:hidden;background:#FFFFFF;transition:all 0.2s;">
                 ${isMyPet ? '<div style="position:absolute;inset:0;background:rgba(255,126,54,0.2);animation:pulse 2s infinite;border-radius:50%;"></div>' : ''}
                 <img src="${dog.avatar}" style="width:100%;height:100%;object-fit:cover;" />
               </div>
-              <div style="background:${isMyPet ? '#FF7E36' : (isSelected ? '#2EC4B6' : '#FFFFFF')};border:1px solid rgba(0,0,0,0.08);padding:2px 8px;border-radius:10px;font-size:11px;font-weight:800;color:${(isMyPet || isSelected) ? '#FFFFFF' : '#2D3748'};margin-top:3px;white-space:nowrap;box-shadow:0 3px 8px rgba(0,0,0,0.15);display:flex;align-items:center;gap:3px;">
+              <div style="background:${isMyPet ? '#FF9E58' : (isSelected ? '#2EC4B6' : '#FFFFFF')};border:1px solid rgba(0,0,0,0.08);padding:2px 8px;border-radius:10px;font-size:11px;font-weight:800;color:${(isMyPet || isSelected) ? '#FFFFFF' : '#333'};margin-top:3px;white-space:nowrap;box-shadow:0 3px 8px rgba(0,0,0,0.15);display:flex;align-items:center;gap:3px;">
                 ${dog.name} ${isMyPet ? `<span style="font-size:10px;background:rgba(255,255,255,0.25);padding:1px 4px;border-radius:6px;">${language === 'ko' ? '나' : language === 'zh' ? '我' : language === 'ja' ? '私' : language === 'fr' ? 'Moi' : language === 'es' ? 'Yo' : 'Me'}</span>` : `<span style="font-size:10px;opacity:0.85;">${dog.distance}</span>`}
               </div>
             </div>
@@ -482,7 +517,7 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat, targ
                 key={range}
                 onClick={() => handleSelectRange(range)}
                 style={{
-                  background: nearbyZoom === range ? '#FFB320' : 'transparent',
+                  background: nearbyZoom === range ? '#FF9E58' : 'transparent',
                   color: nearbyZoom === range ? '#fff' : '#000',
                 }}
               >
@@ -519,7 +554,7 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat, targ
             className="quick-recenter-btn"
             onClick={() => detectUserRealLocation(true)}
             style={{
-              color: isLocating ? '#2EC4B6' : '#FF7E36',
+              color: isLocating ? '#2EC4B6' : '#FF9E58',
             }}
             title={language === 'ko' ? '현재 내 위치로 이동' : 'Go to Current Location'}
           >
@@ -534,7 +569,7 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat, targ
           <button
             onClick={() => setSelectedPin(null)}
             className="btn-ghost"
-            style={{ position: 'absolute', top: '16px', right: '16px', color: '#3b4a5d' }}
+            style={{ position: 'absolute', top: '16px', right: '16px', color: '#c8c8c8' }}
           >
             <X size={20} strokeWidth={3} />
           </button>
@@ -553,10 +588,6 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat, targ
                     {language === 'ko' ? '내 반려견' : language === 'zh' ? '我的狗狗' : language === 'ja' ? '愛犬' : language === 'fr' ? 'Mon Chien' : language === 'es' ? 'Mi Perro' : 'My Dog'}
                   </span>
                 )}
-                <div className='text-sub'>
-                  {localizeBreed(selectedPin.breed, language)} &middot; {selectedPin.age} {t.profile?.dogAgeSuffix || '살'} &middot;
-                  {selectedPin.gender === 'female' ? t.common?.genderShortFemale : selectedPin.gender === 'male' ? t.common?.genderShortMale : ''}
-                </div>
               </div>
               <div className="text-sub mt-4">
                 <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '6px' }}>
@@ -591,11 +622,11 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat, targ
       ) : (
         /* 주변에 가입된 다른 강아지가 아직 없을 때 표시하는 안내 배너 */
         <div className="card text-center" style={{ padding: '22px 16px', marginTop: '16px', borderRadius: '16px', background: '#FFFFFF', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
-          <div style={{ fontSize: '28px', marginBottom: '6px' }}>🐾</div>
-          <div style={{ fontSize: '15px', fontWeight: 800, color: '#2D3748', marginBottom: '4px' }}>
+          <div style={{ fontSize: '28px', opacity: '.5' }}>🐾</div>
+          <div style={{ fontSize: '16px', fontWeight: 700, margin: '10px 0' }}>
             {language === 'ko' ? `지도에서 반려견 핀을 터치해보세요` : `Tap a dog pin on the map`}
           </div>
-          <div style={{ fontSize: '12px', color: '#718096' }}>
+          <div style={{ fontSize: '12px', color: '#121212' }}>
             {language === 'ko'
               ? '다른 반려견 보호자가 가입하고 산책을 시작하면 지도에 실시간으로 표시됩니다.'
               : 'When other pet owners join and start walking, they will appear here in real time.'}

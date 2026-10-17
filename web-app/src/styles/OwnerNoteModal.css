@@ -6,31 +6,34 @@
   z-index: 2600;
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
   padding: 0;
-  /* Remove padding to fill screen */
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .own-message-modal-container {
   background: #FFFFFF;
   width: 100%;
   max-width: 440px;
-  /* Optional: if you want it to look like a phone on desktop */
-  height: 100dvh;
-  max-height: 100dvh;
-  height: 100vh;
+  height: 100%;
+  max-height: 100%;
   display: flex;
   flex-direction: column;
   box-shadow: 0 15px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(255, 126, 54, 0.2);
   overflow: hidden;
   border-radius: 0;
+  position: relative;
+  box-sizing: border-box;
 }
 
 .own-message-modal-header {
-  padding: 16px 18px;
-  background: #FFB320;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 14px 16px;
+  background: #FF9E58;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 20;
 }
 
 .own-message-modal-header .badge-hashtag {
@@ -71,7 +74,7 @@
   font-size: 0.7rem;
   background: #fff;
   line-height: 1;
-  color: #FFB320;
+  color: #FF9E58;
   padding: 3px 6px;
   border-radius: 12px;
   font-weight: 500;
@@ -125,11 +128,9 @@
 .snaps-modal-action-wrapper {
   box-sizing: border-box;
   width: calc(100% - 24px);
-  max-width: 380px;
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  padding: 0 10px;
   z-index: 45;
   display: flex;
   justify-content: space-between;
@@ -195,14 +196,14 @@
 }
 
 .own-message-bubble.is-me {
-  background: #FFB320;
+  background: #FF9E58;
   border: none;
   border-radius: 16px 16px 4px 16px;
 }
 
 .own-message-bubble.is-target {
   background: #E2E8F0;
-  color: #2D3748;
+  color: #333;
   border-radius: 16px 16px 16px 4px;
 }
 
@@ -218,7 +219,7 @@
 }
 
 .own-message-text.is-target {
-  color: #2D3748;
+  color: #333;
 }
 
 .own-message-time {
@@ -237,7 +238,7 @@
 }
 
 .own-message-time.is-target {
-  color: #2D3748;
+  color: #333;
 }
 
 .own-message-sending-indicator {
@@ -258,7 +259,7 @@
 .own-message-quick-template-btn {
   background: #fff;
   border: 1px solid #2D374880;
-  color: #2D3748;
+  color: #333;
   border-radius: 12px;
   padding: 5px 8px;
   font-size: 0.65rem;
@@ -283,7 +284,7 @@
   border: 1px solid #FFBF00;
   border-radius: 14px;
   padding: 10px 14px;
-  color: #2D3748;
+  color: #333;
   font-size: 0.82rem;
   outline: none;
   font-family: inherit;
@@ -304,7 +305,7 @@
 }
 
 .own-message-send-btn:not(:disabled) {
-  background: linear-gradient(135deg, #FFB320, #FFBF00);
+  background: linear-gradient(135deg, #FF9E58, #FFBF00);
   cursor: pointer;
   box-shadow: 0 4px 15px rgba(255, 126, 54, 0.4);
 }

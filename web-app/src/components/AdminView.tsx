@@ -460,7 +460,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
       {/* Header */}
       <header className="admin-header">
         <div className="admin-header-title">
-          <Shield size={24} color="#FFB320" />
+          <Shield size={24} color="#FF9E58" />
           <h2 style={{ fontSize: '18px', fontWeight: 800, margin: 0 }}>WalWal 관리자 모드</h2>
           <span className="admin-badge">SUPER ADMIN</span>
         </div>
@@ -493,7 +493,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
           onClick={() => { setActiveTab('posts'); setSearchQuery(''); }}
         >
           <Image size={16} />
-          <span>스냅스</span>
+          <span>피드</span>
           <span className="admin-tab-count">{posts.length}</span>
         </button>
 
@@ -536,12 +536,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
           <div>
             <div className="admin-stats-grid">
               <div className="admin-stat-card">
-                <div className="admin-stat-icon" style={{ background: 'rgba(255, 179, 32, 0.15)', color: '#FFB320' }}>
+                <div className="admin-stat-icon" style={{ background: 'rgba(255, 179, 32, 0.15)', color: '#FF9E58' }}>
                   <Users size={24} />
                 </div>
                 <div>
                   <div className="admin-stat-val">
-                    {subscribers.length}명 <span style={{ fontSize: '13px', color: '#94A3B8', fontWeight: 500 }}>({dogs.length}마리)</span>
+                    {subscribers.length}명 <span style={{ fontSize: '13px', color: '#c8c8c8', fontWeight: 500 }}>({dogs.length}마리)</span>
                   </div>
                   <div className="admin-stat-label">총 가입자(보호자) 수</div>
                 </div>
@@ -591,9 +591,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
             </div>
 
             {/* Quick Actions */}
-            <div style={{ background: '#1E293B', border: '1px solid #334155', borderRadius: '16px', padding: '20px' }}>
+            <div style={{ background: '#000', border: '1px solid #334155', borderRadius: '16px', padding: '20px' }}>
               <h3 style={{ fontSize: '16px', fontWeight: 800, margin: '0 0 12px 0' }}>💡 관리자 안내 & 빠른 조치</h3>
-              <p style={{ fontSize: '13px', color: '#94A3B8', lineHeight: 1.5, margin: 0 }}>
+              <p style={{ fontSize: '13px', color: '#c8c8c8', lineHeight: 1.5, margin: 0 }}>
                 • <strong>가입 반려견 관리</strong>: 부적절한 닉네임, 프로필 사진, 비방성 인사말을 실시간으로 수정하거나 삭제할 수 있습니다.<br />
                 • <strong>게시물 검수</strong>: 음란물, 광고, 스팸 게시물 및 영상을 즉시 영구 삭제하여 서비스를 안전하게 유지합니다.<br />
                 • <strong>공지 등록</strong>: 긴급 점검이나 업데이트 소식을 등록하면 사용자 앱 상단에 안내 배너가 표시됩니다.
@@ -687,7 +687,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
                             <div className="admin-item-info">
                               <div className="admin-item-title">
                                 <span>{activeDog.name}</span>
-                                <span style={{ fontSize: '11px', color: '#94A3B8', fontWeight: 400 }}>ID: {activeDog.id}</span>
+                                <span style={{ fontSize: '11px', color: '#c8c8c8', fontWeight: 400 }}>ID: {activeDog.id}</span>
                               </div>
                               <div className="admin-item-meta">
                                 {activeDog.breed || '미지정'} · {activeDog.age || '1'}살 · {activeDog.gender === 'female' ? '여아' : '남아'}
@@ -773,7 +773,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
                       <div className="admin-item-info">
                         <div className="admin-item-title">
                           <span>{post.name || post.authorName || '익명'}</span>
-                          <span style={{ fontSize: '11px', color: '#94A3B8', fontWeight: 400 }}>{post.time || '최근'}</span>
+                          <span style={{ fontSize: '11px', color: '#c8c8c8', fontWeight: 400 }}>{post.time || '최근'}</span>
                         </div>
                         <div className="admin-item-text">
                           {post.recentThought || post.thought || post.text || post.caption || '(대사 없음)'}
@@ -827,7 +827,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
                             <span style={{
                               fontSize: '11px',
                               fontWeight: 700,
-                              background: statusInfo.isPast ? '#475569' : '#0284C7',
+                              background: statusInfo.isPast ? '#333' : '#0284C7',
                               color: '#FFFFFF',
                               padding: '2px 8px',
                               borderRadius: '6px',
@@ -836,22 +836,22 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
                               {statusInfo.labelKo}
                             </span>
                           </div>
-                        <div className="admin-item-meta">
-                          장소: {meetup.location || '미정'} · 일시: {formatMeetupDisplay(meetup, 'ko')} · 호스트: {meetup.hostOwner || meetup.hostDog || meetup.hostName || '미등록'}
-                        </div>
-                        <div className="admin-item-text">
-                          참가자 {(meetup.participants || []).length}명
+                          <div className="admin-item-meta">
+                            장소: {meetup.location || '미정'} · 일시: {formatMeetupDisplay(meetup, 'ko')} · 호스트: {meetup.hostOwner || meetup.hostDog || meetup.hostName || '미등록'}
+                          </div>
+                          <div className="admin-item-text">
+                            참가자 {(meetup.participants || []).length}명
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <button
-                      className="admin-action-btn delete"
-                      onClick={() => handleDeleteMeetup(meetup)}
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
+                      <button
+                        className="admin-action-btn delete"
+                        onClick={() => handleDeleteMeetup(meetup)}
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
                   );
                 })
               )}
@@ -924,7 +924,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
 
             <div className="admin-list">
               {reports.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px', color: '#64748B', background: '#0F172A', borderRadius: '12px', border: '1px solid #1E293B' }}>
+                <div style={{ textAlign: 'center', padding: '40px', color: '#64748B', background: '#111', borderRadius: '12px', border: '1px solid #000' }}>
                   <Check size={32} color="#10B981" style={{ marginBottom: '8px' }} />
                   <p style={{ margin: 0, fontWeight: 600 }}>접수된 신고가 없습니다. 깨끗한 커뮤니티 상태입니다!</p>
                 </div>
@@ -971,17 +971,17 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
                           {report.status === 'pending' ? '대기 중' : report.status === 'resolved' ? '처리 완료' : '기각'}
                         </span>
                       </div>
-                      <span style={{ fontSize: '12px', color: '#94A3B8' }}>
+                      <span style={{ fontSize: '12px', color: '#c8c8c8' }}>
                         {report.reportedAt ? new Date(report.reportedAt).toLocaleString() : ''}
                       </span>
                     </div>
 
-                    <div style={{ background: '#0F172A', padding: '10px 14px', borderRadius: '8px', border: '1px solid #1E293B' }}>
+                    <div style={{ background: '#111', padding: '10px 14px', borderRadius: '8px', border: '1px solid #000' }}>
                       <div style={{ fontSize: '13px', color: '#EF4444', fontWeight: 700, marginBottom: '4px' }}>
                         사유: {report.reasonText}
                       </div>
                       {report.targetContent && (
-                        <div style={{ fontSize: '12px', color: '#94A3B8' }}>
+                        <div style={{ fontSize: '12px', color: '#c8c8c8' }}>
                           내용 요약: "{report.targetContent}"
                         </div>
                       )}
@@ -994,8 +994,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
                         style={{
                           padding: '6px 12px',
                           borderRadius: '6px',
-                          border: '1px solid #475569',
-                          background: '#1E293B',
+                          border: '1px solid #333',
+                          background: '#000',
                           color: '#CBD5E1',
                           fontSize: '12px',
                           fontWeight: 600,
@@ -1034,7 +1034,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
                               borderRadius: '6px',
                               border: '1px solid #334155',
                               background: 'transparent',
-                              color: '#94A3B8',
+                              color: '#c8c8c8',
                               fontSize: '12px',
                               cursor: 'pointer'
                             }}
@@ -1074,39 +1074,39 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
           <div className="admin-modal" style={{ maxWidth: '440px', textAlign: 'left' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 800 }}>반려견 정보 수정</h3>
-              <button onClick={() => setEditingDog(null)} className="btn-ghost" style={{ color: '#94A3B8' }}>
+              <button onClick={() => setEditingDog(null)} className="btn-ghost" style={{ color: '#c8c8c8' }}>
                 <X size={20} />
               </button>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
-                <label style={{ fontSize: '12px', color: '#94A3B8', display: 'block', marginBottom: '4px' }}>반려견 이름</label>
+                <label style={{ fontSize: '12px', color: '#c8c8c8', display: 'block', marginBottom: '4px' }}>반려견 이름</label>
                 <input
                   type="text"
                   value={editName}
                   onChange={e => setEditName(e.target.value)}
-                  style={{ width: '100%', background: '#0F172A', border: '1px solid #334155', borderRadius: '8px', padding: '8px 12px', color: '#fff' }}
+                  style={{ width: '100%', background: '#111', border: '1px solid #334155', borderRadius: '8px', padding: '8px 12px', color: '#fff' }}
                 />
               </div>
 
               <div>
-                <label style={{ fontSize: '12px', color: '#94A3B8', display: 'block', marginBottom: '4px' }}>견종</label>
+                <label style={{ fontSize: '12px', color: '#c8c8c8', display: 'block', marginBottom: '4px' }}>견종</label>
                 <input
                   type="text"
                   value={editBreed}
                   onChange={e => setEditBreed(e.target.value)}
-                  style={{ width: '100%', background: '#0F172A', border: '1px solid #334155', borderRadius: '8px', padding: '8px 12px', color: '#fff' }}
+                  style={{ width: '100%', background: '#111', border: '1px solid #334155', borderRadius: '8px', padding: '8px 12px', color: '#fff' }}
                 />
               </div>
 
               <div>
-                <label style={{ fontSize: '12px', color: '#94A3B8', display: 'block', marginBottom: '4px' }}>한마디 (인사말)</label>
+                <label style={{ fontSize: '12px', color: '#c8c8c8', display: 'block', marginBottom: '4px' }}>한마디 (인사말)</label>
                 <textarea
                   rows={2}
                   value={editGreeting}
                   onChange={e => setEditGreeting(e.target.value)}
-                  style={{ width: '100%', background: '#0F172A', border: '1px solid #334155', borderRadius: '8px', padding: '8px 12px', color: '#fff', resize: 'vertical' }}
+                  style={{ width: '100%', background: '#111', border: '1px solid #334155', borderRadius: '8px', padding: '8px 12px', color: '#fff', resize: 'vertical' }}
                 />
               </div>
             </div>

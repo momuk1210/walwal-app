@@ -120,7 +120,7 @@ export const PWAInstallBanner: React.FC = () => {
             transform: 'translateX(-50%)',
             width: 'calc(100% + 24px)',
             maxWidth: '440px',
-            background: 'linear-gradient(135deg, #1E293B 0%, #0F172A 100%)',
+            background: 'linear-gradient(135deg, #000 0%, #111 100%)',
             color: '#FFFFFF',
             borderRadius: '18px',
             padding: '12px 14px',
@@ -140,7 +140,7 @@ export const PWAInstallBanner: React.FC = () => {
                 width: '38px',
                 height: '38px',
                 borderRadius: '12px',
-                background: '#FFB320',
+                background: '#FF9E58',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -165,7 +165,7 @@ export const PWAInstallBanner: React.FC = () => {
               type="button"
               onClick={handleInstallClick}
               style={{
-                background: '#FFB320',
+                background: '#FF9E58',
                 color: '#FFFFFF',
                 border: 'none',
                 borderRadius: '12px',
@@ -185,7 +185,7 @@ export const PWAInstallBanner: React.FC = () => {
               style={{
                 background: 'transparent',
                 border: 'none',
-                color: '#94A3B8',
+                color: '#c8c8c8',
                 cursor: 'pointer',
                 padding: '6px',
                 display: 'flex',
@@ -257,7 +257,7 @@ export const PWAInstallBanner: React.FC = () => {
             {/* Icon Header */}
 
 
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 600, color: '#1E293B', marginTop: '30px' }}>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 600, color: '#000', marginTop: '30px' }}>
               {isIOS ? '아이폰 홈 화면에 앱 설치하기' : '스마트폰 홈 화면에 앱 설치하기'}
             </h3>
 
@@ -276,19 +276,19 @@ export const PWAInstallBanner: React.FC = () => {
                   </div>
                 )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-                  <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: '#FFB320', color: '#FFFFFF', fontWeight: 500, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: '#FF9E58', color: '#FFFFFF', fontWeight: 500, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     1
                   </div>
-                  <div style={{ fontSize: '0.88rem', color: '#1E293B', fontWeight: 500 }}>
+                  <div style={{ fontSize: '0.88rem', color: '#000', fontWeight: 500 }}>
                     Safari 하단의 <strong>공유 버튼</strong> (<Share size={15} style={{ display: 'inline', verticalAlign: '-2px' }} />) 터치
                   </div>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: '#FFB320', color: '#FFFFFF', fontWeight: 500, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: '#FF9E58', color: '#FFFFFF', fontWeight: 500, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     2
                   </div>
-                  <div style={{ fontSize: '0.88rem', color: '#1E293B', fontWeight: 500 }}>
+                  <div style={{ fontSize: '0.88rem', color: '#000', fontWeight: 500 }}>
                     메뉴에서 <strong>[홈 화면에 추가]</strong> (<PlusSquare size={15} style={{ display: 'inline', verticalAlign: '-2px' }} />) 선택
                   </div>
                 </div>
@@ -296,19 +296,19 @@ export const PWAInstallBanner: React.FC = () => {
             ) : (
               <div style={{ textAlign: 'left', background: '#F8FAFC', borderRadius: '16px', padding: '16px', marginBottom: '22px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-                  <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: '#FFB320', color: '#FFFFFF', fontWeight: 500, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: '#FF9E58', color: '#FFFFFF', fontWeight: 500, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     1
                   </div>
-                  <div style={{ fontSize: '0.88rem', color: '#1E293B', fontWeight: 500 }}>
+                  <div style={{ fontSize: '0.88rem', color: '#000', fontWeight: 500 }}>
                     브라우저 우측 상단 <strong>메뉴 (⋮)</strong> 터치
                   </div>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: '#FFB320', color: '#FFFFFF', fontWeight: 500, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: '#FF9E58', color: '#FFFFFF', fontWeight: 500, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     2
                   </div>
-                  <div style={{ fontSize: '0.88rem', color: '#1E293B', fontWeight: 500 }}>
+                  <div style={{ fontSize: '0.88rem', color: '#000', fontWeight: 500 }}>
                     <strong>[앱 설치]</strong> 또는 <strong>[홈 화면에 추가]</strong> 선택
                   </div>
                 </div>
@@ -316,7 +316,7 @@ export const PWAInstallBanner: React.FC = () => {
             )}
 
             {isIOS && isSafari && (
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', color: '#FF7E36', fontSize: '0.8rem', fontWeight: 700, marginBottom: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', color: '#FF9E58', fontSize: '0.8rem', fontWeight: 700, marginBottom: '16px' }}>
                 <ArrowDown size={16} /> 화면 맨 아래 공유 아이콘을 눌러주세요
               </div>
             )}
@@ -327,7 +327,7 @@ export const PWAInstallBanner: React.FC = () => {
               style={{
                 width: '100%',
                 padding: '14px',
-                background: '#FFB320',
+                background: '#FF9E58',
                 color: '#FFFFFF',
                 border: 'none',
                 borderRadius: '16px',

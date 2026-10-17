@@ -5,7 +5,7 @@
 *,
 button,
 a {
-  color: #0F172A;
+  color: #111;
   text-decoration: none;
   -webkit-appearance: none;
   appearance: none;
@@ -40,7 +40,7 @@ textarea {
 /* ?? Layout ?? */
 .app-root-container {
   width: 100%;
-  height: 100%;
+  height: calc(100dvh - 86px);
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -63,7 +63,7 @@ textarea {
   display: flex;
   justify-content: center;
   align-items: center;
-  background: #FFB320;
+  background: #FF9E58;
 }
 
 .app-loading-title {
@@ -79,6 +79,7 @@ textarea {
   overflow-y: auto;
   padding: 0 16px;
   letter-spacing: -.01rem;
+  z-index: 2;
 }
 
 .page-header {
@@ -88,6 +89,9 @@ textarea {
   padding: 10px 0;
 }
 
+.page-header .text-sub {
+  opacity: .8;
+}
 
 .section-gap {
   display: flex;
@@ -119,7 +123,7 @@ textarea {
 }
 
 .section-gap>.card-joined {
-  border: 2px solid #FFB320;
+  border: 3.5px solid #FF9E58;
 }
 
 .section-gap>.card-lg .btn-primary {
@@ -131,7 +135,7 @@ textarea {
 
 .section-gap>.card-lg .btn-dark-line {
   border: none;
-  color: #718096;
+  color: #121212;
   font-size: .74rem;
   font-weight: 600;
   padding: 6px 10px;
@@ -159,6 +163,7 @@ textarea {
   border-radius: 20px;
   transition: 0.2s;
   cursor: pointer;
+  box-shadow: 0 6px 8px rgba(0, 0, 0, 0.08);
 }
 
 .row {
@@ -213,7 +218,7 @@ textarea {
 }
 
 .btn-primary {
-  background: #FFB320;
+  background: #FF9E58;
   color: #fff;
   border-radius: 99px;
   padding: 14px;
@@ -245,7 +250,7 @@ textarea {
 }
 
 .btn-box>button.btn {
-  background: #FFB320;
+  background: #FF9E58;
   color: #fff;
 }
 
@@ -274,8 +279,8 @@ textarea {
 
 .btn-dark-line {
   background: #fff;
-  color: #718096;
-  border: 1px solid #718096;
+  color: #121212;
+  border: 1px solid #121212;
   border-radius: 24px;
   padding: 10px 20px;
   font-size: 0.8rem;
@@ -324,12 +329,12 @@ textarea {
   transition: all 0.2s;
   font-family: inherit;
   background: transparent;
-  color: #3b4a5d;
+  color: #222;
 }
 
 .btn-tab.active {
   background: #FFFFFF;
-  color: #FFB320;
+  color: #FF9E58;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
 }
 
@@ -341,8 +346,8 @@ textarea {
   display: flex;
   justify-content: space-around;
   align-items: center;
-  padding: 10px 0;
-  z-index: 40;
+  padding: 10px 0 14px;
+  z-index: 1;
 }
 
 .nav-btn {
@@ -378,7 +383,7 @@ textarea {
 
 .nav-btn__label.active {
   font-weight: 600;
-  color: #FFB320;
+  color: #FF9E58;
 }
 
 /* ?? Typography ?? */
@@ -404,23 +409,23 @@ textarea {
 }
 
 .text-sm {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 400;
 }
 
 .text-accent {
-  color: #FFB320;
+  color: #FF9E58;
   font-weight: 600;
 }
 
 .text-muted {
-  color: #718096;
+  color: #121212;
   font-weight: 600;
 }
 
 .text-body {
   font-size: 0.85rem;
-  color: #2D3748;
+  color: #333;
   line-height: 1.5;
   font-weight: 500;
   display: none;
@@ -451,7 +456,7 @@ textarea {
 .pName span {
   font-weight: 400;
   font-size: .7rem;
-  color: #718096
+  color: #121212
 }
 
 .avatar-md {
@@ -475,12 +480,12 @@ textarea {
 .badge {
   font-size: 0.7rem;
   background: #fff;
-  color: #718096;
+  color: #121212;
   padding: 4px 10px;
   border-radius: 16px;
   font-weight: 500;
   background: #fff;
-  border: 1px solid #718096;
+  border: 1px solid #121212;
   display: flex;
   gap: 4px;
   justify-content: center;
@@ -490,8 +495,9 @@ textarea {
 
 
 .badge-hashtag {
-  color: rgb(56, 197, 183);
-  border: 1px solid rgb(56, 197, 183);
+  background: #fff;
+  color: #111;
+  border: 1px solid #111;
   padding: 4px 10px;
   border-radius: 16px;
   font-size: 0.7rem;
@@ -523,7 +529,7 @@ textarea {
 }
 
 .badge-name {
-  color: #4A5568;
+  color: #121212;
   border-radius: 18px;
   padding: 6px 12px;
   font-size: 0.7rem;
@@ -545,17 +551,15 @@ textarea {
   padding: 3px 5px;
   border-radius: 16px;
   font-weight: 400;
-  background: #FFB320;
-  border: 1px solid #FFB320;
+  background: #c8c8c8;
   display: flex;
   gap: 4px;
   justify-content: center;
   align-items: center;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
 }
 
 .badge-name.active {
-  background: #FFB320;
+  background: #FF9E58;
   color: #fff;
   border: none;
 }
@@ -617,10 +621,11 @@ textarea {
   padding: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: #38c5b7;
+  justify-content: center;
+  gap: 5px;
   font-weight: 500;
   font-size: 0.8rem;
+  line-height: 1;
   cursor: pointer;
   text-align: left;
   font-family: inherit;
@@ -667,9 +672,9 @@ textarea {
 /* ?? Form ?? */
 .form-label {
   display: block;
-  font-size: 0.85rem;
+  font-size: 0.7rem;
   font-weight: 600;
-  color: #4A5568;
+  color: #4A556870;
   margin-bottom: 8px;
 }
 
@@ -679,8 +684,8 @@ textarea {
   border: 1px solid #E2E8F0;
   border-radius: 16px;
   padding: 14px 16px;
-  color: #2D3748;
-  font-size: 0.95rem;
+  color: #333;
+  font-size: 0.8rem;
   font-weight: 600;
   font-family: inherit;
   outline: none;
@@ -689,11 +694,11 @@ textarea {
 
 .form-input::placeholder {
   font-weight: 400;
-  color: #3b4a5d;
+  color: #222;
 }
 
 .form-input:focus {
-  border-color: #FFB320;
+  border-color: #FF9E58;
   box-shadow: 0 0 0 3px rgba(255, 179, 32, 0.1);
 }
 
@@ -843,7 +848,7 @@ textarea {
 .bottom-bar-btn {
   background: transparent;
   border: none;
-  color: #FFB320;
+  color: #FF9E58;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -887,8 +892,8 @@ textarea {
 .petNameBtn {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 10px 4px 8px;
+  gap: 4px;
+  padding: 4px 14px 4px 10px;
   border-radius: 24px;
   font-size: .8rem;
   font-weight: 500;
@@ -896,7 +901,7 @@ textarea {
   flex-shrink: 0;
   transition: all .2s;
   background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  border: 1px solid #c8c8c8;
   box-shadow: 0 3px 5px rgba(0, 0, 0, 0.09);
   cursor: pointer;
   min-height: 24px;
@@ -911,29 +916,24 @@ textarea {
 }
 
 .petNameBtn.active {
-  background: #FFB320;
+  background: #F58529;
   border: none;
   box-shadow: 0 3px 5px rgba(255, 179, 32, 0.3);
   color: #fff;
 }
 
-.editProfileBtn {
-  border: none;
-  font-size: .8rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  padding: 6px 4px 0;
-}
 
+.editProfileBtn,
 .deleteProfileBtn {
   border: none;
   font-size: .8rem;
   cursor: pointer;
   display: flex;
   align-items: center;
+  background: transparent;
+  border: none;
   padding: 6px 4px 0;
-  color: #94A3B8;
+  color: #c8c8c8;
   transition: color 0.2s ease;
 }
 
@@ -949,14 +949,13 @@ textarea {
   height: 16px;
   margin-left: 4px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.12);
+  background: transparent;
   color: #64748B;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .petNameBtn.active .petTabDeleteBtn {
-  background: rgba(255, 255, 255, 0.35);
   color: #fff;
 }
 
@@ -977,7 +976,7 @@ textarea {
 /*rader*/
 .text-box {
   position: relative;
-  color: #0F172A;
+  color: #111;
   font-size: .8rem;
   font-weight: 500;
   text-align: center;
@@ -992,42 +991,61 @@ textarea {
   z-index: 3000;
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
   padding: 0;
   box-sizing: border-box;
 }
 
 .snaps-modal-container {
+  position: relative;
   background: #FFFFFF;
   width: 100%;
   max-width: 440px;
-  height: 100dvh;
+  height: 100%;
+  max-height: 100dvh;
   display: flex;
   flex-direction: column;
-  overflow: auto;
+  overflow: hidden;
   border-radius: 0;
+  box-sizing: border-box;
 }
 
 .snaps-modal-header {
-  padding: 14px 18px;
+  padding: 12px 18px 8px;
+  display: flex;
+  justify-content: start;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
 }
 
 .snaps-modal-retake-btn {
+  position: absolute;
+  bottom: 15px;
+  left: 50%;
+  transform: translateX(-50%);
   display: inline-flex;
   flex: 1;
   align-items: center;
   justify-content: center;
   gap: 8px;
   padding: 6px;
-  border-radius: 14px;
-  background: #FFB320;
-  border: 1px solid #FFB320;
+  border-radius: 999px;
+  width: 48px;
+  height: 48px;
+  border: none;
+  background: #ffffff;
   color: #fff;
   font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 14px rgba(255, 179, 32, 0.4);
+  box-shadow: 0 8px 10px rgba(255, 255, 255, 0.4);
+  opacity: .8;
+}
+
+.snaps-modal-retake-btn:hover {
+  opacity: 1;
 }
 
 .snaps-modal-retake-btn:active {
@@ -1080,9 +1098,7 @@ textarea {
   transform: scale(1.06);
 }
 
-.share-icon-btn.download {
-  background: #fff;
-}
+.share-icon-btn.download {}
 
 .share-icon-btn.download.selected {
   box-shadow: 0 0 16px rgba(255, 126, 54, 0.3);
@@ -1100,11 +1116,11 @@ textarea {
 
 .share-icon-btn.snaps,
 .share-icon-btn.feed {
-  background: #FFB320;
+  background: #FF9E58;
 }
 
 .share-icon-btn.retake {
-  background: linear-gradient(135deg, #FFB320 0%, #F59E0B 100%);
+  background: linear-gradient(135deg, #FF9E58 0%, #F59E0B 100%);
   box-shadow: 0 4px 14px rgba(245, 158, 11, 0.45);
 }
 
@@ -1160,19 +1176,18 @@ textarea {
 
 .share-label-snaps,
 .share-label-feed {
-  color: #FFB320;
+  color: #FF9E58;
   font-weight: 600;
 }
 
 .snaps-modal-body {
   min-height: 0;
-  max-width: 400px;
+  max-width: 100%;
   overflow-y: auto;
-  padding: 0;
+  padding: 0 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  flex-shrink: 0;
   margin: 0 auto 12px;
 }
 
@@ -1180,14 +1195,156 @@ textarea {
   display: none;
 }
 
+/* 피드샷 모달 상단 회전/비율 편집 툴바 */
+.snaps-edit-toolbar {
+  width: 100%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  backdrop-filter: blur(8px);
+  flex-wrap: wrap;
+  margin-bottom: 15px;
+}
+
+.snaps-toolbar-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+
+.snaps-toolbar-section.lucide {
+  gap: 8px;
+  padding: 2px 8px;
+  background: #FFFFFF;
+  border: 1px solid #64748B40;
+  border-radius: 99px;
+}
+
+.snaps-toolbar-divider {
+  width: 1px;
+  height: 18px;
+  background: #CBD5E1;
+  margin: 0 2px;
+}
+
+.snaps-tool-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #333;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: none;
+  color: #64748B;
+  padding: 0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.snaps-tool-btn .lucide-undo {
+  transform: rotate(-0deg);
+}
+
+.snaps-tool-btn .lucide-redo {
+  transform: rotate(-0deg);
+}
+
+.snaps-tool-btn:hover {
+  color: #000;
+  border-color: #000;
+}
+
+.snaps-tool-btn:active {
+  transform: scale(0.96);
+}
+
+.snaps-ratio-section {
+  gap: 6px;
+}
+
+.snaps-ratio-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: #FFFFFF;
+  border: 1px solid #64748B;
+  color: #64748B;
+  padding: 0;
+  border-radius: 4.5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.ratio-original {
+  width: 24px;
+  height: 28px;
+}
+
+.ratio-1-1 {
+  width: 24px;
+  height: 24px;
+}
+
+.ratio-9-16 {
+  width: 24px;
+  height: 36px;
+}
+
+.ratio-16-9 {
+  width: 36px;
+  height: 24px;
+}
+
+.snaps-ratio-btn:hover {
+  background: #F8FAFC;
+  color: #334155;
+}
+
+.snaps-ratio-btn.active {
+  color: #FF9E58;
+  box-shadow: 0 2px 6px rgba(255, 179, 32, 0.35);
+}
+
+.snaps-reset-btn {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: #EF4444;
+  padding: 5px 7px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-left: auto;
+}
+
+.snaps-reset-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.snaps-video-crop-container {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
 .snaps-modal-media-wrapper {
   width: 100%;
-  max-width: 380px;
   position: relative;
   flex-shrink: 0;
   margin: 0 auto;
   background: #fff;
-  padding: 0 12px;
   display: flex;
   flex-flow: column;
   gap: 16px;
@@ -1199,7 +1356,7 @@ textarea {
 .snaps-modal-media-wrapper img {
   width: 100%;
   height: auto;
-  max-height: 68vh;
+  max-height: 52vh;
   object-fit: contain;
   display: block;
   border-radius: 16px;
@@ -1261,7 +1418,7 @@ textarea {
   font-weight: 500;
   border: none;
   background: #FFFFFF;
-  color: #4A5568;
+  color: #121212;
   cursor: pointer;
   box-shadow: none;
   transition: all 0.15s ease;
@@ -1271,7 +1428,7 @@ textarea {
 }
 
 .pet-chip-btn.active {
-  background: #FFB320;
+  background: #FF9E58;
   color: #FFFFFF;
 }
 
@@ -1281,10 +1438,10 @@ textarea {
   left: 50%;
   transform: translateX(-50%);
   background: rgba(255, 255, 255, 0.95);
-  border: 1px solid #FFB320;
+  border: 1px solid #FF9E58;
   border-radius: 12px;
   padding: 10px 18px;
-  color: #2D3748;
+  color: #333;
   font-size: 0.8rem;
   font-weight: 600;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
@@ -1324,7 +1481,7 @@ textarea {
 
 .edit-post-modal-close {
   padding: 4px;
-  color: #718096;
+  color: #121212;
 }
 
 .edit-post-body {
@@ -1335,9 +1492,9 @@ textarea {
 }
 
 .edit-post-label {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 600;
-  color: #4A5568;
+  color: #4A556870;
 }
 
 .edit-post-textarea {
@@ -1361,10 +1518,10 @@ textarea {
 .btn-edit-cancel {
   flex: 1;
   padding: 12px;
-  border-radius: 16px;
-  border: 1px solid #E2E8F0;
-  background: #F7FAFC;
-  color: #4A5568;
+  border-radius: 99px;
+  border: 1px solid #121212;
+  background: #fff;
+  color: #121212;
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
@@ -1373,9 +1530,9 @@ textarea {
 .btn-edit-save {
   flex: 1;
   padding: 12px;
-  border-radius: 16px;
+  border-radius: 99px;
   border: none;
-  background: #FFB320;
+  background: #FF9E58;
   color: #FFFFFF;
   font-size: 0.9rem;
   font-weight: 600;
@@ -1423,12 +1580,13 @@ textarea {
   gap: 8px;
   background: none;
   border: none;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #2D3748;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #333;
   cursor: pointer;
   text-align: left;
   white-space: nowrap;
+  letter-spacing: -.05px;
 }
 
 .snaps-dropdown-item:hover,
@@ -1443,7 +1601,7 @@ textarea {
   overflow: hidden;
   margin-bottom: 16px;
   max-height: 520px;
-  background: #0F172A;
+  background: #111;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
   display: flex;
   align-items: center;
@@ -1517,7 +1675,7 @@ textarea {
 .comment-drag-handle {
   width: 42px;
   height: 4.5px;
-  background: #475569;
+  background: #333;
   border-radius: 3px;
   margin: 12px auto 8px;
 }
@@ -1534,7 +1692,7 @@ textarea {
 .comment-modal-title {
   font-size: 1.05rem;
   font-weight: 600;
-  color: #0F172A;
+  color: #111;
   margin: 0;
 }
 
@@ -1601,7 +1759,7 @@ textarea {
   border-radius: 20px;
   font-size: 0.8rem;
   font-weight: 600;
-  color: #4A5568;
+  color: #121212;
   white-space: nowrap;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1618,8 +1776,8 @@ textarea {
 
 .chip-btn.active {
   background: #FFF8E7;
-  border: 1.5px solid #FFB320;
-  color: #FFB320;
+  border: 1.5px solid #FF9E58;
+  color: #FF9E58;
   font-weight: 600;
   box-shadow: 0 2px 8px rgba(255, 179, 32, 0.18);
 }
@@ -1633,7 +1791,7 @@ textarea {
 
 .chip-btn.reset:hover {
   background: #E2E8F0;
-  color: #1E293B;
+  color: #000;
 }
 
 .chip-dropdown-wrapper {
@@ -1694,7 +1852,7 @@ textarea {
 
 .chip-dropdown-item.selected {
   background: #FFF8E7;
-  color: #FFB320;
+  color: #FF9E58;
   font-weight: 600;
 }
 
@@ -1714,8 +1872,8 @@ textarea {
   height: 38px;
   border-radius: 12px;
   background: #FFFFFF;
-  border: 1px solid #E2E8F0;
-  color: #4A5568;
+  border: none;
+  color: #121212;
   cursor: pointer;
   position: relative;
   transition: all 0.2s ease;
@@ -1740,7 +1898,7 @@ textarea {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #FFB320;
+  background: #FF9E58;
   border: 2px solid #fff;
 }
 
@@ -1757,7 +1915,7 @@ textarea {
 .filter-modal-label {
   font-size: 0.88rem;
   font-weight: 600;
-  color: #1E293B;
+  color: #000;
   margin-bottom: 10px;
   display: flex;
   align-items: center;
@@ -1771,7 +1929,7 @@ textarea {
 }
 
 .filter-modal-chip {
-  padding: 8px 14px;
+  padding: 6px 12px;
   border-radius: 20px;
   border: 1px solid #E2E8F0;
   background: #fff;
@@ -1789,8 +1947,8 @@ textarea {
 
 .filter-modal-chip.active {
   color: #fff;
-  border: 1px solid #FFB320;
-  background: #FFB320;
+  border: 1px solid #FF9E58;
+  background: #FF9E58;
   font-weight: 500;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
@@ -1810,7 +1968,7 @@ textarea {
 
 .filter-toggle-card.active {
   background: #fff;
-  border: 1.5px solid #FFB320;
+  border: 1.5px solid #FF9E58;
 }
 
 .filter-toggle-switch {
@@ -1823,7 +1981,7 @@ textarea {
 }
 
 .filter-toggle-switch.active {
-  background: #FFB320;
+  background: #FF9E58;
 }
 
 .filter-toggle-switch.inactive {
@@ -1858,10 +2016,9 @@ textarea {
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  gap: 12px;
-  padding: 5px 5px 100px;
-  width: calc(100% + 10px);
-  margin: 0 -5px;
+  gap: 8px;
+  padding: 5px 0 100px;
+  width: 100%;
 }
 
 .snaps-album-column {
@@ -1883,11 +2040,9 @@ textarea {
   transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease;
   user-select: none;
   -webkit-user-select: none;
-  padding: 12px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
   display: flex;
   flex-flow: column nowrap;
-  border-radius: 16px;
+  scroll-margin-top: 12px;
 }
 
 
@@ -1934,12 +2089,15 @@ textarea {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  background: transparent;
   transition: background 0.15s ease, transform 0.15s ease;
+  opacity: .6;
 }
 
 .snaps-album-more-btn:active {
   transform: scale(0.92);
   background: transparent;
+  opacity: 1
 }
 
 .snaps-album-date-badge {
@@ -1993,21 +2151,6 @@ textarea {
   background-color: transparent;
 }
 
-.snaps-album-caption {
-  height: auto;
-  z-index: 6;
-  color: #000;
-  font-size: 0.78rem;
-  font-weight: 600;
-  line-height: 1.3;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  max-height: 64px;
-  overflow: hidden;
-  padding: 8px 0;
-}
-
 .snaps-dropdown-backdrop {
   position: fixed;
   inset: 0;
@@ -2041,7 +2184,7 @@ textarea {
   padding: 8px 12px;
   border: none;
   background: transparent;
-  color: #1E293B;
+  color: #000;
   font-size: 0.82rem;
   font-weight: 600;
   border-radius: 10px;
@@ -2060,4 +2203,568 @@ textarea {
 
 .snaps-album-dropdown button.delete:hover {
   background: #FEF2F2;
+}
+
+/* Instagram-Style Vertical Feed View */
+.snaps-feed-view-wrapper {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.snaps-feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 6px 0 100px;
+}
+
+.snaps-feed-card {
+  position: relative;
+  background: #FFFFFF;
+  display: flex;
+  flex-direction: column;
+  scroll-margin-top: 0;
+  z-index: 1;
+}
+
+.snaps-feed-card.active {
+  z-index: 10;
+}
+
+.snaps-feed-card-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  z-index: 5;
+}
+
+.snaps-feed-header-follow {
+  display: flex;
+  align-items: center;
+}
+
+.snaps-feed-follow-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  background: #0095F6;
+  color: #FFFFFF;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 8px rgba(0, 149, 246, 0.35);
+  outline: none;
+}
+
+.snaps-feed-follow-btn:hover {
+  background: #1877F2;
+}
+
+.snaps-feed-follow-btn.following {
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow: none;
+}
+
+.snaps-feed-follow-btn.following:hover {
+  background: rgba(239, 68, 68, 0.7);
+  border-color: rgba(239, 68, 68, 0.8);
+}
+
+.snaps-feed-card-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.snaps-feed-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #fff;
+  background: #FFFBEB;
+}
+
+.snaps-feed-user-info {
+  display: flex;
+  flex-direction: column;
+  color: #fff;
+}
+
+.snaps-feed-user-name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.2;
+}
+
+.snaps-feed-user-sub {
+  font-size: 0.7rem;
+  font-weight: 5700;
+  color: #fff;
+  margin-top: 2px;
+}
+
+.snaps-feed-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.snaps-feed-action-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: transparent;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.4));
+}
+
+.snaps-feed-action-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.snaps-feed-action-icon-btn.delete-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #EF4444;
+}
+
+.snaps-feed-media-container {
+  width: 100%;
+  background: #111;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-height: 75vh;
+  overflow: hidden;
+  z-index: -1;
+}
+
+.snaps-feed-media {
+  width: 100%;
+  height: auto;
+  max-height: 75vh;
+  object-fit: contain;
+  display: block;
+}
+
+.snaps-insta-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 4px 14px;
+  background: #FFFFFF;
+}
+
+.snaps-insta-actions-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.snaps-insta-actions-right {
+  display: flex;
+  align-items: center;
+}
+
+.snaps-insta-btn {
+  background: transparent;
+  border: none;
+  padding: 4px 2px;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+  line-height: 1;
+  color: #111827;
+}
+
+.snaps-insta-count {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #1E293B;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  user-select: none;
+}
+
+.snaps-insta-btn.like-btn.liked .snaps-insta-count {
+  color: #FF3040;
+}
+
+.snaps-insta-btn:hover {
+  transform: scale(1.08);
+}
+
+.snaps-insta-btn:active {
+  transform: scale(0.95);
+}
+
+.snaps-insta-btn.like-btn.liked {
+  animation: heartPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes heartPop {
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.28);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+.snaps-feed-content-body {
+  padding: 4px 14px 18px 14px;
+  display: flex;
+  flex-flow: column nowrap;
+  gap: 6px;
+  background: #FFFFFF;
+}
+
+.snaps-insta-likes-count {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #0F172A;
+  line-height: 1.3;
+}
+
+.snaps-insta-likes-count strong {
+  font-weight: 700;
+}
+
+.snaps-insta-caption {
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: #1E293B;
+  word-break: break-word;
+}
+
+.snaps-insta-caption-author {
+  font-weight: 700;
+  color: #0F172A;
+  margin-right: 6px;
+}
+
+.snaps-insta-caption-text {
+  font-weight: 400;
+  color: #334155;
+}
+
+.snaps-insta-comments-toggle {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin-top: 2px;
+  font-size: 0.82rem;
+  color: #64748B;
+  text-align: left;
+  cursor: pointer;
+  font-weight: 500;
+  transition: color 0.15s ease;
+}
+
+.snaps-insta-comments-toggle:hover {
+  color: #334155;
+}
+
+.snaps-insta-comments-toggle.empty {
+  color: #94A3B8;
+}
+
+.snaps-feed-thought-bubble {
+  display: flex;
+  align-items: flex-start;
+  font-weight: 500;
+}
+
+.snaps-feed-thought-text {
+  font-size: 0.7rem;
+  line-height: 1.45;
+  margin: 0;
+  font-weight: 600;
+  color: #000;
+  flex: 1;
+}
+
+.snaps-feed-share-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding-top: 10px;
+  border-top: 1px solid #F1F5F9;
+  gap: 6px;
+}
+
+.snaps-feed-share-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 10px;
+  transition: transform 0.15s ease;
+}
+
+.snaps-feed-share-btn:hover {
+  transform: translateY(-2px);
+}
+
+.snaps-feed-share-btn span {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #64748B;
+}
+
+.snaps-view-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.all-services-header-btn:hover,
+.btn-ghost:hover,
+.snaps-view-toggle-btn:hover {
+  color: #F59E0B
+}
+
+/* Feed Card Dropdown Backdrop */
+.snaps-feed-backdrop {
+  position: fixed;
+  top: 64px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: 9994;
+}
+
+@media (max-width: 768px) {
+  .snaps-feed-backdrop {
+    top: 60px;
+  }
+}
+
+/* Feed Card 3-Dots Dropdown Menu */
+.snaps-feed-dropdown-menu {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 440px;
+  width: 100%;
+  max-height: 100%;
+  height: calc(100dvh - 155px);
+  overflow-y: auto;
+  background: #c8c8c8;
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 9995;
+  padding: 18px 18px 30px;
+  animation: snapsSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media (max-width: 768px) {
+  .snaps-feed-dropdown-menu {
+    height: calc(100dvh - 67px);
+    max-width: 100%;
+  }
+
+  .snaps-modal-container {
+    max-width: 100%;
+  }
+}
+
+/* Feed Card Dropdown Menu Close Handle Bar */
+.snaps-feed-menu-close-bar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 5px 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  outline: none;
+}
+
+.snaps-feed-menu-close-bar {
+  display: block;
+  width: 30px;
+  height: 3px;
+  background: #FFFFFF;
+  border-radius: 99px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.snaps-feed-menu-close-bar-btn:active .snaps-feed-menu-close-bar {
+  transform: scale(0.95);
+  opacity: 0.7;
+}
+
+.snaps-feed-dropdown-menu * {
+  font-size: .7rem;
+  font-weight: 500;
+}
+
+@keyframes snapsSlideUp {
+  from {
+    transform: translate(-50%, 100%);
+  }
+
+  to {
+    transform: translate(-50%, 0);
+  }
+}
+
+.snaps-feed-menu-section-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #c8c8c8;
+  padding: 4px 10px 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.snaps-feed-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  color: #000;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  text-align: left;
+  width: 100%;
+}
+
+.snaps-feed-dropdown-menu .snaps-feed-menu-group:first-child .snaps-feed-menu-item {
+  border-radius: 10px;
+}
+
+.snaps-feed-menu-item:first-child {
+  border-radius: 10px 10px 0 0;
+}
+
+
+.snaps-feed-menu-item:last-child {
+  border-radius: 0 0 10px 10px;
+}
+
+.snaps-feed-menu-item:hover {
+  background: #F8FAFC;
+}
+
+.snaps-feed-menu-group {
+  background: #ffffff50;
+  border-radius: 10px;
+}
+
+
+.snaps-menu-icon-circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.snaps-menu-icon-circle.download {
+  background: #c8c8c8;
+  color: #fff;
+}
+
+.snaps-menu-icon-circle.instagram {
+  background: linear-gradient(45deg, #F58529, #DD2A7B, #8134AF);
+  color: #FFFFFF;
+}
+
+.snaps-menu-icon-circle.tiktok {
+  background: #000000;
+  color: #FFFFFF;
+}
+
+.snaps-menu-icon-circle.youtube {
+  background: #FF0000;
+  color: #FFFFFF;
+}
+
+.snaps-menu-icon-circle.more {
+  background: #c8c8c8;
+  color: #fff;
+}
+
+.snaps-menu-icon-circle.link {
+  background: #334155;
+  color: #fff;
+}
+
+.snaps-menu-icon-circle.whatsapp {
+  background: #25D366;
+  color: #FFFFFF;
+}
+
+.snaps-menu-icon-circle.message {
+  background: #34C759;
+  color: #FFFFFF;
+}
+
+.snaps-menu-icon-circle.edit {
+  background: #c8c8c8;
+  color: #fff;
+}
+
+.snaps-menu-icon-circle.delete {
+  background: #c8c8c8;
+  color: #fff;
 }

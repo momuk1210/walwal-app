@@ -1,31 +1,18 @@
 /* ========================================================
-   WalWal Walk History & Analytics Modal (산책 일지 & 분석 모달)
+   WalWal Walk History & Analytics Page (산책 일지 & 분석 페이지)
    ======================================================== */
 
-.walk-history-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.65);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  z-index: 1000;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  animation: fadeIn 0.2s ease-out;
-}
-
-.walk-history-container {
+.walk-history-page-root {
+  position: relative;
   width: 100%;
-  max-width: 480px;
-  max-height: 90vh;
+  height: 100%;
+  flex: 1;
+  min-height: 0;
   background: #FFFFFF;
-  border-radius: 28px 28px 0 0;
-  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.25);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 0 !important;
 }
 
 @keyframes slideUp {
@@ -38,20 +25,23 @@
   }
 }
 
-/* Header */
-.walk-history-header {
-  padding: 16px 20px 12px;
+/* Modal Top Handle Bar */
+.walk-history-handle-wrapper {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid #F1F5F9;
+  justify-content: center;
+  padding: 10px 0 6px;
   background: #FFFFFF;
+  flex-shrink: 0;
+  cursor: pointer;
 }
 
-.walk-history-title-group {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+.walk-history-drag-handle {
+  width: 38px;
+  height: 4px;
+  background: #CBD5E1;
+  border-radius: 99px;
+  transition: opacity 0.15s ease;
 }
 
 .walk-history-avatar {
@@ -59,29 +49,22 @@
   height: 42px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid #FFB320;
+  border: 2px solid #FF9E58;
 }
 
 .walk-history-title {
   margin: 0;
   font-size: 1.12rem;
   font-weight: 600;
-  color: #1E293B;
+  color: #000;
   letter-spacing: -0.02em;
-}
-
-.walk-history-subtitle {
-  margin: 2px 0 0;
-  font-size: 0.76rem;
-  color: #64748B;
-  font-weight: 500;
 }
 
 .walk-history-close-btn {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: #F1F5F9;
+  background: #fff;
   border: none;
   display: flex;
   align-items: center;
@@ -93,7 +76,106 @@
 
 .walk-history-close-btn:hover {
   background: #E2E8F0;
-  color: #1E293B;
+  color: #000;
+}
+
+/* Pet Switcher Nav (다견 일지 전환 탭) */
+.walk-history-pet-nav {
+  display: flex;
+  justify-content: start;
+  align-items: center;
+  flex-flow: row wrap;
+  width: 100%;
+  height: 60px;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #E2E8F0;
+  border-bottom: 1px solid #F1F5F9;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+
+.walk-history-pet-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.walk-history-pet-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 8px;
+  border-radius: 9999px;
+  border: 1.5px solid #c8c8c8;
+  background: #fff;
+  color: #333;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+}
+
+.walk-history-pet-tab-btn:hover {
+  background: #F1F5F9;
+  border-color: #CBD5E1;
+}
+
+.walk-history-pet-tab-btn.active {
+  background: #fff;
+  border-color: #FF9E58;
+  color: #EA580C;
+  box-shadow: 0 2px 8px rgba(255, 158, 88, 0.2);
+}
+
+.walk-history-pet-tab-btn .pet-tab-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid #FFFFFF;
+}
+
+.walk-history-pet-tab-btn.active .pet-tab-avatar {
+  border-color: #FF9E58;
+}
+
+.pet-tab-walking-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 99px;
+  background: #10B981;
+  color: #FFFFFF;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.pet-tab-walking-badge .walking-pulse-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #FFFFFF;
+  animation: pulseWalkDot 1.2s infinite;
+}
+
+@keyframes pulseWalkDot {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
+
+  50% {
+    transform: scale(1.3);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
 }
 
 /* Top Tab Switcher */
@@ -102,13 +184,13 @@
   padding: 8px 16px;
   background: #F8FAFC;
   gap: 8px;
-  border-bottom: 1px solid #E2E8F0;
+  flex-shrink: 0;
 }
 
 .walk-history-tab-btn {
   flex: 1;
   padding: 10px 12px;
-  border-radius: 14px;
+  border-radius: 99px;
   border: 1px solid transparent;
   background: transparent;
   color: #64748B;
@@ -124,15 +206,15 @@
 
 .walk-history-tab-btn.active.distance {
   background: #FFFFFF;
-  color: #FFB320;
-  border-color: #FDE68A;
+  color: #FF9E58;
+  border-color: #FF9E58;
   box-shadow: 0 3px 10px rgba(217, 119, 6, 0.12);
 }
 
 .walk-history-tab-btn.active.time {
   background: #FFFFFF;
-  color: #0D9488;
-  border-color: #99F6E4;
+  color: #2EC4B6;
+  border-color: #2EC4B6;
   box-shadow: 0 3px 10px rgba(13, 148, 136, 0.12);
 }
 
@@ -146,7 +228,7 @@
 
 /* Summary Banner Card (Distance Theme) */
 .walk-summary-card.distance-theme {
-  background: linear-gradient(135deg, #FFB320 0%, #EA580C 100%);
+  background: linear-gradient(135deg, #FF9E58 0%, #FF9E58 100%);
   border-radius: 20px;
   padding: 18px 20px;
   color: #FFFFFF;
@@ -172,12 +254,11 @@
 }
 
 .walk-summary-badge {
-  background: rgba(255, 255, 255, 0.25);
   backdrop-filter: blur(4px);
   padding: 4px 10px;
   border-radius: 20px;
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 500;
   display: flex;
   align-items: center;
   gap: 5px;
@@ -238,10 +319,112 @@
 .walk-insight-title {
   font-size: 0.82rem;
   font-weight: 600;
-  color: #64748B;
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.walk-goal-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 0px solid #E2E8F0;
+  border-bottom: 1px solid #333;
+  background: transparent;
+  color: #c8c8c8;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 2px;
+  transition: all 0.15s ease;
+}
+
+.walk-goal-edit-btn:hover {
+  color: #000;
+  border-color: #CBD5E1;
+  background: #F1F5F9;
+}
+
+.walk-goal-inline-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 6px 10px;
+  margin: 2px 0;
+}
+
+.walk-goal-inline-label {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #64748B;
+}
+
+.walk-goal-inline-input {
+  width: 62px;
+  padding: 4px 6px;
+  border: 1px solid #CBD5E1;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #111;
+  text-align: right;
+  outline: none;
+}
+
+.walk-goal-inline-input:focus {
+  border-color: #FF9E58;
+}
+
+.walk-goal-inline-unit {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #64748B;
+}
+
+.walk-goal-inline-save {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  background: #FF9E58;
+  color: #FFFFFF;
+  cursor: pointer;
+  margin-left: auto;
+  transition: opacity 0.15s;
+}
+
+.walk-goal-inline-save.time {
+  background: #2EC4B6;
+}
+
+.walk-goal-inline-save:hover {
+  opacity: 0.88;
+}
+
+.walk-goal-inline-cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1px solid #E2E8F0;
+  background: #F8FAFC;
+  color: #64748B;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.walk-goal-inline-cancel:hover {
+  background: #E2E8F0;
+  color: #111;
 }
 
 .walk-insight-percent {
@@ -250,11 +433,11 @@
 }
 
 .walk-insight-percent.distance {
-  color: #FFB320;
+  color: #FF9E58;
 }
 
 .walk-insight-percent.time {
-  color: #0D9488;
+  color: #2EC4B6;
 }
 
 .walk-progress-bar-bg {
@@ -272,18 +455,23 @@
 }
 
 .walk-progress-bar-fill.distance {
-  background: linear-gradient(90deg, #FFB320, #EA580C);
+  background: linear-gradient(90deg, #FF9E58, #FF9E58);
 }
 
 .walk-progress-bar-fill.time {
-  background: linear-gradient(90deg, #2EC4B6, #0D9488);
+  background: linear-gradient(90deg, #2EC4B6, #2EC4B6);
 }
 
 .walk-insight-footer {
   font-size: 0.76rem;
-  color: #64748B;
   line-height: 1.4;
   margin: 0;
+  text-align: right;
+}
+
+.walk-insight-footer strong {
+  font-size: inherit;
+  padding: 0 2px 0 8px;
 }
 
 /* Time-specific pattern chips */
@@ -316,7 +504,7 @@
 
 .walk-pattern-icon.morning {
   background: #FEF3C7;
-  color: #FFB320;
+  color: #FF9E58;
 }
 
 .walk-pattern-icon.evening {
@@ -338,7 +526,7 @@
 .walk-pattern-val {
   font-size: 0.85rem;
   font-weight: 600;
-  color: #1E293B;
+  color: #000;
 }
 
 /* List Header */
@@ -353,30 +541,29 @@
   margin: 0;
   font-size: 0.95rem;
   font-weight: 600;
-  color: #1E293B;
+  color: #000;
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
 .walk-add-btn {
-  background: #F8FAFC;
-  border: 1px solid #E2E8F0;
-  color: #3B82F6;
-  font-size: 0.78rem;
-  font-weight: 600;
-  padding: 5px 10px;
-  border-radius: 10px;
+  background: #fff;
+  border: none;
+  color: #000;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 99px;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
   transition: all 0.15s ease;
 }
 
 .walk-add-btn:hover {
-  background: #EFF6FF;
-  border-color: #BFDBFE;
+  background: #F1F5F9;
 }
 
 /* Add Form Card (Collapsible) */
@@ -409,25 +596,25 @@
   border-radius: 10px;
   border: 1px solid #E2E8F0;
   background: #fff;
-  font-size: 0.85rem;
-  color: #1E293B;
+  font-size: 0.74rem;
+  color: #000;
   outline: none;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .walk-add-input:focus {
-  border-color: #FFB320;
+  border-color: #FF9E58;
   box-shadow: 0 0 0 2px rgba(255, 179, 32, 0.18);
 }
 
 .walk-add-submit-btn {
-  background: #FFB320;
+  background: #FF9E58;
   color: #fff;
   border: none;
   border-radius: 10px;
   padding: 9px;
-  font-size: 0.85rem;
-  font-weight: 600;
+  font-size: 0.8rem;
+  font-weight: 500;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -474,23 +661,24 @@
 .walk-record-date {
   font-size: 0.88rem;
   font-weight: 600;
-  color: #1E293B;
+  color: #000;
 }
 
 .walk-record-today-badge {
-  background: #FEF3C7;
-  color: #FFB320;
-  font-size: 0.68rem;
-  font-weight: 600;
-  padding: 2px 7px;
-  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #FF9E58;
+  color: #FF9E58;
+  font-size: 0.6rem;
+  font-weight: 500;
+  padding: 1.5px 6px;
+  border-radius: 99px;
 }
 
 .walk-record-meta {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.76rem;
+  font-size: 0.7rem;
   color: #64748B;
 }
 
@@ -511,13 +699,12 @@
 .walk-record-primary-val.distance {
   font-size: 1.15rem;
   font-weight: 600;
-  color: #EA580C;
+  color: #FF9E58;
   letter-spacing: -0.02em;
 }
 
 .walk-record-secondary-val.distance {
-  font-size: 0.76rem;
-  font-weight: 600;
+  font-size: 0.7rem;
   color: #64748B;
 }
 
@@ -525,12 +712,386 @@
 .walk-record-primary-val.time {
   font-size: 1.15rem;
   font-weight: 600;
-  color: #0D9488;
+  color: #2EC4B6;
   letter-spacing: -0.02em;
 }
 
 .walk-record-secondary-val.time {
-  font-size: 0.76rem;
-  font-weight: 600;
+  font-size: 0.7rem;
   color: #E11D48;
+}
+
+/* ==========================================================================
+   Real-Time Walk Tracker & Start Hero Card Styles
+   ========================================================================== */
+
+/* Start Walk Hero Card */
+.walk-start-hero-card {
+  border: 1.5px solid #c8c8c8;
+  border-radius: 20px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(255, 158, 88, 0.15);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  margin-bottom: 14px;
+}
+
+.walk-start-hero-card:hover {
+  transform: translateY(-2px);
+  border-color: #FB923C;
+  box-shadow: 0 8px 20px rgba(255, 158, 88, 0.22);
+}
+
+.walk-start-hero-card:active {
+  transform: translateY(0);
+}
+
+/* Multi-Dog Picker Inside Modal Card */
+.walk-target-picker-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed rgba(253, 186, 116, 0.8);
+}
+
+.walk-target-picker-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #9A3412;
+  white-space: nowrap;
+}
+
+.walk-target-picker-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.walk-target-picker-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.walk-target-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  border-radius: 99px;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  background: #fff;
+  border: 1px solid #333;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.walk-target-chip img {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.walk-target-chip.active {
+  background: #E2E8F0;
+  color: #000;
+}
+
+.walk-target-chip.all {
+  padding: 4px 10px;
+  border: none;
+}
+
+.walk-start-hero-main-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.walk-start-hero-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.walk-start-hero-badge {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #FF9E58 0%, #F97316 100%);
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 10px rgba(249, 115, 22, 0.3);
+}
+
+.walk-start-hero-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #9A3412;
+  letter-spacing: -0.02em;
+}
+
+.walk-start-hero-subtitle {
+  font-size: 0.72rem;
+  color: #C2410C;
+  margin-top: 2px;
+  font-weight: 500;
+}
+
+.walk-start-hero-trigger-btn {
+  background: #FF9E58;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 99px;
+  padding: 8px 16px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow: 0 3px 8px rgba(255, 158, 88, 0.35);
+  transition: all 0.15s ease;
+}
+
+.walk-start-hero-trigger-btn:hover {
+  background: #F97316;
+}
+
+/* Live Walk Dashboard Card (Active Tracking) */
+.walk-live-card {
+  background: linear-gradient(145deg, #000 0%, #111 100%);
+  border: 1.5px solid rgba(255, 158, 88, 0.4);
+  border-radius: 20px;
+  padding: 14px 16px;
+  color: #FFFFFF;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.4), 0 0 15px rgba(255, 158, 88, 0.15);
+  margin-bottom: 14px;
+  animation: fadeInLiveCard 0.25s ease-out;
+}
+
+.walk-live-card.is-paused {
+  border-color: rgba(245, 158, 11, 0.4);
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.4), 0 0 15px rgba(245, 158, 11, 0.15);
+}
+
+@keyframes fadeInLiveCard {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.walk-live-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.walk-live-card-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.walk-live-pulse-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #10B981;
+  box-shadow: 0 0 8px #10B981;
+  animation: pulseWalkPing 1.8s infinite;
+}
+
+.walk-live-pulse-dot.paused {
+  background: #F59E0B;
+  box-shadow: 0 0 8px #F59E0B;
+  animation: none;
+}
+
+.walk-live-status-text {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #F8FAFC;
+  letter-spacing: -0.01em;
+}
+
+.walk-sim-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px dashed rgba(255, 255, 255, 0.3);
+  color: #CBD5E1;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.walk-sim-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #FFFFFF;
+}
+
+.walk-live-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.walk-live-metric-item {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 8px 6px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.walk-live-metric-item.highlight {
+  background: rgba(255, 158, 88, 0.12);
+  border-color: rgba(255, 158, 88, 0.35);
+}
+
+.metric-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 0.65rem;
+  color: #c8c8c8;
+  margin-bottom: 3px;
+  font-weight: 600;
+}
+
+.walk-live-metric-item.highlight .metric-head {
+  color: #FDBA74;
+}
+
+.metric-value {
+  font-size: 1.12rem;
+  font-weight: 800;
+  color: #F8FAFC;
+  letter-spacing: -0.02em;
+}
+
+.metric-unit {
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: #c8c8c8;
+  margin-left: 2px;
+}
+
+.walk-live-btn-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.walk-live-btn {
+  flex: 1;
+  border-radius: 12px;
+  padding: 9px 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.walk-live-btn.pause {
+  background: rgba(245, 158, 11, 0.18);
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  color: #FBBF24;
+}
+
+.walk-live-btn.pause:hover {
+  background: rgba(245, 158, 11, 0.28);
+}
+
+.walk-live-btn.resume {
+  background: #10B981;
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.walk-live-btn.resume:hover {
+  background: #059669;
+}
+
+.walk-live-btn.stop {
+  background: #EF4444;
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.walk-live-btn.stop:hover {
+  background: #DC2626;
+}
+
+/* Already Walking with Another Dog Card */
+.walk-other-session-card {
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: 16px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.walk-other-icon {
+  font-size: 1.2rem;
+}
+
+.walk-other-info {
+  flex: 1;
+  font-size: 0.78rem;
+  color: #991B1B;
+}
+
+.walk-other-info strong {
+  font-weight: 700;
+}
+
+.walk-other-stop-btn {
+  background: #EF4444;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
 }

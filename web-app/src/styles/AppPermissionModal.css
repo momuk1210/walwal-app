@@ -1,0 +1,190 @@
+/* 앱 접근 권한 안내 모달 (KISA/표준 앱 접근 권한 안내 레이아웃) */
+.app-perm-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.52);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+  box-sizing: border-box;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: permFadeIn 0.22s ease-out;
+}
+
+@keyframes permFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.app-perm-card {
+  background: #FFFFFF;
+  width: 100%;
+  max-width: 360px;
+  border-radius: 16px;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.24);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: permScaleUp 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes permScaleUp {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.app-perm-content {
+  padding: 30px 24px 20px 24px;
+  box-sizing: border-box;
+}
+
+.app-perm-title {
+  font-size: 19px;
+  font-weight: 800;
+  color: #111111;
+  letter-spacing: -0.4px;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.app-perm-divider {
+  width: 100%;
+  height: 2px;
+  background-color: #222222;
+  margin: 14px 0 20px 0;
+}
+
+.app-perm-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.app-perm-section.optional-section {
+  margin-top: 24px;
+}
+
+.app-perm-section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111111;
+  letter-spacing: -0.3px;
+  margin: 0 0 8px 0;
+}
+
+.app-perm-bullet-item {
+  font-size: 13px;
+  color: #666666;
+  margin: 0;
+  line-height: 1.4;
+  letter-spacing: -0.2px;
+}
+
+.app-perm-item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.app-perm-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.app-perm-icon-wrapper {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background-color: #F4F5F7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #374151;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease;
+}
+
+.app-perm-text-group {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.app-perm-item-name {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #111111;
+  letter-spacing: -0.3px;
+  line-height: 1.25;
+}
+
+.app-perm-item-desc {
+  font-size: 12.5px;
+  color: #6B7280;
+  letter-spacing: -0.3px;
+  margin-top: 3px;
+  line-height: 1.35;
+}
+
+.app-perm-notes {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 2px;
+}
+
+.app-perm-note-item {
+  font-size: 11px;
+  line-height: 1.45;
+  color: #8E8E93;
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+/* 하단 확인 버튼 (하단 전체 너비 경계선 텍스트 버튼) */
+.app-perm-confirm-btn {
+  width: 100%;
+  height: 52px;
+  background: #FFFFFF;
+  border: none;
+  border-top: 1px solid #EFEFEF;
+  font-size: 16px;
+  font-weight: 600;
+  color: #111111;
+  letter-spacing: -0.3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.app-perm-confirm-btn:hover {
+  background-color: #F8F9FA;
+}
+
+.app-perm-confirm-btn:active {
+  background-color: #EEEEEE;
+}

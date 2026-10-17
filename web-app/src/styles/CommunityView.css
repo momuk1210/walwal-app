@@ -4,6 +4,14 @@
 
 /* Top Tab Bar & Filter Row */
 
+.community-page-root {
+  padding-bottom: 0;
+}
+
+.community-page-root.tracking-active {
+  padding-bottom: 270px;
+}
+
 /* Community View Classes */
 .community-filter-row {
   display: flex;
@@ -38,6 +46,8 @@
 .community-tab-group {
   display: flex;
   gap: 8px;
+  background: #E2E8F0;
+  border-radius: 99px;
 }
 
 .community-tab-btn {
@@ -49,11 +59,11 @@
   border: none;
   transition: all 0.2s ease;
   background: #E2E8F0;
-  color: #4A5568;
+  color: #121212;
 }
 
 .community-tab-btn.active {
-  background: #3b4a5d;
+  background: #222;
   color: #FFFFFF;
 }
 
@@ -84,7 +94,7 @@
 .community-empty-title {
   font-size: 1.05rem;
   font-weight: 600;
-  color: #1E293B;
+  color: #000;
   margin: 0 0 6px 0;
 }
 
@@ -103,7 +113,7 @@
 
 .community-empty-reset-btn {
   background: #F1F5F9;
-  color: #475569;
+  color: #333;
   border: 1px solid #CBD5E1;
 }
 
@@ -129,7 +139,7 @@
 }
 
 .meetup-host-avatar:hover {
-  border-color: #FFB320;
+  border-color: #FF9E58;
 }
 
 .meetup-host-info-wrap {
@@ -148,7 +158,7 @@
 }
 
 .meetup-closed-badge {
-  background: #94A3B8 !important;
+  background: #c8c8c8 !important;
   color: #FFFFFF !important;
   border: none !important;
   padding: 2px 8px !important;
@@ -159,18 +169,18 @@
 .meetup-host-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
 }
 
 .meetup-host-text {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-top: 0;
+  margin: 0;
 }
 
 .meetup-crown-icon {
-  color: #FFB320;
+  color: #FF9E58;
 }
 
 .meetup-menu-btn {
@@ -181,7 +191,7 @@
   height: 24px;
   border-radius: 50%;
   border: none;
-  color: #718096;
+  color: #121212;
   cursor: pointer;
   padding: 0;
   transition: background 0.2s, color 0.2s;
@@ -191,7 +201,7 @@
 .meetup-menu-btn:hover,
 .meetup-menu-btn.active {
   background: #F1F5F9;
-  color: #1E293B;
+  color: #000;
 }
 
 .meetup-card-title {
@@ -207,7 +217,7 @@
 
 .meetup-location-time-col {
   font-size: 0.8rem;
-  color: #4A5568;
+  color: #121212;
 }
 
 .meetup-location-link {
@@ -256,7 +266,7 @@
   align-items: center;
   font-size: 0.75rem;
   font-weight: 600;
-  color: #4A5568;
+  color: #121212;
   position: relative;
 }
 
@@ -265,7 +275,7 @@
 }
 
 .meetup-join-btn.closed {
-  background: #bfc4c9 !important;
+  background: #c8c8c8 !important;
   cursor: not-allowed !important;
   color: #FFFFFF !important;
 }
@@ -281,7 +291,7 @@
 .modal-title-text {
   margin: 0;
   font-size: 1.2rem;
-  color: #2D3748;
+  color: #333;
   font-weight: 600;
 }
 
@@ -304,7 +314,7 @@
 .modal-label {
   display: block;
   font-size: 0.85rem;
-  color: #4A5568;
+  color: #121212;
   margin-bottom: 6px;
   font-weight: 600;
 }
@@ -316,13 +326,13 @@
   border: 1px solid #E2E8F0;
   outline: none;
   font-size: 0.9rem;
-  color: #2D3748;
+  color: #333;
   font-family: inherit;
   box-sizing: border-box;
 }
 
 .modal-input:focus {
-  border-color: #FFB320;
+  border-color: #FF9E58;
 }
 
 .modal-datetime-row {
@@ -338,7 +348,7 @@
   outline: none;
   font-size: 0.88rem;
   background: #FFFFFF;
-  color: #2D3748;
+  color: #333;
   font-family: inherit;
   box-sizing: border-box;
 }
@@ -351,14 +361,14 @@
   outline: none;
   font-size: 0.88rem;
   background: #FFFFFF;
-  color: #2D3748;
+  color: #333;
   font-family: inherit;
   box-sizing: border-box;
 }
 
 .modal-datetime-preview {
   font-size: 0.78rem;
-  color: #FFB320;
+  color: #FF9E58;
   margin-top: 6px;
   font-weight: 600;
 }
@@ -399,7 +409,7 @@
 }
 
 .modal-pet-avatar.selected {
-  border-color: #FFB320;
+  border-color: #FF9E58;
 }
 
 .modal-pet-name {
@@ -409,11 +419,11 @@
 }
 
 .modal-pet-name.selected {
-  color: #1E293B;
+  color: #000;
 }
 
 .modal-submit-btn {
-  background: #FFB320;
+  background: #FF9E58;
   color: #FFFFFF;
   border: none;
   padding: 14px;
@@ -463,12 +473,12 @@
 .participant-name-text {
   font-size: 0.9rem;
   font-weight: 600;
-  color: #2D3748;
+  color: #333;
 }
 
 .participant-breed-text {
   font-size: 0.75rem;
-  color: #718096;
+  color: #121212;
 }
 
 /* Pet Join Selection Modal */
@@ -509,7 +519,7 @@
 .pet-select-title {
   margin: 0;
   font-size: 1.15rem;
-  color: #1E293B;
+  color: #000;
   font-weight: 600;
 }
 
@@ -534,7 +544,7 @@
 
 .pet-select-desc {
   font-size: 0.85rem;
-  color: #475569;
+  color: #333;
   margin-bottom: 16px;
   line-height: 1.4;
 }
@@ -559,7 +569,7 @@
 }
 
 .pet-select-item.selected {
-  border: 2px solid #FFB320;
+  border: 2px solid #FF9E58;
   background: #FFFDF5;
 }
 
@@ -578,13 +588,13 @@
 }
 
 .pet-select-item-avatar.selected {
-  border: 2px solid #FFB320;
+  border: 2px solid #FF9E58;
 }
 
 .pet-select-item-name {
   font-size: 0.95rem;
   font-weight: 600;
-  color: #1E293B;
+  color: #000;
 }
 
 .pet-select-item-sub {
@@ -606,7 +616,7 @@
 }
 
 .pet-select-check-circle.selected {
-  background: #FFB320;
+  background: #FF9E58;
 }
 
 .pet-select-toggle-row {
@@ -629,12 +639,12 @@
 
 .pet-select-all-btn.active {
   background: #FFF7E6;
-  color: #FFB320;
+  color: #FF9E58;
 }
 
 .pet-select-submit-btn {
   width: 100%;
-  background: #FFB320;
+  background: #FF9E58;
   color: #FFFFFF;
   border: none;
   padding: 14px;
@@ -658,8 +668,532 @@
   border: 1px solid #CBD5E1;
   font-size: 0.88rem;
   font-family: inherit;
-  color: #1E293B;
+  color: #000;
   background: #FFFFFF;
   outline: none;
   box-sizing: border-box;
+}
+
+/* ==========================================================================
+   🐾 Modern Bottom Floating Walk Controller & Sheet (Nike / Strava Style)
+   ========================================================================== */
+
+.community-bottom-walk-container {
+  position: fixed;
+  bottom: calc(86px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  z-index: 95;
+  pointer-events: none;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 16px;
+  background: #fff;
+  border-radius: 24px 24px 0 0;
+  box-shadow: 0px -8px 20px rgba(0, 0, 0, 0.12);
+}
+
+.community-bottom-walk-container.active {
+  background: #fff;
+  padding: 16px 0 0;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0px -8px 20px rgba(0, 0, 0, 0.12);
+}
+
+.community-bottom-walk-container * {
+  pointer-events: auto;
+}
+
+/* 1. Inactive State: Floating Capsule Start Button & Dog Selector */
+.community-bottom-start-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  animation: fadeInWalkStart 0.2s ease-out;
+}
+
+@keyframes fadeInWalkStart {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.bottom-start-dog-chips {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  overflow-x: auto;
+  backdrop-filter: blur(8px);
+  margin-bottom: 10px;
+}
+
+.bottom-start-dog-chips>div {
+  flex: 1;
+  justify-content: start;
+  display: flex;
+  align-items: center;
+}
+
+.bottom-start-dog-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.bottom-dog-chip {
+  display: flex;
+  align-items: center;
+  background: transparent;
+  border: 1px solid #333;
+  border-radius: 999px;
+  padding: 6px 9px 6px 8px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #333;
+  gap: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.dog-chip-check-icon {
+  margin-left: 1px;
+  color: #000;
+  flex-shrink: 0;
+}
+
+.all-chip-check-icon {
+  color: #000;
+  flex-shrink: 0;
+}
+
+.bottom-dog-chip.all.active .all-chip-check-icon {
+  color: #000;
+}
+
+.bottom-start-dog-chips>div {
+  align-items: center;
+  flex: 1;
+  display: flex;
+  flex-flow: row wrap;
+  justify-content: start;
+  align-items: center;
+  gap: 5px;
+}
+
+.bottom-dog-chip img {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.bottom-dog-chip.active {
+  color: #000;
+}
+
+.bottom-dog-chip.all {
+  padding: 4px 10px;
+  border: none;
+}
+
+.community-bottom-start-btn {
+  background: #000;
+  width: 100%;
+  color: #fff;
+  font-size: .8rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 999px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.community-bottom-start-btn:hover {
+  background: #000;
+  transform: translateY(-2px);
+}
+
+.community-bottom-start-btn:active {
+  transform: scale(0.98);
+}
+
+.walk-diary-btn {
+  background: #000;
+  color: #fff;
+  font-size: .75rem;
+  border: none;
+  border-radius: 999px;
+  padding: 6px 12px 6px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.walk-diary:hover {
+  background: #000;
+  transform: translateY(-2px);
+}
+
+.walk-diary:active {
+  transform: scale(0.98);
+}
+
+.start-btn-icon-shoe {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  flex-shrink: 0;
+}
+
+.start-btn-label {
+  font-size: 0.84rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  flex: 1;
+  text-align: center;
+}
+
+.start-btn-badge {
+  background: rgba(15, 23, 42, 0.12);
+  color: inherit;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+/* 2. Active Tracking Bottom Sheet (Images 4 & 5 Style) */
+.community-bottom-tracking-sheet {
+  background: #FFFFFF;
+  border-radius: 28px 28px 0 0;
+  padding: 12px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: slideUpSheet 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUpSheet {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sheet-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sheet-dog-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sheet-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10B981;
+  box-shadow: 0 0 8px #10B981;
+  animation: pulseWalkPing 1.8s infinite;
+  flex-shrink: 0;
+}
+
+.sheet-live-dot.paused {
+  background: #F59E0B;
+  box-shadow: 0 0 8px #F59E0B;
+  animation: none;
+}
+
+.sheet-dog-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sheet-aux-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.sheet-aux-btn {
+  background: #fff;
+  border-color: #666;
+  color: #000;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sheet-aux-btn:hover {
+  background: #E2E8F0;
+  color: #000;
+}
+
+.sheet-aux-btn.logs {
+  background: #fff;
+  border-color: #666;
+  color: #000;
+}
+
+/* Hero Metric Section (Big KM value + Pill badge) */
+.sheet-hero-metric-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.sheet-hero-metric {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+}
+
+.hero-metric-value {
+  font-size: 2.6rem;
+  font-weight: 900;
+  line-height: 1;
+  color: #111;
+  letter-spacing: -0.04em;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.hero-metric-unit {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #64748B;
+  letter-spacing: -0.01em;
+}
+
+.sheet-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f4f4f4;
+  color: #38c5b7;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.sheet-status-pill.paused {
+  background: #f4f4f4;
+  color: #F59E0B;
+}
+
+/* Paused Orange Banner (Image 5 style) */
+.sheet-paused-banner {
+  background: #F59E0B;
+  color: #FFFFFF;
+  border-radius: 20px;
+  padding: 7px 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  letter-spacing: 0.04em;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.25);
+}
+
+/* 3-Column Metrics Grid (Image 4 & 5) */
+.sheet-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 0;
+}
+
+.sheet-metric-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.sheet-metric-col .col-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #c8c8c8;
+  letter-spacing: 0.05em;
+}
+
+.sheet-metric-col .col-val {
+  font-size: 1.18rem;
+  font-weight: 800;
+  color: #111;
+  letter-spacing: -0.02em;
+}
+
+.sheet-metric-col .col-val strong {
+  font-weight: 900;
+  color: #000;
+}
+
+.sheet-metric-col .col-val small {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #64748B;
+  margin-left: 2px;
+}
+
+/* Action Buttons (Images 4 & 5) */
+.sheet-action-btns {
+  margin-top: 2px;
+}
+
+.sheet-btn-pause-full {
+  width: 100%;
+  background: #111;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 999px;
+  padding: 14px 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.25);
+  transition: all 0.18s ease;
+}
+
+.sheet-btn-pause-full:hover {
+  background: #000;
+  transform: translateY(-1px);
+}
+
+.sheet-btn-pause-full:active {
+  transform: scale(0.99);
+}
+
+.sheet-btn-row-paused {
+  display: flex;
+  gap: 10px;
+}
+
+.sheet-btn-resume {
+  flex: 1;
+  background: #111;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 999px;
+  padding: 13px 16px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2);
+  transition: all 0.18s ease;
+}
+
+.sheet-btn-resume:hover {
+  background: #000;
+}
+
+.sheet-btn-finish {
+  flex: 1;
+  background: #FFFFFF;
+  color: #111;
+  border: 1.5px solid #111;
+  border-radius: 999px;
+  padding: 13px 16px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.sheet-btn-finish:hover {
+  background: #F8FAFC;
+}
+
+/* 3. Meetup Section Header */
+.community-meetup-section-header {
+  margin: 18px 0 10px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.meetup-section-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: -0.01em;
+}
+
+.meetup-count-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #FF9E58;
+  background: rgba(255, 158, 88, 0.15);
+  padding: 1px 8px;
+  border-radius: 99px;
 }

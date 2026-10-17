@@ -23,27 +23,39 @@ export const AR_SCENARIOS_I18N: Record<string, {
         { thought: '집사 온다!! 나 여기 있어 멍!!', behavior: '환영 짖음 · 재회 흥분 99%', signal: '반복 짖음 패턴 감지', confidence: 99 },
         { thought: '냄새가 이상해! 조심해 멍멍!!', behavior: '경보 짖음 · 위협 인식 94%', signal: '연속 짖음 버스트 감지', confidence: 94 },
         { thought: '저 소리 들었어?! 나한테 맡겨 멍!!', behavior: '탐지 짖음 · 청각 자극 반응 96%', signal: '외부 자극 반응 짖음', confidence: 96 },
-        { thought: '빨리 문 열어! 나가고 싶다 멍!!', behavior: '요구 짖음 · 행동 촉구 98%', signal: '간헐적 요구 짖음 감지', confidence: 98 }
+        { thought: '빨리 문 열어! 나가고 싶다 멍!!', behavior: '요구 짖음 · 행동 촉구 98%', signal: '간헐적 요구 짖음 감지', confidence: 98 },
+        { thought: '택배 아저씨다! 멍멍! 택배 왔어!', behavior: '초인종/발소리 반응 · 경보 96%', signal: '돌발 고음량 발성', confidence: 96 },
+        { thought: '간식 줄 시간 지났잖아! 약속 지켜 멍!', behavior: '간식 요구 짖음 · 강한 의사 98%', signal: '정면 응시 + 단발 짖음', confidence: 98 },
+        { thought: '내가 지켜줄게! 집사는 내 뒤에 있어 멍!', behavior: '보호 본능 · 든든한 경계 99%', signal: '가슴 펴기 + 저돌적 짖음', confidence: 99 }
       ],
       whine: [
         { thought: '집사 어디 가... 나 혼자 두고 가지마', behavior: '분리 불안 신호 · 애착 표현 96%', signal: '고주파 낑낑 감지', confidence: 96 },
         { thought: '배고파... 고기 줘... 꼬르륵', behavior: '식욕 호소 신호 · 요구 표현 94%', signal: '지속 고주파 발성 감지', confidence: 94 },
         { thought: '발바닥이 이상해... 아픈 거 같아', behavior: '통증/불편 신호 · 주의 필요 88%', signal: '낮은 낑낑 + 자세 변화', confidence: 88 },
         { thought: '너무 신나! 빨리 산책 가자 낑낑!', behavior: '흥분 억제 신호 · 기대감 95%', signal: '흥분성 고주파 발성', confidence: 95 },
-        { thought: '무서운 냄새... 집사 옆에 딱 붙어있어야지', behavior: '불안 카밍 신호 · 보호 요청 91%', signal: '불안성 낑낑 발성', confidence: 91 }
+        { thought: '무서운 냄새... 집사 옆에 딱 붙어있어야지', behavior: '불안 카밍 신호 · 보호 요청 91%', signal: '불안성 낑낑 발성', confidence: 91 },
+        { thought: '간식 한 입만 줘 낑낑... 딱 한 입만...', behavior: '애절한 간식 갈망 · 눈빛 발사 97%', signal: '고주파 낑낑 + 촉촉한 눈망울', confidence: 97 },
+        { thought: '문 열어줘 낑낑! 저 방에 뭐 있는지 궁금해', behavior: '호기심 요구 · 영역 탐색 93%', signal: '문 앞 서성임 + 낑낑 발성', confidence: 93 }
       ],
       growl: [
         { thought: '가까이 오지 마. 여긴 내 구역이야', behavior: '경고 그로울 · 영역 주장 98%', signal: '저주파 지속 그로울 감지', confidence: 98 },
         { thought: '저거 내 거야! 건들지 마', behavior: '자원 방어 그로울 · 소유 반응 95%', signal: '자원 앞 저주파 발성', confidence: 95 },
         { thought: '나 지금 사냥 놀이 모드다! 어흥', behavior: '플레이 그로울 · 놀이 초대 89%', signal: '플레이 중 저주파 발성', confidence: 89 },
-        { thought: '뭔가 맘에 안 들어... 지켜보고 있다', behavior: '불만 그로울 · 불쾌 신호 93%', signal: '간헐적 저주파 그로울', confidence: 93 }
+        { thought: '뭔가 맘에 안 들어... 지켜보고 있다', behavior: '불만 그로울 · 불쾌 신호 93%', signal: '간헐적 저주파 그로울', confidence: 93 },
+        { thought: '터그놀이 진심 모드 발동! 절대 안 놓친다', behavior: '놀이 집중 그로울 · 승부욕 96%', signal: '머리 흔들기 + 저주파 발성', confidence: 96 }
       ],
       active: [
         { thought: '뭔가 있다 킁킁! 냄새 추적 시작!', behavior: '무성 탐색 · 후각 주도 이동 95%', signal: '고모션 + 저음량 · 탐색 행동', confidence: 95 },
         { thought: '내 구역 순찰 중! 이상 무', behavior: '순찰 보행 · 영역 확인 행동 93%', signal: '규칙적 이동 패턴 감지', confidence: 93 },
         { thought: '저기 꿀잼 냄새! 빨리 가보자', behavior: '자발적 이동 · 놀이 탐색 96%', signal: '빠른 이동 + 귀 전방 직립', confidence: 96 },
         { thought: '달리고 싶어! 전속력으로 고고', behavior: '과잉 에너지 · 운동 욕구 97%', signal: '전신 근육 긴장 + 이동 반복', confidence: 97 },
-        { thought: '여기도 저기도 다 볼 거야! 바쁘다 바빠', behavior: '다방향 주의 · 활발 탐색 91%', signal: '빠른 시선 이동 + 체중 전방', confidence: 91 }
+        { thought: '여기도 저기도 다 볼 거야! 바쁘다 바빠', behavior: '다방향 주의 · 활발 탐색 91%', signal: '빠른 시선 이동 + 체중 전방', confidence: 91 },
+        { thought: '우다다 시동 건다! 길을 비켜라 멍!', behavior: '순간 가속 · 폭발적 우다다 98%', signal: '급가속 모션 + 꼬리 상향 와깅', confidence: 98 },
+        { thought: '장난감 던져줘! 물어올 준비 완료!', behavior: '놀이 준비 자세 · 집중 상태 97%', signal: '앞발 낮추기 플레이 바우', confidence: 97 },
+        { thought: '집사야 걸음이 너무 느려! 좀 뛰어봐!', behavior: '동반 질주 유도 · 리드 행동 94%', signal: '뒤돌아보기 + 전방 질주', confidence: 94 },
+        { thought: '바람 냄새 미쳤다! 세상 모든 냄새 다 맡을래', behavior: '후각 정보 대량 흡입 96%', signal: '비강 다방향 회전 + 활발 호흡', confidence: 96 },
+        { thought: '지금 내 폼 미쳤다! 얼른 멋지게 찍어줘!', behavior: '활동적 자신감 · 활력 과시 97%', signal: '경쾌한 스텝 + 직립 꼬리', confidence: 97 },
+        { thought: '앗 저기 움직이는 거 뭐야?! 쫓아가보자!', behavior: '동적 피사체 추적 반응 95%', signal: '시선 고정 + 급격한 방향 전환', confidence: 95 }
       ],
       calm: [
         { thought: '집사 옆이 최고야~ 행복해', behavior: '이완 안정 · 신뢰 유대 신호 98%', signal: '낮은 모션 + 정상 호흡', confidence: 98 },
@@ -51,7 +63,13 @@ export const AR_SCENARIOS_I18N: Record<string, {
         { thought: '졸려... 눈이 자꾸 감긴다', behavior: '수면 전 이완 · 경계 완화 96%', signal: '순막 이완 + 호흡 느림', confidence: 96 },
         { thought: '오늘 산책도 밥도 완벽했다', behavior: '만족 이완 · 세로토닌 상태 99%', signal: '꼬리 낮은 와깅 + 눈 부드러움', confidence: 99 },
         { thought: '누구 냄새지? 기다려볼까', behavior: '수동 대기 · 자극 기다림 90%', signal: '귀 측면 경청 + 저모션', confidence: 90 },
-        { thought: '집사 기분 좋아보이네! 나도 좋다', behavior: '정서 동기화 · 공감 반응 94%', signal: '시선 추적 + 꼬리 서행 와깅', confidence: 94 }
+        { thought: '집사 기분 좋아보이네! 나도 좋다', behavior: '정서 동기화 · 공감 반응 94%', signal: '시선 추적 + 꼬리 서행 와깅', confidence: 94 },
+        { thought: '나 예쁘게 찍어줘! 얼짱 각도 유지 중', behavior: '시선 고정 · 포즈 유지 97%', signal: '안면 근육 이완 + 카메라 응시', confidence: 97 },
+        { thought: '지금 배 긁어주면 골골송 부를지도 몰라', behavior: '스킨십 요구 · 신뢰 표현 95%', signal: '체중 기대기 + 느린 눈 깜빡임', confidence: 95 },
+        { thought: '간식 봉지 바스락 소리만 온 신경 집중 중', behavior: '청각 집중 · 기대 반응 93%', signal: '귀 한쪽 쫑긋 + 정지 자세', confidence: 93 },
+        { thought: '멍때리기 대회 나가면 내가 1등 할 듯', behavior: '깊은 이완 · 평화로운 명상 98%', signal: '안정 심박 + 미동 없는 휴식', confidence: 98 },
+        { thought: '집사야 사랑해~ 오늘도 나랑 있어줘서 고마워', behavior: '애착 분비 · 옥시토신 반응 99%', signal: '부드러운 시선 접촉 + 편안한 자세', confidence: 99 },
+        { thought: '따뜻한 햇살 명당 발견... 5분만 더 잘래', behavior: '체온 조절 휴식 · 온기 선호 96%', signal: '옆으로 눕기 + 근육 이완', confidence: 96 }
       ]
     },
     pack3: [
@@ -415,3 +433,17 @@ export const getLiveDogScenarios = (lang: string = 'ko'): Record<DogBehaviorStat
 export const getPack3Turns = (lang: string = 'ko'): Pack3Turn[] => {
   return AR_SCENARIOS_I18N[lang]?.pack3 || AR_SCENARIOS_I18N.ko.pack3;
 };
+
+export const getSpontaneousScenario = (
+  behavior: DogBehaviorState = 'calm',
+  lang: string = 'ko',
+  excludeThought?: string
+): LiveScenario => {
+  const scenarios = getLiveDogScenarios(lang);
+  const list = scenarios[behavior] || scenarios.calm;
+  const filtered = excludeThought ? list.filter(s => s.thought !== excludeThought) : list;
+  const pool = filtered.length > 0 ? filtered : list;
+  const index = Math.floor(Math.random() * pool.length);
+  return pool[index];
+};
+

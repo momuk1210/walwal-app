@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { User, Globe, Settings, Award, Zap, Heart, Shield, Sparkles, Edit3, Plus, Camera, X, Check, Upload, LogOut, Trash2, MapPin, Clock, Calendar, ChevronRight, Menu } from 'lucide-react';
-import { DogProfile, MOCK_DOGS, getMockDogs, isSameDogName, getDefaultDogAvatar, normalizeDogProfile, localizeBreed, localizePersonalityTags, localizeDogName, isMockNeighborDog, isDeletedPet, sanitizePetList } from '../data/mockDogs';
+import { User, Globe, Settings, Award, Zap, Heart, Shield, Sparkles, Edit3, Plus, Camera, X, Check, Upload, LogOut, Trash2, MapPin, Clock, Calendar, ChevronRight, ChevronLeft, Menu, Dog, RotateCcw, ArrowLeft } from 'lucide-react';
+import { DogProfile, MOCK_DOGS, getMockDogs, isSameDogName, getDefaultDogAvatar, normalizeDogProfile, localizeBreed, localizePersonalityTags, localizeDogName, isMockNeighborDog, isDeletedPet, sanitizePetList, getBreedRecommendedGoals } from '../data/mockDogs';
 import { useTranslation } from '../i18n/LanguageContext';
 import { auth, db } from '../firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
@@ -94,9 +94,7 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
         }
       } catch (e) { }
     }
-    const defaultList = [getMockDogs(language)[0]];
-    localStorage.setItem('WALWAL_PETS', JSON.stringify(defaultList));
-    return defaultList;
+    return [];
   });
 
   // Re-normalize when language changes
@@ -110,8 +108,20 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
 
   const [activePetIndex, setActivePetIndex] = useState<number>(0);
 
-  const rawPet = pets[activePetIndex] || pets[0] || getMockDogs(language)[0];
-  const myDog = normalizeDogProfile(rawPet, language);
+  const myDog = React.useMemo(() => {
+    const rawPet = pets[activePetIndex] || pets[0];
+    if (!rawPet) return null;
+    return normalizeDogProfile(rawPet, language);
+  }, [pets, activePetIndex, language]);
+
+  const [selectedWalkDogMode, setSelectedWalkDogMode] = useState<string>('all');
+  const [targetWalkDog, setTargetWalkDog] = useState<DogProfile | null>(myDog);
+
+  useEffect(() => {
+    if (myDog) {
+      setTargetWalkDog(myDog);
+    }
+  }, [myDog]);
 
   // Modal states
   const [modalMode, setModalMode] = useState<'edit' | 'add' | null>(null);
@@ -126,9 +136,12 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
   const [formPersonalities, setFormPersonalities] = useState<string[]>([]);
   const [formGreeting, setFormGreeting] = useState('');
   const [formAdoptionDate, setFormAdoptionDate] = useState('');
+  const [formWalkGoalDistance, setFormWalkGoalDistance] = useState<string>('2.0');
+  const [formWalkGoalMinutes, setFormWalkGoalMinutes] = useState<string>('45');
   const [customTag, setCustomTag] = useState<string>('');
 
   const studioCount = React.useMemo(() => {
+    if (!myDog) return 0;
     let count = myDog.stats?.studioCount || 0;
     try {
       // Always double check localStorage to prevent stale state issues
@@ -150,9 +163,10 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
       }
     } catch (e) { }
     return count;
-  }, [myDog.name, myDog.stats?.studioCount]);
+  }, [myDog?.name, myDog?.stats?.studioCount]);
 
   const joinedMeetupsCount = React.useMemo(() => {
+    if (!myDog) return 0;
     try {
       const saved = localStorage.getItem('WALWAL_MEETUPS');
       if (saved) {
@@ -162,7 +176,7 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
     } catch (e) { }
     // Fallback based on INITIAL_MEETUPS where Bori is in m1 and m4
     return isSameDogName(myDog.name, '보리') ? 2 : 1;
-  }, [myDog.name]);
+  }, [myDog?.name]);
 
   // Sync to localStorage and Firestore
   const savePetsToStorage = (updated: DogProfile[]) => {
@@ -170,7 +184,7 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
     setPets(sanitized);
     localStorage.setItem('WALWAL_PETS', JSON.stringify(sanitized));
     window.dispatchEvent(new Event('walwal_pets_updated'));
-    // 클라우드 Firestore dogs 컬렉션에도 실제 가입된 반려견으로 동기화 (유효한 반려견만)
+    // 클라우드 Firestore dogs 컬렉션 동기화 (유효한 사용자 반려견만)
     sanitized.forEach(pet => {
       if (!isMockNeighborDog(pet) && !isDeletedPet(pet)) {
         saveDogProfile(pet, currentUser?.uid);
@@ -178,18 +192,7 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
     });
   };
 
-  // 앱 로드 시 로컬 반려견 프로필을 Firestore에 동기화 (기존 mock 제외, 유효한 사용자 반려견만)
-  useEffect(() => {
-    if (pets && pets.length > 0) {
-      pets.forEach(pet => {
-        if (!isMockNeighborDog(pet) && !isDeletedPet(pet) && pet.id !== 'dog-1') {
-          saveDogProfile(pet, currentUser?.uid);
-        }
-      });
-    }
-  }, []);
-
-  // 다른 기기나 도메인(예: localhost -> walwal-app.web.app)에서 등록/삭제된 반려견 실시간 자동 동기화
+  // 실시간 Firestore dogs 동기화 (Single Source of Truth: Firestore가 최우선 기준)
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'dogs'), (snapshot) => {
       if (snapshot.empty) return;
@@ -203,48 +206,28 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
 
       const currentEmail = (currentUser?.email || localStorage.getItem('WALWAL_USER_EMAIL') || localStorage.getItem('walwal_user_email') || '').toLowerCase().trim();
 
-      // 현재 사용자가 소유한 원격 반려견만 엄격히 필터링 (다른 사람의 반려견이나 mock 이웃 반려견 유입 방지)
+      // 로그인하지 않은 경우 개인 반려견은 0마리 (게스트 상태)
+      if (!currentEmail) {
+        setPets([]);
+        localStorage.setItem('WALWAL_PETS', JSON.stringify([]));
+        window.dispatchEvent(new Event('walwal_pets_updated'));
+        return;
+      }
+
+      // 오직 현재 로그인된 계정(ownerEmail)의 반려견만 필터링 (타인/디폴트견 강제 삽입 금지)
       const myRemoteDogs = remoteDogs.filter(rd => {
         if (isMockNeighborDog(rd) || isDeletedPet(rd)) return false;
         const ownerEmail = (rd.ownerEmail || '').toLowerCase().trim();
-        if (isDaisynara) {
-          return ownerEmail === 'daisynara@gmail.com' || !ownerEmail || rd.id === 'dog-1';
-        }
-        if (currentEmail) {
-          return ownerEmail === currentEmail || rd.id === 'dog-1';
-        }
-        return !ownerEmail && rd.id === 'dog-1';
+        return ownerEmail === currentEmail;
       });
 
-      if (myRemoteDogs.length === 0) return;
+      // Firestore에서 읽은 내 반려견 목록으로 정규화
+      const normalizedRemote = myRemoteDogs.map(rd => normalizeDogProfile(rd, language));
+      const sanitized = sanitizePetList(normalizedRemote, language);
 
-      setPets(prevPets => {
-        const cleanPrev = sanitizePetList(prevPets, language);
-        const petList: DogProfile[] = [];
-
-        // 1. 원격에서 현재 사용자의 등록된 반려견 추가 (이름 및 ID 중복 방지)
-        myRemoteDogs.forEach(rd => {
-          const already = petList.some(d => isSameDogName(d.name, rd.name) || (rd.id && d.id === rd.id));
-          if (!already) {
-            petList.push(normalizeDogProfile(rd, language));
-          }
-        });
-
-        // 2. 로컬에만 있는 유효한 반려견(오프라인 추가 등) 유지
-        cleanPrev.forEach(p => {
-          const already = petList.some(d => isSameDogName(d.name, p.name) || (p.id && d.id === p.id));
-          if (!already && !isDeletedPet(p) && !isMockNeighborDog(p)) {
-            petList.push(normalizeDogProfile(p, language));
-          }
-        });
-
-        const merged = sanitizePetList(petList, language);
-        if (merged.length === 0) return cleanPrev;
-
-        localStorage.setItem('WALWAL_PETS', JSON.stringify(merged));
-        window.dispatchEvent(new Event('walwal_pets_updated'));
-        return merged;
-      });
+      setPets(sanitized);
+      localStorage.setItem('WALWAL_PETS', JSON.stringify(sanitized));
+      window.dispatchEvent(new Event('walwal_pets_updated'));
     }, (err) => {
       console.warn('ProfileView dogs onSnapshot error:', err);
     });
@@ -254,6 +237,7 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
 
   // Open Edit Modal
   const openEditModal = () => {
+    if (!myDog) return;
     setFormName(myDog.name);
     setFormBreed(myDog.breed);
     setFormAge(myDog.age);
@@ -263,13 +247,16 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
     setFormPersonalities([...myDog.personality]);
     setFormGreeting(myDog.greeting || '');
     setFormAdoptionDate(myDog.adoptionDate || getDefaultAdoptionDate(myDog.age));
+    setFormWalkGoalDistance(String(myDog.walkGoalDistance || getBreedRecommendedGoals(myDog.breed).distance));
+    setFormWalkGoalMinutes(String(myDog.walkGoalMinutes || getBreedRecommendedGoals(myDog.breed).minutes));
     setModalMode('edit');
   };
 
   // Open Add Modal
   const openAddModal = () => {
     setFormName('');
-    setFormBreed(t.profile.breedOptions?.[0] || '골든 리트리버');
+    const defaultBreed = t.profile.breedOptions?.[0] || '골든 리트리버';
+    setFormBreed(defaultBreed);
     setFormAge('1');
     setFormGender('male');
     setFormOwnerTitle('mom');
@@ -277,8 +264,19 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
     setFormPersonalities(t.profile.presetPersonalities?.slice(0, 2) || []);
     setFormGreeting('');
     setFormAdoptionDate(new Date().toISOString().split('T')[0]);
+    const rec = getBreedRecommendedGoals(defaultBreed);
+    setFormWalkGoalDistance(String(rec.distance));
+    setFormWalkGoalMinutes(String(rec.minutes));
     setModalMode('add');
   };
+
+  useEffect(() => {
+    const handleOpenRegister = () => {
+      openAddModal();
+    };
+    window.addEventListener('walwal_open_pet_register', handleOpenRegister);
+    return () => window.removeEventListener('walwal_open_pet_register', handleOpenRegister);
+  }, []);
 
   // Handle Photo Upload (Modal)
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -354,6 +352,9 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
       return;
     }
 
+    const walkGoalDistanceNum = parseFloat(formWalkGoalDistance) || getBreedRecommendedGoals(formBreed).distance;
+    const walkGoalMinutesNum = parseInt(formWalkGoalMinutes, 10) || getBreedRecommendedGoals(formBreed).minutes;
+
     if (modalMode === 'edit') {
       const updated = pets.map((p, idx) => {
         if (idx === activePetIndex) {
@@ -368,6 +369,8 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
             personality: formPersonalities.length > 0 ? formPersonalities : [t.profile.presetPersonalities?.[0] || '#댕댕이'],
             greeting: formGreeting.trim(),
             adoptionDate: formAdoptionDate,
+            walkGoalDistance: walkGoalDistanceNum,
+            walkGoalMinutes: walkGoalMinutesNum
           };
         }
         return p;
@@ -387,6 +390,8 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
         adoptionDate: formAdoptionDate || new Date().toISOString().split('T')[0],
         walkDistance: 0.0,
         walkMinutes: 0,
+        walkGoalDistance: walkGoalDistanceNum,
+        walkGoalMinutes: walkGoalMinutesNum,
         distance: '0m',
         lat: 37.4200,
         lng: 127.1267,
@@ -401,16 +406,6 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
           meetupCount: 0
         }
       };
-      // 새 반려견 추가 시 이전에 삭제 목록에 있었던 이름이면 복원 허용
-      try {
-        const raw = localStorage.getItem('WALWAL_DELETED_PETS');
-        if (raw) {
-          const list: string[] = JSON.parse(raw);
-          const filtered = list.filter(item => item !== formName.trim());
-          localStorage.setItem('WALWAL_DELETED_PETS', JSON.stringify(filtered));
-        }
-      } catch (e) { }
-
       const updated = [...pets, newPet];
       savePetsToStorage(updated);
       setActivePetIndex(updated.length - 1);
@@ -437,16 +432,7 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
       : `Are you sure you want to delete '${targetPet.name}'?`;
     if (!window.confirm(confirmMsg)) return;
 
-    // 1. Record in WALWAL_DELETED_PETS
-    try {
-      const raw = localStorage.getItem('WALWAL_DELETED_PETS');
-      const list: string[] = raw ? JSON.parse(raw) : [];
-      if (targetPet.id && !list.includes(targetPet.id)) list.push(targetPet.id);
-      if (targetPet.name && !list.includes(targetPet.name)) list.push(targetPet.name);
-      localStorage.setItem('WALWAL_DELETED_PETS', JSON.stringify(list));
-    } catch (e) { }
-
-    // 2. Delete from Firestore
+    // Delete from Firestore
     if (targetPet.id) {
       await deleteDogProfile(targetPet.id, currentUser?.uid);
     }
@@ -474,18 +460,39 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
 
   if (showSettings) return <SettingsView onClose={() => setShowSettings(false)} />;
 
+  if (showWalkHistoryModal && myDog && targetWalkDog) {
+    return (
+      <WalkHistoryModal
+        dog={targetWalkDog}
+        allPets={pets}
+        initialWalkTargetMode={selectedWalkDogMode}
+        initialTab={walkHistoryTab}
+        onClose={() => setShowWalkHistoryModal(false)}
+        onUpdateStats={(newDist, newMins) => {
+          const updated = pets.map(p => {
+            if (p.id === myDog.id || p.name === myDog.name) {
+              return {
+                ...p,
+                walkDistance: newDist,
+                walkMinutes: newMins
+              };
+            }
+            return p;
+          });
+          savePetsToStorage(updated);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="page-root">
       {/* Top Header */}
       <div className="page-header row-between">
-        <div>
-          <h2 className="title-lg">{t.profile.title}</h2>
-          <p className="text-sub">{t.profile.subtitle}</p>
-        </div>
+        <h2 className="title-lg">{t.profile.title}</h2>
 
         <div className="profile-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-
-          <button onClick={() => setShowSettings(true)} className='btn-ghost'>
+          <button onClick={() => setShowSettings(true)} className="btn-ghost" title={t.profile.settings} aria-label={t.profile.settings}>
             <Settings size={24} strokeWidth={2} />
           </button>
           <button
@@ -499,483 +506,645 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
         </div>
       </div>
 
-      {/* Multi-Pet Selector Tabs */}
-      <div className="petNameSection">
-        <div className="row">
-          {pets.map((pet, idx) => {
-            const normalizedPet = normalizeDogProfile(pet, language);
-            const isActive = activePetIndex === idx;
-            return (
-              <button
-                className={`petNameBtn ${isActive ? 'active' : ''}`}
-                key={pet.id || idx}
-                onClick={() => setActivePetIndex(idx)}
-              >
-                <img src={normalizedPet.avatar} alt={normalizedPet.name} />
-                <span>{normalizedPet.name}</span>
-                {pets.length > 1 && (
-                  <span
-                    className="petTabDeleteBtn"
-                    title={language === 'ko' ? `${normalizedPet.name} 삭제` : `Delete ${normalizedPet.name}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeletePet(idx);
-                    }}
-                  >
-                    <X size={12} strokeWidth={2.5} />
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-        <button
-          onClick={openAddModal}
-          className="btn-ghost"
-          title={language === 'ko' ? '반려견 추가' : 'Add Pet'}
-        >
-          <Plus size={28} strokeWidth={2} />
-        </button>
-      </div>
-
-      {/* Pet Card */}
-      <div className="card-lg mb-20 profile-card">
-
-        {/* Avatar with Camera Icon */}
-        <div className="profile-avatar-wrapper">
-          <img className='dogAvata'
-            src={myDog.avatar}
-            alt={myDog.name}
-            onClick={openEditModal}
-          />
-          <label className="editAvata" title="프로필 사진 변경">
-            <input
-              type="file"
-              accept="image/*"
-              style={{ display: 'none' }}
-              onChange={handleDirectPhotoUpload}
-            />
-            <Camera size={24} color="#fff" />
-          </label>
-        </div>
-
-        <h3 className="title-lg profile-name">
-          {myDog.name}
-          {/* Edit Button */}
-          <button className='btn-ghost editProfileBtn'
-            onClick={openEditModal}
-            title={language === 'ko' ? '프로필 수정' : 'Edit Profile'}
+      {pets.length === 0 ? (
+        <div className="card-lg mb-20 profile-card no-pet">
+          <div style={{
+            width: '80px',
+            height: '80px',
+            borderRadius: '50%',
+            background: 'rgba(255, 158, 88, 0.12)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 16px auto',
+            color: '#FF9E58'
+          }}>
+            <Dog size={40} />
+          </div>
+          <h3 className="title-lg" style={{ marginBottom: '8px', fontSize: '1.25rem', fontWeight: 800 }}>
+            {language === 'ko' ? '등록된 반려견이 없습니다'
+              : language === 'ja' ? '登録されたワンちゃんがいません'
+                : 'No pet registered yet'}
+          </h3>
+          <p className="text-sub" style={{ marginBottom: '24px', lineHeight: 1.6, fontSize: '0.9rem' }}>
+            {language === 'ko'
+              ? '우리 아이의 프로필을 등록하고 AI 속마음 번역과 산책 기록을 시작해보세요!'
+              : language === 'ja'
+                ? '愛犬のプロフィールを登録して、AI翻訳とお散歩記録を始めましょう！'
+                : 'Register your dog to start AI translation and walk tracking!'}
+          </p>
+          <button
+            type="button"
+            onClick={openAddModal}
+            className="btn-primary"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              padding: '14px 28px',
+              fontSize: '1rem',
+              fontWeight: 700,
+              borderRadius: '24px',
+              background: '#FF9E58',
+              color: '#fff',
+              border: 'none',
+              cursor: 'pointer',
+              boxShadow: '0 4px 14px rgba(255, 158, 88, 0.35)'
+            }}
           >
-            <Edit3 size={16} />
+            <Plus size={20} strokeWidth={2.5} />
+            <span>{language === 'ko' ? '반려견 등록하기' : language === 'ja' ? 'ワンちゃんを登録する' : 'Register Pet'}</span>
           </button>
-          {/* Delete Button */}
-          {pets.length > 1 && (
-            <button className='btn-ghost deleteProfileBtn'
-              onClick={() => handleDeletePet(activePetIndex)}
-              title={language === 'ko' ? '반려견 삭제' : 'Delete Pet'}
+        </div>
+      ) : (
+        <>
+          {/* Multi-Pet Selector Tabs */}
+          <div className="petNameSection">
+            <div className="row">
+              {pets.map((pet, idx) => {
+                const normalizedPet = normalizeDogProfile(pet, language);
+                const isActive = activePetIndex === idx;
+                return (
+                  <button
+                    className={`petNameBtn ${isActive ? 'active' : ''}`}
+                    key={pet.id || idx}
+                    onClick={() => setActivePetIndex(idx)}
+                  >
+                    <img src={normalizedPet.avatar} alt={normalizedPet.name} />
+                    <span>{normalizedPet.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              onClick={openAddModal}
+              className="btn-ghost"
+              title={language === 'ko' ? '반려견 추가' : 'Add Pet'}
             >
-              <Trash2 size={16} />
+              <Plus size={28} strokeWidth={2} />
             </button>
+          </div>
+
+          {/* Pet Card */}
+          {myDog && (
+            <>
+              <div className="card-lg mb-20 profile-card">
+                {/* Avatar with Camera Icon */}
+                <div className="profile-avatar-wrapper">
+                  <img className='dogAvata'
+                    src={myDog.avatar}
+                    alt={myDog.name}
+                    onClick={openEditModal}
+                  />
+                  <label className="editAvata" title="프로필 사진 변경">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      style={{ display: 'none' }}
+                      onChange={handleDirectPhotoUpload}
+                    />
+                    <Camera size={24} color="#fff" />
+                  </label>
+                </div>
+
+                <h3 className="title-lg profile-name">
+                  {myDog.name}
+                  {/* Edit Button */}
+                  <button className='btn-ghost editProfileBtn'
+                    onClick={openEditModal}
+                    title={language === 'ko' ? '프로필 수정' : 'Edit Profile'}
+                  >
+                    <Edit3 size={16} />
+                  </button>
+                </h3>
+                <p className="text-sub mt-4">
+                  {localizeBreed(myDog.breed, language)} &middot; {myDog.age}{t.profile.dogAgeSuffix}  &middot; {(myDog.gender || 'female') === 'female' ? t.common?.genderShortFemale : t.common?.genderShortMale}
+                </p>
+
+                {/* Personality Tags */}
+                <div className="profile-tags-wrapper">
+                  {localizePersonalityTags(myDog.personality, language).map((tag, i) => (
+                    <span key={i} className="badge-hashtag">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Greetings */}
+                <div className="profile-greeting-wrapper">
+                  <div className="profile-greeting-inner">
+                    "{myDog.greeting || t.profile?.greetingEmpty || '반갑습니다! 인사말을 등록해주세요'}"
+                  </div>
+                </div>
+              </div>
+
+              {/* Primary Walk Action Button */}
+              <div className="profile-walk-cta-wrapper community-bottom-start-wrapper">
+                {pets.length > 1 && (
+                  <div className="bottom-start-dog-chips">
+                    <div>
+                      {pets.map((p, idx) => {
+                        const isSelected = selectedWalkDogMode === (p.id || p.name);
+                        return (
+                          <button
+                            key={p.id || idx}
+                            type="button"
+                            className={`bottom-dog-chip ${isSelected ? 'active' : ''}`}
+                            onClick={() => {
+                              setSelectedWalkDogMode(p.id || p.name);
+                              setTargetWalkDog(p);
+                            }}
+                          >
+                            <img src={p.avatar} alt={p.name} />
+                            <span>{p.name}</span>
+                            {isSelected && <Check size={12} strokeWidth={2.5} className="dog-chip-check-icon" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <button
+                      type="button"
+                      className="walk-diary-btn"
+                      onClick={() => {
+                        setWalkHistoryTab('distance');
+                        setShowWalkHistoryModal(true);
+                      }}
+                    >
+                      <span className="start-btn-label">
+                        {language === 'ko' ? '산책일지'
+                          : language === 'ja' ? 'お散歩日誌'
+                            : language === 'es' ? 'Diario de paseo'
+                              : language === 'zh' ? '散步日志'
+                                : language === 'fr' ? 'Journal de promenade'
+                                  : 'Walk Log'}
+                      </span>
+                      <ChevronRight size="14" />
+                    </button>
+                  </div>
+                )}
+
+              </div>
+
+              {/* Stats List: 3 Full-width Rows */}
+              <div className="profile-stats-list">
+                {/* Row 1: Today Walk Distance */}
+                <div
+                  className="profile-stat-row-card clickable"
+                  onClick={() => {
+                    setWalkHistoryTab('distance');
+                    setShowWalkHistoryModal(true);
+                  }}
+                  title={language === 'ko' ? '거리 & 코스 분석 보기' : 'View Distance & Course'}
+                >
+                  <div className="profile-stat-icon-wrapper distance">
+                    <MapPin size={22} strokeWidth={2.5} />
+                  </div>
+                  <div className="profile-stat-content">
+                    <div className="profile-stat-line primary">
+                      <span className="profile-stat-label-main">
+                        {language === 'ko' ? '오늘 산책 거리' : 'Today Walk'}
+                      </span>
+                      <span className="profile-stat-val-main distance">
+                        {(myDog.todayWalkDistance !== undefined ? myDog.todayWalkDistance : 1.8).toFixed(1)} km
+                      </span>
+                    </div>
+                    <div className="profile-stat-line secondary">
+                      <span className="profile-stat-label-sub">
+                        {language === 'ko' ? '누적 거리' : 'Total Distance'}
+                      </span>
+                      <span className="profile-stat-val-sub">
+                        {(myDog.walkDistance !== undefined ? myDog.walkDistance : 35).toFixed(0)} km
+                      </span>
+                    </div>
+                  </div>
+                  <ChevronRight size={18} className="profile-stat-arrow" />
+                </div>
+
+                {/* Row 2: Today Walk Time */}
+                <div
+                  className="profile-stat-row-card clickable"
+                  onClick={() => {
+                    setWalkHistoryTab('time');
+                    setShowWalkHistoryModal(true);
+                  }}
+                  title={language === 'ko' ? '시간 & 활동량 분석 보기' : 'View Time & Activity'}
+                >
+                  <div className="profile-stat-icon-wrapper time">
+                    <Clock size={22} strokeWidth={2.5} />
+                  </div>
+                  <div className="profile-stat-content">
+                    <div className="profile-stat-line primary">
+                      <span className="profile-stat-label-main">
+                        {language === 'ko' ? '오늘 산책 시간' : 'Today Time'}
+                      </span>
+                      <span className="profile-stat-val-main time">
+                        {myDog.todayWalkMinutes !== undefined ? myDog.todayWalkMinutes : 45} {language === 'ko' ? '분' : 'min'}
+                      </span>
+                    </div>
+                    <div className="profile-stat-line secondary">
+                      <span className="profile-stat-label-sub">
+                        {language === 'ko' ? '누적 시간' : 'Total Time'}
+                      </span>
+                      <span className="profile-stat-val-sub">
+                        {myDog.walkMinutes !== undefined ? myDog.walkMinutes : 320} {language === 'ko' ? '분' : 'min'}
+                      </span>
+                    </div>
+                  </div>
+                  <ChevronRight size={18} className="profile-stat-arrow" />
+                </div>
+
+                {/* Row 3: Days Together (D-Day) */}
+                <div className="profile-stat-row-card">
+                  <div className="profile-stat-icon-wrapper dday">
+                    <Calendar size={22} strokeWidth={2.5} />
+                  </div>
+                  <div className="profile-stat-content">
+                    <div className="profile-stat-line primary">
+                      <span className="profile-stat-label-main">
+                        {language === 'ko' ? '함께한 날' : 'Days Together'}
+                      </span>
+                      <span className="profile-stat-val-main dday">
+                        D+{calculateDDay(myDog.adoptionDate, myDog.age)}
+                      </span>
+                    </div>
+                    <div className="profile-stat-line secondary">
+                      <span className="profile-stat-label-sub">
+                        {language === 'ko' ? '가족이 된 날' : 'Adoption Day'}
+                      </span>
+                      <span className="profile-stat-val-sub">
+                        {myDog.adoptionDate || getDefaultAdoptionDate(myDog.age)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
           )}
-        </h3>
-        <p className="text-sub mt-4">
-          {localizeBreed(myDog.breed, language)} &middot; {myDog.age}{t.profile.dogAgeSuffix}  &middot; {(myDog.gender || 'female') === 'female' ? t.common?.genderShortFemale : t.common?.genderShortMale}
-        </p>
-
-        {/* Personality Tags */}
-        <div className="profile-tags-wrapper">
-          {localizePersonalityTags(myDog.personality, language).map((tag, i) => (
-            <span key={i} className="badge-primary">
-              {tag}
-            </span>
-          ))}
-        </div>
-
-
-        {/* Greetings */}
-        <div className="profile-greeting-wrapper">
-          <div className="profile-greeting-inner">
-            "{myDog.greeting || t.profile?.greetingEmpty || '반갑습니다! 인사말을 등록해주세요'}"
-          </div>
-        </div>
-      </div>
-
-
-
-      {/* Stats List: 3 Full-width Rows (Today Walk Distance, Today Walk Time, Days Together) */}
-      <div className="profile-stats-list">
-        {/* Row 1: Today Walk Distance */}
-        <div
-          className="profile-stat-row-card clickable"
-          onClick={() => {
-            setWalkHistoryTab('distance');
-            setShowWalkHistoryModal(true);
-          }}
-          title={language === 'ko' ? '거리 & 코스 분석 보기' : 'View Distance & Course'}
-        >
-          <div className="profile-stat-icon-wrapper distance">
-            <MapPin size={22} strokeWidth={2.5} />
-          </div>
-          <div className="profile-stat-content">
-            <div className="profile-stat-line primary">
-              <span className="profile-stat-label-main">
-                {t.profile.statTodayDistance || (language === 'ko' ? '오늘 산책 거리' : 'Today Walk')}
-              </span>
-              <span className="profile-stat-val-main distance">
-                {(myDog.todayWalkDistance !== undefined ? myDog.todayWalkDistance : 1.8).toFixed(1)} km
-              </span>
-            </div>
-            <div className="profile-stat-line secondary">
-              <span className="profile-stat-label-sub">
-                {t.profile.totalDistanceLabel || (language === 'ko' ? '누적 거리' : 'Total Distance')}
-              </span>
-              <span className="profile-stat-val-sub">
-                {(myDog.walkDistance !== undefined ? myDog.walkDistance : 35).toFixed(0)} km
-              </span>
-            </div>
-          </div>
-          <ChevronRight size={18} className="profile-stat-arrow" />
-        </div>
-
-        {/* Row 2: Today Walk Time */}
-        <div
-          className="profile-stat-row-card clickable"
-          onClick={() => {
-            setWalkHistoryTab('time');
-            setShowWalkHistoryModal(true);
-          }}
-          title={language === 'ko' ? '시간 & 활동량 분석 보기' : 'View Time & Activity'}
-        >
-          <div className="profile-stat-icon-wrapper time">
-            <Clock size={22} strokeWidth={2.5} />
-          </div>
-          <div className="profile-stat-content">
-            <div className="profile-stat-line primary">
-              <span className="profile-stat-label-main">
-                {t.profile.statTodayTime || (language === 'ko' ? '오늘 산책 시간' : 'Today Time')}
-              </span>
-              <span className="profile-stat-val-main time">
-                {myDog.todayWalkMinutes !== undefined ? myDog.todayWalkMinutes : 45} {t.profile.walkMinSuffix || (language === 'ko' ? '분' : 'min')}
-              </span>
-            </div>
-            <div className="profile-stat-line secondary">
-              <span className="profile-stat-label-sub">
-                {t.profile.totalTimeLabel || (language === 'ko' ? '누적 시간' : 'Total Time')}
-              </span>
-              <span className="profile-stat-val-sub">
-                {myDog.walkMinutes !== undefined ? myDog.walkMinutes : 320} {t.profile.walkMinSuffix || (language === 'ko' ? '분' : 'min')}
-              </span>
-            </div>
-          </div>
-          <ChevronRight size={18} className="profile-stat-arrow" />
-        </div>
-
-        {/* Row 3: Days Together (D-Day) */}
-        <div className="profile-stat-row-card">
-          <div className="profile-stat-icon-wrapper dday">
-            <Calendar size={22} strokeWidth={2.5} />
-          </div>
-          <div className="profile-stat-content">
-            <div className="profile-stat-line primary">
-              <span className="profile-stat-label-main">
-                {t.profile.statDays || (language === 'ko' ? '함께한 날' : 'Days Together')}
-              </span>
-              <span className="profile-stat-val-main dday">
-                D+{calculateDDay(myDog.adoptionDate, myDog.age)}
-              </span>
-            </div>
-            <div className="profile-stat-line secondary">
-              <span className="profile-stat-label-sub">
-                {t.profile.sinceAdoption || (language === 'ko' ? '가족이 된 날' : 'Adoption Day')}
-              </span>
-              <span className="profile-stat-val-sub">
-                {myDog.adoptionDate || getDefaultAdoptionDate(myDog.age)}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
+        </>
+      )}
 
       {/* Modal: Edit or Add Pet Profile */}
       {modalMode && (
-        <div className="modal-overlay">
-          <div className="modal-box">
-            {/* Modal Header */}
-            <div className="modal-header">
-              <div className="row gap-10">
-                <h3 className="title-lg">
-                  {modalMode === 'edit' ? t.profile.modalEdit : t.profile.modalAdd}
-                </h3>
-              </div>
-              <button onClick={() => setModalMode(null)} className="btn-ghost profile-modal-close">
-                <X size={24} strokeWidth={3} />
-              </button>
-            </div>
-
-            {/* Photo Avatar Section */}
-            <div className="col mb-24 profile-avatar-section">
-              <div className="profile-avatar-preview-wrapper">
-                <img
-                  src={formAvatar}
-                  alt="avatar preview"
-                  className="profile-avatar-preview"
-                />
-                <label className="profile-avatar-upload">
-                  <Camera size={16} color="#fff" />
-                  <input type="file" accept="image/*" onChange={handlePhotoUpload} style={{ display: 'none' }} />
-                </label>
-              </div>
-              <span className="text-sub mt-10">{t.profile.uploadPhoto}</span>
-
-              {/* Preset Avatars */}
-              <div className="profile-presets-wrapper">
-                {AVATAR_PRESETS.map((preset, i) => (
-                  <img
-                    key={i}
-                    src={preset}
-                    alt="preset"
-                    onClick={() => setFormAvatar(preset)}
-                    className="profile-preset-img"
-                    style={{
-                      border: formAvatar === preset ? '3px solid #FFB320' : '1px solid rgba(0,0,0,0.1)',
-                      transform: formAvatar === preset ? 'scale(1.15)' : 'scale(1)'
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Input: Name */}
-            <div className="mb-18">
-              <label className="form-label">
-                {t.profile.dogName} <span className="profile-required-star">*</span>
-              </label>
-              <input
-                type="text"
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-                placeholder={t.profile.dogNamePlaceholder}
-                className="form-input"
-              />
-            </div>
-
-            {/* Input: Breed */}
-            <div className="mb-18">
-              <label className="form-label">
-                {t.profile.dogBreed}
-              </label>
-              <select
-                value={formBreed}
-                onChange={(e) => setFormBreed(e.target.value)}
-                className="form-input"
-              >
-                {t.profile.breedOptions?.map((b: string) => (
-                  <option key={b} value={b}>{b}</option>
-                ))}
-              </select>
-            </div>
-            {/* Input: Age, Adoption Date, Gender, Owner Title */}
-            {/* Age */}
-            <div className="mb-18">
-              <label className="form-label">
-                {t.profile.dogAge}
-              </label>
-              <div className="profile-age-wrapper">
-                <input
-                  type="number"
-                  min="0"
-                  max="30"
-                  value={formAge}
-                  onChange={(e) => setFormAge(e.target.value)}
-                  placeholder={t.profile.dogAgePlaceholder}
-                  className="form-input profile-age-input"
-                />
-                <span className="profile-age-suffix">
-                  {t.profile.dogAgeSuffix}
-                </span>
-              </div>
-            </div>
-
-            {/* Adoption Date / Birthday */}
-            <div className="mb-18">
-              <label className="form-label">
-                {t.profile?.adoptionDate ||
-                  (language === 'ko' ? '함께한 날 (생일 / 입양일)' :
-                   language === 'zh' ? '陪伴时光（生日 / 领养日）' :
-                   language === 'ja' ? '一緒に過ごした日（誕生日・お迎え日）' :
-                   language === 'fr' ? "Date de naissance / d'adoption" :
-                   language === 'es' ? 'Fecha de nacimiento / adopción' : 'Birthday / Adoption Date')}
-              </label>
-              <input
-                type="date"
-                value={formAdoptionDate}
-                onChange={(e) => setFormAdoptionDate(e.target.value)}
-                className="form-input"
-                max={new Date().toISOString().split('T')[0]}
-              />
-            </div>
-
-            {/* Gender */}
-            <div className="mb-18">
-              <label className="form-label">
-                {t.profile.genderLabel}
-              </label>
-              <div className="profile-toggle-wrapper">
-                <button
-                  type="button"
-                  onClick={() => setFormGender('female')}
-                  className={`profile-toggle-btn ${formGender === 'female' ? 'active' : ''}`}
-                >
-                  {t.profile.genderFemale}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFormGender('male')}
-                  className={`profile-toggle-btn ${formGender === 'male' ? 'active' : ''}`}
-                >
-                  {t.profile.genderMale}
-                </button>
-              </div>
-            </div>
-
-            {/* Owner Title */}
-            <div className="mb-18">
-              <label className="form-label">
-                {t.profile.ownerTitleSelect}
-              </label>
-              <div className="profile-toggle-wrapper">
-                <button
-                  type="button"
-                  onClick={() => setFormOwnerTitle('mom')}
-                  className={`profile-toggle-btn ${formOwnerTitle === 'mom' ? 'active' : ''}`}
-                >
-                  {t.profile.mom}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFormOwnerTitle('dad')}
-                  className={`profile-toggle-btn ${formOwnerTitle === 'dad' ? 'active' : ''}`}
-                >
-                  {t.profile.dad}
-                </button>
-              </div>
-            </div>
-
-            {/* Input: Personality Tags */}
-            <div className="mb-24">
-              <label className="form-label">
-                {t.profile.personalityLimit}
-              </label>
-
-              {/* Tag Chips */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>
-                {Array.from(new Set([...(t.profile.presetPersonalities || []), ...formPersonalities])).map((tag: string) => {
-                  const isSelected = formPersonalities.includes(tag);
-                  return (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => toggleTag(tag)}
-                      className={`tag-chip ${isSelected ? 'active' : ''}`}
-                    >
-                      {tag} {isSelected && '✓'}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Custom Tag Input */}
-              <div className="profile-tag-input-wrapper">
-                <input
-                  type="text"
-                  value={customTag}
-                  onChange={(e) => setCustomTag(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      addCustomTag();
-                    }
-                  }}
-                  placeholder={t.profile.addTagPlaceholder}
-                  className="form-input profile-tag-input"
-                />
-                <button
-                  type="button"
-                  onClick={addCustomTag}
-                  className="btn-ghost"
-                  title="ADD"
-                >
-                  <Plus size={24} strokeWidth={2} />
-                </button>
-              </div>
-            </div>
-
-            {/* Input: Greeting */}
-            <div className="mb-24">
-              <label className="form-label">
-                {t.profile?.greetingLabel || '인사말'}
-              </label>
-              <input
-                type="text"
-                value={formGreeting}
-                onChange={(e) => setFormGreeting(e.target.value)}
-                placeholder={t.profile?.greetingPlaceholder || '예: 안녕하세요! 우리 강아지는 간식을 좋아해요.'}
-                className="form-input"
-              />
-            </div>
-
-            {/* Action Buttons */}
-            <div className="row gap-12" style={{ marginTop: '10px' }}>
-              {modalMode === 'edit' && (
-                <button
-                  type="button"
-                  onClick={() => handleDeletePet(activePetIndex)}
-                  className="profile-action-cancel"
-                  title={language === 'ko' ? '반려견 삭제' : language === 'zh' ? '删除狗狗' : language === 'ja' ? '愛犬を削除' : language === 'fr' ? 'Supprimer le profil' : language === 'es' ? 'Eliminar perro' : 'Delete Pet'}
-                >
-                  <Trash2 size={18} /> {language === 'ko' ? '삭제' : language === 'zh' ? '删除' : language === 'ja' ? '削除' : language === 'fr' ? 'Supprimer' : language === 'es' ? 'Eliminar' : 'Delete'}
-                </button>
-              )}
+        <div className="modal-overlay profile-modal-overlay" onClick={() => setModalMode(null)}>
+          <div className="modal-box profile-modal-box" onClick={(e) => e.stopPropagation()}>
+            {/* Modal Fixed Top Header (스크롤과 무관하게 상단에 항상 고정) */}
+            <div className="profile-modal-header">
               <button
                 type="button"
                 onClick={() => setModalMode(null)}
-                className="profile-action-cancel"
+                className="profile-modal-back-btn"
+                title={language === 'ko' ? '뒤로가기' : 'Back'}
               >
-                {t.profile.cancel}
+                <ChevronLeft size={24} strokeWidth={2.5} />
               </button>
+              <h3 className="profile-modal-title">
+                {modalMode === 'edit' ? t.profile.modalEdit : t.profile.modalAdd}
+              </h3>
               <button
                 type="button"
-                onClick={handleSave}
-                className="profile-action-save"
+                onClick={() => setModalMode(null)}
+                className="profile-modal-close"
+                title={language === 'ko' ? '닫기' : 'Close'}
               >
-                <Check size={18} strokeWidth={3} /> {t.profile.save}
+                <X size={22} strokeWidth={2.5} />
               </button>
+            </div>
+
+            {/* Scrollable Form Content */}
+            <div className="profile-modal-scroll-body">
+              {/* Photo Avatar Section */}
+              <div className="col mb-24 profile-avatar-section">
+                <div className="profile-avatar-preview-wrapper">
+                  <img
+                    src={formAvatar}
+                    alt="avatar preview"
+                    className="profile-avatar-preview"
+                  />
+                  <label className="profile-avatar-upload">
+                    <Camera size={16} color="#fff" />
+                    <input type="file" accept="image/*" onChange={handlePhotoUpload} style={{ display: 'none' }} />
+                  </label>
+                </div>
+                <span className="text-sub mt-10">{t.profile.uploadPhoto}</span>
+
+                {/* Preset Avatars */}
+                <div className="profile-presets-wrapper">
+                  {AVATAR_PRESETS.map((preset, i) => (
+                    <img
+                      key={i}
+                      src={preset}
+                      alt="preset"
+                      onClick={() => setFormAvatar(preset)}
+                      className="profile-preset-img"
+                      style={{
+                        border: formAvatar === preset ? '3px solid #FFB320' : '1px solid rgba(0,0,0,0.1)',
+                        transform: formAvatar === preset ? 'scale(1.15)' : 'scale(1)'
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Input: Name */}
+              <div className="mb-18">
+                <label className="form-label">
+                  {t.profile.dogName} <span className="profile-required-star">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  placeholder={t.profile.dogNamePlaceholder}
+                  className="form-input"
+                />
+              </div>
+
+              {/* Input: Breed */}
+              <div className="mb-18">
+                <label className="form-label">
+                  {t.profile.dogBreed}
+                </label>
+                <select
+                  value={formBreed}
+                  onChange={(e) => {
+                    const newBreed = e.target.value;
+                    setFormBreed(newBreed);
+                    if (modalMode === 'add') {
+                      const rec = getBreedRecommendedGoals(newBreed);
+                      setFormWalkGoalDistance(String(rec.distance));
+                      setFormWalkGoalMinutes(String(rec.minutes));
+                    }
+                  }}
+                  className="form-input"
+                >
+                  {t.profile.breedOptions?.map((b: string) => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                </select>
+              </div>
+              {/* Input: Age, Adoption Date, Gender, Owner Title */}
+              {/* Age */}
+              <div className="mb-18">
+                <label className="form-label">
+                  {t.profile.dogAge}
+                </label>
+                <div className="profile-age-wrapper">
+                  <input
+                    type="number"
+                    min="0"
+                    max="30"
+                    value={formAge}
+                    onChange={(e) => setFormAge(e.target.value)}
+                    placeholder={t.profile.dogAgePlaceholder}
+                    className="form-input profile-age-input"
+                  />
+                  <span className="profile-age-suffix">
+                    {t.profile.dogAgeSuffix}
+                  </span>
+                </div>
+              </div>
+
+              {/* Adoption Date / Birthday */}
+              <div className="mb-18">
+                <label className="form-label">
+                  {t.profile?.adoptionDate ||
+                    (language === 'ko' ? '함께한 날 (생일 / 입양일)' :
+                      language === 'zh' ? '陪伴时光（生日 / 领养日）' :
+                        language === 'ja' ? '一緒に過ごした日（誕生日・お迎え日）' :
+                          language === 'fr' ? "Date de naissance / d'adoption" :
+                            language === 'es' ? 'Fecha de nacimiento / adopción' : 'Birthday / Adoption Date')}
+                </label>
+                <input
+                  type="date"
+                  value={formAdoptionDate}
+                  onChange={(e) => setFormAdoptionDate(e.target.value)}
+                  className="form-input"
+                  max={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+
+              {/* Gender */}
+              <div className="mb-18">
+                <label className="form-label">
+                  {t.profile.genderLabel}
+                </label>
+                <div className="profile-toggle-wrapper">
+                  <button
+                    type="button"
+                    onClick={() => setFormGender('female')}
+                    className={`profile-toggle-btn ${formGender === 'female' ? 'active' : ''}`}
+                  >
+                    {t.profile.genderFemale}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormGender('male')}
+                    className={`profile-toggle-btn ${formGender === 'male' ? 'active' : ''}`}
+                  >
+                    {t.profile.genderMale}
+                  </button>
+                </div>
+              </div>
+
+              {/* Owner Title */}
+              <div className="mb-18">
+                <label className="form-label">
+                  {t.profile.ownerTitleSelect}
+                </label>
+                <div className="profile-toggle-wrapper">
+                  <button
+                    type="button"
+                    onClick={() => setFormOwnerTitle('mom')}
+                    className={`profile-toggle-btn ${formOwnerTitle === 'mom' ? 'active' : ''}`}
+                  >
+                    {t.profile.mom}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormOwnerTitle('dad')}
+                    className={`profile-toggle-btn ${formOwnerTitle === 'dad' ? 'active' : ''}`}
+                  >
+                    {t.profile.dad}
+                  </button>
+                </div>
+              </div>
+
+              {/* Input: Personality Tags */}
+              <div className="mb-24">
+                <label className="form-label">
+                  {t.profile.personalityLimit}
+                </label>
+
+                {/* Tag Chips */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>
+                  {Array.from(new Set([...(t.profile.presetPersonalities || []), ...formPersonalities])).map((tag: string) => {
+                    const isSelected = formPersonalities.includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => toggleTag(tag)}
+                        className={`tag-chip ${isSelected ? 'active' : ''}`}
+                      >
+                        {tag} {isSelected && '✓'}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Custom Tag Input */}
+                <div className="profile-tag-input-wrapper">
+                  <input
+                    type="text"
+                    value={customTag}
+                    onChange={(e) => setCustomTag(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addCustomTag();
+                      }
+                    }}
+                    placeholder={t.profile.addTagPlaceholder}
+                    className="form-input profile-tag-input"
+                  />
+                  <button
+                    type="button"
+                    onClick={addCustomTag}
+                    className="btn-ghost"
+                    title="ADD"
+                  >
+                    <Plus size={24} strokeWidth={2} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Input: Greeting */}
+              <div className="mb-24">
+                <label className="form-label">
+                  {t.profile?.greetingLabel || '인사말'}
+                </label>
+                <input
+                  type="text"
+                  value={formGreeting}
+                  onChange={(e) => setFormGreeting(e.target.value)}
+                  placeholder={t.profile?.greetingPlaceholder || '예: 안녕하세요! 우리 강아지는 간식을 좋아해요.'}
+                  className="form-input"
+                />
+              </div>
+
+              {/* Walk Goal Settings */}
+              <div className="mb-24">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <label className="form-label" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span>{language === 'ko' ? '일일 산책 목표 설정' : language === 'ja' ? '1日の散歩目標設定' : 'Daily Walk Goals'}</span>
+                  </label>
+                  <button
+                    type="button" className='badge'
+                    onClick={() => {
+                      const rec = getBreedRecommendedGoals(formBreed);
+                      setFormWalkGoalDistance(String(rec.distance));
+                      setFormWalkGoalMinutes(String(rec.minutes));
+                    }}
+                    title={language === 'ko' ? '견종 추천값 자동 적용' : language === 'ja' ? '推奨値の自動適用' : language === 'es' ? 'Restablecer valores recomendados' : 'Reset to Recommended'}
+                  >
+                    <RotateCcw size={12} />
+                    <span>{language === 'ko' ? '견종 추천값으로 재설정' : language === 'ja' ? '推奨値にリセット' : language === 'es' ? 'Valores recomendados' : 'Reset to Recommended'}</span>
+                  </button>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                  {/* Distance Goal */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 600 }}>
+                        {language === 'ko' ? '목표 산책 거리' : language === 'ja' ? '目標散歩距離' : 'Distance Goal'}
+                      </span>
+                      <span style={{ fontSize: '0.7rem', color: '#c8c8c8' }}>
+                        {formBreed ? `(권장 ${getBreedRecommendedGoals(formBreed).distance}km)` : ''}
+                      </span>
+                    </div>
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0.1"
+                        max="30"
+                        value={formWalkGoalDistance}
+                        onChange={(e) => setFormWalkGoalDistance(e.target.value)}
+                        placeholder="2.0"
+                        className="form-input"
+                        style={{ paddingRight: '38px' }}
+                      />
+                      <span style={{ position: 'absolute', right: '12px', fontSize: '0.8rem', color: '#64748B', fontWeight: 600, pointerEvents: 'none' }}>
+                        km
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Time Goal */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 600 }}>
+                        {language === 'ko' ? '목표 산책 시간' : language === 'ja' ? '目標散歩時間' : 'Time Goal'}
+                      </span>
+                      <span style={{ fontSize: '0.7rem', color: '#c8c8c8' }}>
+                        {formBreed ? `(권장 ${getBreedRecommendedGoals(formBreed).minutes}분)` : ''}
+                      </span>
+                    </div>
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <input
+                        type="number"
+                        step="5"
+                        min="5"
+                        max="300"
+                        value={formWalkGoalMinutes}
+                        onChange={(e) => setFormWalkGoalMinutes(e.target.value)}
+                        placeholder="45"
+                        className="form-input"
+                        style={{ paddingRight: '38px' }}
+                      />
+                      <span style={{ position: 'absolute', right: '12px', fontSize: '0.8rem', color: '#64748B', fontWeight: 600, pointerEvents: 'none' }}>
+                        {language === 'ko' ? '분' : language === 'ja' ? '分' : 'm'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="row gap-12 profile-modal-actions">
+                {modalMode === 'edit' && (
+                  <button
+                    type="button"
+                    onClick={() => handleDeletePet(activePetIndex)}
+                    className="profile-action-cancel"
+                    title={language === 'ko' ? '반려견 삭제' : language === 'zh' ? '删除狗狗' : language === 'ja' ? '愛犬を削除' : language === 'fr' ? 'Supprimer le profil' : language === 'es' ? 'Eliminar perro' : 'Delete Pet'}
+                  >
+                    <Trash2 size={18} /> {language === 'ko' ? '삭제' : language === 'zh' ? '删除' : language === 'ja' ? '削除' : language === 'fr' ? 'Supprimer' : language === 'es' ? 'Eliminar' : 'Delete'}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setModalMode(null)}
+                  className="profile-action-cancel"
+                >
+                  {t.profile.cancel}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  className="profile-action-save"
+                >
+                  <Check size={18} strokeWidth={3} /> {t.profile.save}
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Walk History Modal */}
-      {showWalkHistoryModal && (
-        <WalkHistoryModal
-          dog={myDog}
-          initialTab={walkHistoryTab}
-          onClose={() => setShowWalkHistoryModal(false)}
-          onUpdateStats={(newDist, newMins) => {
-            const updated = pets.map(p => {
-              if (p.id === myDog.id) {
-                return {
-                  ...p,
-                  walkDistance: newDist,
-                  walkMinutes: newMins
-                };
-              }
-              return p;
-            });
-            savePetsToStorage(updated);
-          }}
-        />
-      )}
     </div>
   );
 };

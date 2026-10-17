@@ -1,13 +1,14 @@
 .settings-view-root {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  flex: 1;
+  min-height: 0;
+  background: #ffffff;
   color: #0D1117;
-  z-index: 100;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .settings-header {
@@ -15,6 +16,8 @@
   display: flex;
   align-items: center;
   padding: 0 16px;
+  flex-shrink: 0;
+  background: #ffffff;
 }
 
 .settings-back-btn {
@@ -43,8 +46,8 @@
 }
 
 .settings-section-title {
-  font-size: 0.85rem;
-  color: #1A202C;
+  font-size: 0.74rem;
+  color: #c8c8c8;
   font-weight: 600;
   margin-bottom: 12px;
   padding-left: 16px;
@@ -84,7 +87,7 @@
 }
 
 .settings-list-title {
-  font-size: 1rem;
+  font-size: .9125rem;
   font-weight: 500;
 }
 
@@ -103,11 +106,11 @@
 }
 
 .settings-toggle.active {
-  background: #FFB320;
+  background: #FF9E58;
 }
 
 .settings-toggle.inactive {
-  background: #4A5568;
+  background: #121212;
   opacity: .5;
 }
 
@@ -132,7 +135,7 @@
 
 .settings-pro-btn {
   background: rgba(255, 179, 32, 0.1);
-  color: #FFB320;
+  color: #FF9E58;
   border: 1px solid rgba(255, 179, 32, 0.3);
   padding: 6px 12px;
   border-radius: 12px;
@@ -141,11 +144,140 @@
   cursor: pointer;
 }
 
+.btn {
+  background: transparent;
+  border: 1px solid #121212;
+  padding: 6px 12px;
+  border-radius: 99px;
+  font-size: 0.8rem;
+  outline: none;
+  box-shadow: 0 6px 8px rgba(0, 0, 0, 0.08);
+}
+
 .settings-lang-select,
 .settings-lang-select * {
-  border: 1px solid #4A5568;
+  background: transparent;
+  border: 1px solid #121212;
   padding: 6px 12px;
   border-radius: 8px;
   font-size: 0.8rem;
   outline: none;
+  box-shadow: 0 6px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* Account Management Unified Group */
+.settings-account-section {
+  margin-bottom: 24px;
+}
+
+.settings-account-card {
+  background: #ffffff;
+  border: 1.5px solid #FFE0C2;
+  border-radius: 16px;
+  padding: 16px 14px;
+  box-shadow: 0 4px 14px rgba(255, 158, 88, 0.08);
+}
+
+.settings-account-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #F3F4F6;
+}
+
+.settings-account-email {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #1A1A1A;
+  letter-spacing: -0.2px;
+  word-break: break-all;
+}
+
+.settings-account-provider-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.settings-account-provider-google {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.settings-account-provider-mail {
+  color: #FF9E58;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.settings-account-admin-crown {
+  font-size: 0.95rem;
+  line-height: 1;
+  margin-left: 2px;
+}
+
+.settings-account-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.settings-account-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 11px 8px;
+  border-radius: 10px;
+  border: 1px solid #E5E7EB;
+  background: #F9FAFB;
+  color: #374151;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.settings-account-action-btn:hover {
+  background: #F3F4F6;
+  border-color: #D1D5DB;
+}
+
+.settings-account-action-btn:active {
+  background: #E5E7EB;
+  transform: translateY(1px);
+}
+
+.settings-account-action-btn.destructive {
+  color: #DC2626;
+  background: #FEF2F2;
+  border-color: #FEE2E2;
+}
+
+.settings-account-action-btn.destructive:hover {
+  background: #FEE2E2;
+  border-color: #FECACA;
+}
+
+.settings-account-action-btn.admin {
+  color: #4B5563;
+}
+
+.settings-account-action-btn.admin.active {
+  color: #2563EB;
+  background: #EFF6FF;
+  border-color: #DBEAFE;
+}
+
+.settings-account-action-btn.admin.active:hover {
+  background: #DBEAFE;
+}
+
+.settings-account-action-btn.full-width {
+  grid-column: span 2;
 }

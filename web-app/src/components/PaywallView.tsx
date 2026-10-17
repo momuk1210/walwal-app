@@ -40,29 +40,29 @@ export const PaywallView: React.FC<PaywallViewProps> = ({ onSubscribeSuccess }) 
       }} />
 
       {/* Content Container */}
-      <div style={{ 
-        flex: 1, 
-        display: 'flex', 
-        flexDirection: 'column', 
-        justifyContent: 'space-between', 
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
         padding: '64px 32px 48px',
         zIndex: 1
       }}>
-        
+
         {/* Header */}
         <div style={{ textAlign: 'center', marginTop: '20px' }}>
-          <div style={{ 
-            display: 'inline-flex', 
-            alignItems: 'center', 
-            gap: '8px', 
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
             background: 'linear-gradient(90deg, rgba(255,179,32,0.1), rgba(131,56,236,0.1))',
             padding: '6px 16px',
             borderRadius: '20px',
             marginBottom: '24px',
             border: '1px solid rgba(255,179,32,0.3)'
           }}>
-            <Sparkles size={16} color="#FFB320" />
-            <span style={{ color: '#FFB320', fontWeight: 800, fontSize: '0.85rem' }}>PRO</span>
+            <Sparkles size={16} color="#FF9E58" />
+            <span style={{ color: '#FF9E58', fontWeight: 800, fontSize: '0.85rem' }}>PRO</span>
           </div>
 
           <h1 style={{
@@ -86,18 +86,18 @@ export const PaywallView: React.FC<PaywallViewProps> = ({ onSubscribeSuccess }) 
         {/* Feature List */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', margin: '40px 0' }}>
           {[
-            { icon: <Sparkles size={24} color="#FFB320" />, text: t.paywall.feature1 },
-            { icon: <Camera size={24} color="#FFB320" />, text: t.paywall.feature2 },
-            { icon: <Globe size={24} color="#FFB320" />, text: t.paywall.feature3 },
+            { icon: <Sparkles size={24} color="#FF9E58" />, text: t.paywall.feature1 },
+            { icon: <Camera size={24} color="#FF9E58" />, text: t.paywall.feature2 },
+            { icon: <Globe size={24} color="#FF9E58" />, text: t.paywall.feature3 },
           ].map((feature, idx) => (
             <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <div style={{ 
-                width: '48px', 
-                height: '48px', 
-                borderRadius: '16px', 
-                background: 'rgba(255,179,32,0.1)', 
-                display: 'flex', 
-                alignItems: 'center', 
+              <div style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '16px',
+                background: 'rgba(255,179,32,0.1)',
+                display: 'flex',
+                alignItems: 'center',
                 justifyContent: 'center',
                 boxShadow: 'inset 0 2px 4px rgba(255,255,255,0.05)'
               }}>
@@ -124,7 +124,7 @@ export const PaywallView: React.FC<PaywallViewProps> = ({ onSubscribeSuccess }) 
               height: '60px',
               borderRadius: '30px',
               border: 'none',
-              background: 'linear-gradient(90deg, #FFB320 0%, #FFBF00 100%)',
+              background: 'linear-gradient(90deg, #FF9E58 0%, #FFBF00 100%)',
               color: '#161B22',
               fontSize: '1.2rem',
               fontWeight: 800,
@@ -138,8 +138,8 @@ export const PaywallView: React.FC<PaywallViewProps> = ({ onSubscribeSuccess }) 
           >
             {t.paywall.subscribeBtn}
           </button>
-          
-          <div style={{ fontSize: '0.75rem', color: '#718096', textAlign: 'center' }}>
+
+          <div style={{ fontSize: '0.75rem', color: '#121212', textAlign: 'center' }}>
             {t.paywall.terms}
           </div>
         </div>

@@ -20,6 +20,8 @@ import { auth } from './firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { Bell } from 'lucide-react';
 import { PWAInstallBanner } from './components/PWAInstallBanner';
+import { GlobalWalkFloatingBar } from './components/GlobalWalkFloatingBar';
+import { AppPermissionModal } from './components/AppPermissionModal';
 
 export type AppViewTab = NavTab | 'studio' | 'admin';
 
@@ -57,6 +59,18 @@ function WalWalMain() {
   const [currentTab, setCurrentTab] = useState<AppViewTab>('ar');
   const [arKey, setArKey] = useState<number>(0);
   const { t, language } = useTranslation();
+
+  const [showPermissionModal, setShowPermissionModal] = useState<boolean>(() => {
+    return localStorage.getItem('WALWAL_APP_PERMISSIONS_CONSENT') !== 'true';
+  });
+
+  useEffect(() => {
+    if (localStorage.getItem('WALWAL_APP_PERMISSIONS_CONSENT') === 'true') {
+      localStorage.setItem('WALWAL_PERM_CAMERA', 'true');
+      localStorage.setItem('WALWAL_PERM_MIC', 'true');
+      localStorage.setItem('WALWAL_PERM_LOCATION', 'true');
+    }
+  }, []);
 
   const [toastNotification, setToastNotification] = useState<{ title: string; body: string; time?: string } | null>(null);
 
@@ -119,7 +133,6 @@ function WalWalMain() {
   const [studioSnapshot, setStudioSnapshot] = useState<string | undefined>(undefined);
   const [studioPoster, setStudioPoster] = useState<string | undefined>(undefined);
   const [interactionPair, setInteractionPair] = useState<{ dog1: DogProfile; dog2: DogProfile } | null>(null);
-  const [nearbyTargetLocation, setNearbyTargetLocation] = useState<{ lat: number; lng: number; name: string } | null>(null);
   const [feedDraft, setFeedDraft] = useState<{ dog: DogProfile; thought: string; image?: string; poster?: string; isVideo?: boolean } | null>(null);
 
   const handleCaptureToStory = (dog: any, thought: string, snapshot?: string, poster?: string) => {
@@ -144,8 +157,20 @@ function WalWalMain() {
     if (tabId === 'ar') {
       setArKey(k => k + 1);
       setInteractionPair(null);
+    } else {
+      // AR탭이 아닌 다른 탭으로 이동 시 전역 카메라 하드웨어 스트림 즉시 강제 종료
+      const globalStream = (window as any).__WALWAL_CAMERA_STREAM__;
+      if (globalStream && typeof globalStream.getTracks === 'function') {
+        globalStream.getTracks().forEach((t: MediaStreamTrack) => {
+          try { t.stop(); } catch (e) { }
+        });
+        (window as any).__WALWAL_CAMERA_STREAM__ = null;
+      }
     }
     setFeedDraft(null);
+    if (tabId === 'snaps') {
+      window.dispatchEvent(new CustomEvent('walwal_reset_snaps_top'));
+    }
     setCurrentTab(tabId);
   };
 
@@ -204,7 +229,7 @@ function WalWalMain() {
             borderRadius: '18px',
             padding: '12px 16px',
             boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)',
-            border: '1.5px solid #FFB320',
+            border: '1.5px solid #FF9E58',
             display: 'flex',
             alignItems: 'center',
             gap: '12px',
@@ -222,16 +247,16 @@ function WalWalMain() {
             justifyContent: 'center',
             flexShrink: 0
           }}>
-            <Bell size={20} color="#FFB320" />
+            <Bell size={20} color="#FF9E58" />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#1E293B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <div style={{ fontSize: '0.86rem', fontWeight: 800, color: '#000', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {toastNotification.title}
               </div>
-              <span style={{ fontSize: '0.72rem', color: '#94A3B8' }}>{toastNotification.time || '방금'}</span>
+              <span style={{ fontSize: '0.72rem', color: '#c8c8c8' }}>{toastNotification.time || '방금'}</span>
             </div>
-            <div style={{ fontSize: '0.78rem', color: '#475569', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div style={{ fontSize: '0.78rem', color: '#333', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {toastNotification.body}
             </div>
           </div>
@@ -254,7 +279,6 @@ function WalWalMain() {
         {currentTab === 'nearby' && (
           <NearbyView
             onStartVirtualChat={handleStartInteraction}
-            targetLocation={nearbyTargetLocation}
           />
         )}
 
@@ -274,12 +298,7 @@ function WalWalMain() {
         )}
 
         {currentTab === 'community' && (
-          <CommunityView
-            onNavigateToRadar={(loc) => {
-              setNearbyTargetLocation(loc);
-              setCurrentTab('nearby');
-            }}
-          />
+          <CommunityView />
         )}
 
         {currentTab === 'profile' && (
@@ -307,6 +326,13 @@ function WalWalMain() {
           <AdminView onClose={() => setCurrentTab('profile')} />
         )}
 
+        {currentTab !== 'admin' && currentTab !== 'community' && (
+          <GlobalWalkFloatingBar
+            onOpenWalkModal={() => {
+              setCurrentTab('community');
+            }}
+          />
+        )}
         <PWAInstallBanner />
         {currentTab !== 'admin' && (
           <BottomNav currentTab={currentTab === 'studio' ? 'ar' : currentTab} onChangeTab={handleTabChange} />
@@ -331,6 +357,13 @@ function WalWalMain() {
         <LegalView
           type={activeLegalModal}
           onClose={() => setActiveLegalModal(null)}
+        />
+      )}
+
+      {/* App Access Permission Guidance Modal (최초 로그인/진입 시 1회만 표시 후 영구 저장) */}
+      {showPermissionModal && (
+        <AppPermissionModal
+          onClose={() => setShowPermissionModal(false)}
         />
       )}
     </div>

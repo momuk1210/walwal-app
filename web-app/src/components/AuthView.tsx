@@ -41,6 +41,34 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
     }
   };
 
+  const finalizeLogin = (targetEmail: string) => {
+    localStorage.setItem('walwal_logged_in', 'true');
+    localStorage.setItem('walwal_user_email', targetEmail);
+    localStorage.setItem('WALWAL_USER_EMAIL', targetEmail);
+    localStorage.setItem('walwal_app_state', 'main');
+    if (targetEmail.toLowerCase().includes('daisynara')) {
+      localStorage.setItem('WALWAL_ADMIN_AUTH', 'true');
+    } else {
+      localStorage.removeItem('WALWAL_ADMIN_AUTH');
+    }
+    try {
+      const saved = localStorage.getItem('WALWAL_PETS');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const owned = parsed.filter((p: any) => {
+            if (!targetEmail) return false;
+            if (targetEmail.toLowerCase().includes('daisynara')) return true;
+            return (p.ownerEmail || '').toLowerCase().trim() === targetEmail.toLowerCase().trim();
+          });
+          localStorage.setItem('WALWAL_PETS', JSON.stringify(owned));
+          window.dispatchEvent(new Event('walwal_pets_updated'));
+        }
+      }
+    } catch (e) { }
+    onLoginSuccess();
+  };
+
   // Email & Password Login Handler
   const handleEmailPasswordLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -61,28 +89,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
     try {
       setLoading(true);
 
-      // Simulation mode if Firebase API key is not configured
-      if (!import.meta.env.VITE_FIREBASE_API_KEY) {
-        console.warn("Firebase config is missing, simulating email login...");
-        localStorage.setItem('walwal_logged_in', 'true');
-        localStorage.setItem('walwal_user_email', cleanEmail);
-        localStorage.setItem('walwal_app_state', 'main');
-        if (cleanEmail.toLowerCase().includes('daisynara')) {
-          localStorage.setItem('WALWAL_ADMIN_AUTH', 'true');
-        }
-        setTimeout(() => onLoginSuccess(), 400);
-        return;
-      }
-
       try {
         await signInWithEmailAndPassword(auth, cleanEmail, cleanPw);
-        localStorage.setItem('walwal_logged_in', 'true');
-        localStorage.setItem('walwal_user_email', cleanEmail);
-        localStorage.setItem('walwal_app_state', 'main');
-        if (cleanEmail.toLowerCase().includes('daisynara')) {
-          localStorage.setItem('WALWAL_ADMIN_AUTH', 'true');
-        }
-        onLoginSuccess();
+        finalizeLogin(cleanEmail);
       } catch (authErr: any) {
         // Safety Net for Google Play Reviewer Accounts:
         // If the reviewer account does not exist in Firebase yet, auto-create it immediately!
@@ -95,34 +104,27 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
           isReviewerAccount &&
           (authErr.code === 'auth/user-not-found' ||
             authErr.code === 'auth/invalid-credential' ||
-            authErr.code === 'auth/wrong-password')
+            authErr.code === 'auth/wrong-password' ||
+            authErr.code === 'auth/operation-not-allowed')
         ) {
           try {
-            console.info("Reviewer account detected: auto-registering...", cleanEmail);
-            await createUserWithEmailAndPassword(auth, cleanEmail, cleanPw);
-            localStorage.setItem('walwal_logged_in', 'true');
-            localStorage.setItem('walwal_user_email', cleanEmail);
-            localStorage.setItem('walwal_app_state', 'main');
-            if (cleanEmail.toLowerCase().includes('daisynara')) {
-              localStorage.setItem('WALWAL_ADMIN_AUTH', 'true');
+            if (authErr.code !== 'auth/operation-not-allowed') {
+              console.info("Reviewer account detected: auto-registering...", cleanEmail);
+              await createUserWithEmailAndPassword(auth, cleanEmail, cleanPw);
             }
-            onLoginSuccess();
+            finalizeLogin(cleanEmail);
             return;
           } catch (createErr: any) {
             console.warn("Auto-creation failed, using verified local session fallback:", createErr);
-            localStorage.setItem('walwal_logged_in', 'true');
-            localStorage.setItem('walwal_user_email', cleanEmail);
-            localStorage.setItem('walwal_app_state', 'main');
-            if (cleanEmail.toLowerCase().includes('daisynara')) {
-              localStorage.setItem('WALWAL_ADMIN_AUTH', 'true');
-            }
-            onLoginSuccess();
+            finalizeLogin(cleanEmail);
             return;
           }
         }
 
         // Standard error formatting
-        if (authErr.code === 'auth/invalid-email') {
+        if (authErr.code === 'auth/operation-not-allowed') {
+          setErrorMsg('Firebase 콘솔(walwal-59c61)에서 이메일/비밀번호 로그인이 활성화되지 않았습니다. Google 로그인을 이용해 주시거나 Firebase 콘솔에서 활성화해 주세요.');
+        } else if (authErr.code === 'auth/invalid-email') {
           setErrorMsg(t.auth.invalidEmail || '올바른 이메일 형식이 아닙니다.');
         } else if (
           authErr.code === 'auth/user-not-found' ||
@@ -168,32 +170,18 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
     try {
       setLoading(true);
 
-      // Simulation mode if Firebase is unconfigured
-      if (!import.meta.env.VITE_FIREBASE_API_KEY) {
-        console.warn("Firebase config is missing, simulating signup...");
-        localStorage.setItem('walwal_logged_in', 'true');
-        localStorage.setItem('walwal_user_email', cleanEmail);
-        localStorage.setItem('walwal_app_state', 'main');
-        setTimeout(() => onLoginSuccess(), 400);
-        return;
-      }
-
       await createUserWithEmailAndPassword(auth, cleanEmail, cleanPw);
-      localStorage.setItem('walwal_logged_in', 'true');
-      localStorage.setItem('walwal_user_email', cleanEmail);
-      localStorage.setItem('walwal_app_state', 'main');
       localStorage.setItem('WALWAL_SETTINGS_NOTIFICATIONS', JSON.stringify({
         radarAlert: true,
         meetupAlert: true,
         feedAlert: true
       }));
-      if (cleanEmail.toLowerCase().includes('daisynara')) {
-        localStorage.setItem('WALWAL_ADMIN_AUTH', 'true');
-      }
-      onLoginSuccess();
+      finalizeLogin(cleanEmail);
     } catch (authErr: any) {
       console.error("Sign up failed", authErr);
-      if (authErr.code === 'auth/email-already-in-use') {
+      if (authErr.code === 'auth/operation-not-allowed') {
+        setErrorMsg('Firebase 콘솔(walwal-59c61)에서 이메일/비밀번호 로그인이 활성화되지 않았습니다. Google 로그인을 이용해 주시거나 Firebase 콘솔에서 활성화해 주세요.');
+      } else if (authErr.code === 'auth/email-already-in-use') {
         setErrorMsg('이미 가입된 이메일입니다. 로그인해 주세요.');
       } else if (authErr.code === 'auth/weak-password') {
         setErrorMsg(t.auth.shortPassword || '비밀번호는 6자리 이상이어야 합니다.');
@@ -212,28 +200,17 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
     try {
       setLoading(true);
       setErrorMsg(null);
-      if (!import.meta.env.VITE_FIREBASE_API_KEY) {
-        console.warn("Firebase config is missing, simulating login...");
-        localStorage.setItem('walwal_logged_in', 'true');
-        localStorage.setItem('walwal_app_state', 'main');
-        setTimeout(() => onLoginSuccess(), 500);
-        return;
-      }
       const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
       const res = await signInWithPopup(auth, provider);
-      if (res?.user?.email) {
-        localStorage.setItem('walwal_user_email', res.user.email);
-        if (res.user.email.toLowerCase().includes('daisynara')) {
-          localStorage.setItem('WALWAL_ADMIN_AUTH', 'true');
-        }
-      }
-      localStorage.setItem('walwal_logged_in', 'true');
-      localStorage.setItem('walwal_app_state', 'main');
-      onLoginSuccess();
+      const cleanEmail = res?.user?.email ? res.user.email.toLowerCase().trim() : '';
+      finalizeLogin(cleanEmail);
     } catch (error: any) {
       console.error("Google login failed", error);
-      if (error?.code !== 'auth/popup-closed-by-user') {
-        setErrorMsg("Google 로그인에 실패했습니다. 다시 시도해 주세요.");
+      if (error?.code === 'auth/popup-blocked') {
+        setErrorMsg("팝업이 차단되었습니다. 브라우저 팝업 차단을 해제해 주세요.");
+      } else if (error?.code !== 'auth/popup-closed-by-user') {
+        setErrorMsg("Google 로그인에 실패했습니다. 이메일 로그인을 이용해 주세요.");
       }
     } finally {
       setLoading(false);

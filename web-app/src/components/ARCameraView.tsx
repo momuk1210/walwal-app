@@ -38,7 +38,11 @@ interface DetectedDogInFrame {
   accentColor: string;
 }
 
-import { getLiveDogScenarios, getPack3Turns, DogBehaviorState, LiveScenario } from '../data/arScenarios';
+import { getLiveDogScenarios, getPack3Turns, getSpontaneousScenario, DogBehaviorState, LiveScenario } from '../data/arScenarios';
+
+// 전역 싱글톤: React 컴포넌트 언마운트/리마운트 시에도 하드웨어 스트림을 유지하여 iOS 중복 권한 요청 방지
+let globalCameraStream: MediaStream | null = null;
+let globalCameraPromise: Promise<MediaStream | null> | null = null;
 
 
 export const ARCameraView: React.FC<ARCameraViewProps> = ({
@@ -79,7 +83,19 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
   const liveScenarios = getLiveDogScenarios(language);
-  const liveThought = liveScenarios[behaviorState]?.[scenarioIdx] || liveScenarios.calm[0];
+  const currentScenarioList = liveScenarios[behaviorState] || liveScenarios.calm;
+  const liveThought = currentScenarioList[scenarioIdx % currentScenarioList.length] || currentScenarioList[0];
+  const lastCapturedThoughtRef = useRef<string>('');
+
+  // 3.5초마다 상황에 맞는 속마음 인덱스 자동 순환 (지속적인 활기 부여)
+  useEffect(() => {
+    if (!isCameraLive) return;
+    const cycleTimer = setInterval(() => {
+      setScenarioIdx(prev => prev + 1);
+    }, 3500);
+    return () => clearInterval(cycleTimer);
+  }, [isCameraLive]);
+
   const [focusLocked, setFocusLocked] = useState<boolean>(false);
 
   const [aiAnalyzing, setAiAnalyzing] = useState<boolean>(false);
@@ -124,6 +140,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
   const liveStreamRef = useRef<MediaStream | null>(null);
   const isMountedRef = useRef<boolean>(true);
   const isStartingRef = useRef<boolean>(false);
+  const activeCameraPromiseRef = useRef<Promise<void> | null>(null);
   const simImgRef = useRef<HTMLImageElement | null>(null);
   const trackingCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const prevFrameDataRef = useRef<Uint8ClampedArray | null>(null);
@@ -158,6 +175,13 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
 
   // 스마트폰 하드웨어 가속도/자이로 센서 실시간 감지 (중력 가속도로 폰의 회전 100% 자동 감지)
   useEffect(() => {
+    const isMobileDevice = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (!isMobileDevice) {
+      orientationStateRef.current = { isLandscape: false, rotation: 0 };
+      setIsLandscapeMode(false);
+      return;
+    }
+
     // 1. 중력 가속도 센서 (어떤 각도로 쥐고 있든 x, y 중력 비교로 즉시 감지)
     const handleDeviceMotion = (e: DeviceMotionEvent) => {
       const acc = e.accelerationIncludingGravity;
@@ -173,8 +197,8 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
 
       // 브라우저 자체가 이미 가로 상태라면 센서로 덮어쓰지 않음
       const isWindowCurrentlyLandscape = (typeof window.orientation !== 'undefined' && Math.abs(Number(window.orientation)) === 90) ||
-                                          (typeof window !== 'undefined' && window.innerWidth > window.innerHeight) ||
-                                          (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(orientation: landscape)').matches);
+        (typeof window !== 'undefined' && window.innerWidth > window.innerHeight) ||
+        (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(orientation: landscape)').matches);
       if (isWindowCurrentlyLandscape) {
         orientationStateRef.current = { isLandscape: true, rotation: -90 };
         return;
@@ -205,8 +229,8 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       lastGyroRef.current = { gamma, beta };
 
       const isWindowCurrentlyLandscape = (typeof window.orientation !== 'undefined' && Math.abs(Number(window.orientation)) === 90) ||
-                                          (typeof window !== 'undefined' && window.innerWidth > window.innerHeight) ||
-                                          (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(orientation: landscape)').matches);
+        (typeof window !== 'undefined' && window.innerWidth > window.innerHeight) ||
+        (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(orientation: landscape)').matches);
       if (isWindowCurrentlyLandscape) {
         orientationStateRef.current = { isLandscape: true, rotation: -90 };
         setIsLandscapeMode(true);
@@ -386,6 +410,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
 
         // 오디오 분석 (analyser 있으면)
         let audioState: 'bark' | 'whine' | 'growl' | 'silent' = 'silent';
+        let totalVol = 0;
         if (analyserRef.current) {
           const freqData = new Uint8Array(analyserRef.current.frequencyBinCount);
           analyserRef.current.getByteFrequencyData(freqData);
@@ -393,7 +418,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
           const lowAvg = freqData.slice(0, 20).reduce((a, b) => a + b, 0) / 20;
           const midAvg = freqData.slice(20, 60).reduce((a, b) => a + b, 0) / 40;
           const highAvg = freqData.slice(60, 128).reduce((a, b) => a + b, 0) / 68;
-          const totalVol = (lowAvg + midAvg + highAvg) / 3;
+          totalVol = (lowAvg + midAvg + highAvg) / 3;
 
           if (totalVol > 60) {
             // 큰 소리: 주파수 분포로 짖음/낑낑/그로울 구분
@@ -406,6 +431,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
             }
           }
         }
+        // 오디오 분석 완료 후 행동 상태 분류
 
         // 행동 상태 최종 분류 (오디오 우선, 보조로 모션)
         let newBehavior: DogBehaviorState;
@@ -417,8 +443,9 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
 
         const now = Date.now();
         setBehaviorState(prev => {
-          if (prev !== newBehavior && now - lastBehaviorChangeRef.current > 2500) {
+          if (prev !== newBehavior && now - lastBehaviorChangeRef.current > 2000) {
             lastBehaviorChangeRef.current = now;
+            setScenarioIdx(s => s + Math.floor(Math.random() * 3) + 1);
             return newBehavior;
           }
           return prev;
@@ -471,29 +498,29 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
   }, [isCameraLive]);
 
 
-  // 현재 비디오 화면 프레임 캡처 (360px 경량화 & 0.65 JPEG 압축으로 전송 및 비전 분석 시간 대폭 단축)
+  // 현재 비디오 화면 프레임 캡처 (480px & 0.75 JPEG 압축으로 모션/피사체 디테일 확보 및 빠른 전송)
   const captureCurrentFrameBase64 = (): string | undefined => {
     try {
       const video = videoRef.current;
       if (video && video.videoWidth > 0 && video.videoHeight > 0) {
         const canvas = document.createElement('canvas');
-        canvas.width = 360;
-        canvas.height = Math.round((video.videoHeight / video.videoWidth) * 360) || 270;
+        canvas.width = 480;
+        canvas.height = Math.round((video.videoHeight / video.videoWidth) * 480) || 360;
         const ctx = canvas.getContext('2d');
         if (ctx) {
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          return canvas.toDataURL('image/jpeg', 0.65);
+          return canvas.toDataURL('image/jpeg', 0.75);
         }
       }
       if (!isCameraLive && simImgRef.current && simImgRef.current.naturalWidth > 0) {
         const img = simImgRef.current;
         const canvas = document.createElement('canvas');
-        canvas.width = 360;
-        canvas.height = Math.round((img.naturalHeight / img.naturalWidth) * 360) || 270;
+        canvas.width = 480;
+        canvas.height = Math.round((img.naturalHeight / img.naturalWidth) * 480) || 360;
         const ctx = canvas.getContext('2d');
         if (ctx) {
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          return canvas.toDataURL('image/jpeg', 0.65);
+          return canvas.toDataURL('image/jpeg', 0.75);
         }
       }
     } catch (e) {
@@ -540,7 +567,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       isAnalyzingRef.current = true;
       setAiAnalyzing(true);
       try {
-        const result = await generateDogThought(language, frameBase64);
+        const result = await generateDogThought(language, frameBase64, behaviorState);
         if (!isCancelled) {
           if (result.isDogDetected) {
             consecutiveMissRef.current = 0;
@@ -555,8 +582,9 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
           }
         }
       } catch (err) {
-        console.error('Initial vision thought failed:', err);
+        console.warn('Initial vision thought failed:', err);
         if (!isCancelled) {
+          consecutiveMissRef.current += 1;
           setIsDogInView(false);
           setAiThoughtText((LANG_CONFIG[language] || LANG_CONFIG.ko).noDogThought);
           setAiEmotionTag((LANG_CONFIG[language] || LANG_CONFIG.ko).noDogTag);
@@ -574,9 +602,9 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       isCancelled = true;
       if (warmupTimer) clearTimeout(warmupTimer);
     };
-  }, [isCameraLive, language]);
+  }, [isCameraLive, language, behaviorState]);
 
-  // 카메라가 켜져 있는 동안 4.2초 주기로 실제 화면 연속 실시간 비전 분석
+  // 카메라가 켜져 있는 동안 주기적으로 실제 화면 연속 실시간 비전/상황 분석
   useEffect(() => {
     if (!isCameraLive) return;
 
@@ -588,7 +616,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       isAnalyzingRef.current = true;
       setAiAnalyzing(true);
       try {
-        const result = await generateDogThought(language, frameBase64);
+        const result = await generateDogThought(language, frameBase64, behaviorState);
         if (result.isDogDetected) {
           consecutiveMissRef.current = 0;
           setIsDogInView(true);
@@ -596,23 +624,28 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
           setAiEmotionTag(result.tag);
         } else {
           consecutiveMissRef.current += 1;
-          setIsDogInView(false);
-          setAiThoughtText(result.thought || (LANG_CONFIG[language] || LANG_CONFIG.ko).noDogThought);
-          setAiEmotionTag(result.tag || (LANG_CONFIG[language] || LANG_CONFIG.ko).noDogTag);
+          if (consecutiveMissRef.current >= 2) {
+            setIsDogInView(false);
+            setAiThoughtText(result.thought || (LANG_CONFIG[language] || LANG_CONFIG.ko).noDogThought);
+            setAiEmotionTag(result.tag || (LANG_CONFIG[language] || LANG_CONFIG.ko).noDogTag);
+          }
         }
       } catch (e) {
-        console.error('Live loop vision error:', e);
-        setIsDogInView(false);
-        setAiThoughtText((LANG_CONFIG[language] || LANG_CONFIG.ko).noDogThought);
-        setAiEmotionTag((LANG_CONFIG[language] || LANG_CONFIG.ko).noDogTag);
+        console.warn('Live loop vision error:', e);
+        consecutiveMissRef.current += 1;
+        if (consecutiveMissRef.current >= 2) {
+          setIsDogInView(false);
+          setAiThoughtText((LANG_CONFIG[language] || LANG_CONFIG.ko).noDogThought);
+          setAiEmotionTag((LANG_CONFIG[language] || LANG_CONFIG.ko).noDogTag);
+        }
       } finally {
         isAnalyzingRef.current = false;
         setAiAnalyzing(false);
       }
-    }, 4200);
+    }, 3500);
 
     return () => clearInterval(liveLoop);
-  }, [isCameraLive, language]);
+  }, [isCameraLive, language, behaviorState]);
 
   // 뷰파인더 탭 시 해당 위치로 포커스 이동
   const handleViewfinderTap = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -625,143 +658,131 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
   };
 
 
-  const stopLiveCamera = () => {
-    if (liveStreamRef.current) {
-      liveStreamRef.current.getTracks().forEach(t => {
-        try { t.stop(); } catch (e) { }
-      });
-      liveStreamRef.current = null;
-    }
-    if (videoRef.current && videoRef.current.srcObject) {
-      const s = videoRef.current.srcObject as MediaStream;
-      if (s && s.getTracks) {
-        s.getTracks().forEach(t => {
+  const stopLiveCamera = (forceKillHardware: boolean = true) => {
+    if (forceKillHardware) {
+      if (globalCameraStream) {
+        globalCameraStream.getTracks().forEach(t => {
           try { t.stop(); } catch (e) { }
         });
+        globalCameraStream = null;
+      }
+      if (liveStreamRef.current) {
+        liveStreamRef.current.getTracks().forEach(t => {
+          try { t.stop(); } catch (e) { }
+        });
+        liveStreamRef.current = null;
+      }
+      if ((window as any).__WALWAL_CAMERA_STREAM__) {
+        try {
+          (window as any).__WALWAL_CAMERA_STREAM__.getTracks().forEach((t: any) => {
+            try { t.stop(); } catch (e) { }
+          });
+        } catch (e) { }
+        (window as any).__WALWAL_CAMERA_STREAM__ = null;
+      }
+    }
+
+    if (videoRef.current) {
+      if (videoRef.current.srcObject && (videoRef.current.srcObject as MediaStream).getTracks) {
+        try {
+          (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => {
+            try { t.stop(); } catch (e) { }
+          });
+        } catch (e) { }
       }
       videoRef.current.srcObject = null;
-    }
-    if ((window as any).__WALWAL_CAMERA_STREAM__) {
-      const gStream = (window as any).__WALWAL_CAMERA_STREAM__ as MediaStream;
-      gStream.getTracks().forEach(t => {
-        try { t.stop(); } catch (e) { }
-      });
-      (window as any).__WALWAL_CAMERA_STREAM__ = null;
     }
     setHasLiveStream(false);
   };
 
   const startLiveCamera = async () => {
-    if (isStartingRef.current) return;
-    isStartingRef.current = true;
-    const unlockTimeout = setTimeout(() => {
-      isStartingRef.current = false;
-    }, 4000);
-
-    try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setHasLiveStream(false);
-        isStartingRef.current = false;
-        return;
+    // 1. 이미 전역 싱글톤 또는 비디오 엘리먼트에 활성 트랙이 살아있다면 0ms로 즉시 재연결 (getUserMedia 재호출 절대 금지)
+    const activeStream: MediaStream | null = globalCameraStream || (videoRef.current?.srcObject as MediaStream | null) || liveStreamRef.current || (window as any).__WALWAL_CAMERA_STREAM__;
+    if (activeStream && activeStream.getVideoTracks().some((t: MediaStreamTrack) => t.readyState === 'live')) {
+      globalCameraStream = activeStream;
+      liveStreamRef.current = activeStream;
+      (window as any).__WALWAL_CAMERA_STREAM__ = activeStream;
+      if (videoRef.current && videoRef.current.srcObject !== activeStream) {
+        videoRef.current.srcObject = activeStream;
+        videoRef.current.play().catch(() => { });
       }
+      setHasLiveStream(true);
+      setIsCameraLive(true);
+      return;
+    }
 
-      const isCameraBlocked = localStorage.getItem('WALWAL_PERM_CAMERA') === 'false';
-      if (isCameraBlocked) {
-        stopLiveCamera();
-        setIsCameraLive(false);
-        isStartingRef.current = false;
-        return;
-      }
-
-      // 이미 활성화된 스트림이 있다면 즉시 비디오에 연결하여 0ms로 실행
-      if (liveStreamRef.current && liveStreamRef.current.active && videoRef.current) {
-        const v = videoRef.current;
-        v.srcObject = liveStreamRef.current;
-        v.play().catch(() => {});
+    // 2. 이미 권한 요청 또는 카메라 구동 프로미스가 대기/진행 중이면 중복 요청을 방지하고 기존 프로미스 공유
+    if (globalCameraPromise) {
+      const stream = await globalCameraPromise;
+      if (stream && videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(() => { });
         setHasLiveStream(true);
         setIsCameraLive(true);
-        isStartingRef.current = false;
-        clearTimeout(unlockTimeout);
-        return;
       }
+      return;
+    }
 
-      if ((window as any).__WALWAL_CAMERA_STREAM__ && (window as any).__WALWAL_CAMERA_STREAM__.active && videoRef.current) {
-        const gStream = (window as any).__WALWAL_CAMERA_STREAM__ as MediaStream;
-        liveStreamRef.current = gStream;
-        const v = videoRef.current;
-        v.srcObject = gStream;
-        v.play().catch(() => {});
-        setHasLiveStream(true);
-        setIsCameraLive(true);
-        isStartingRef.current = false;
-        clearTimeout(unlockTimeout);
-        return;
-      }
-
-      let stream: MediaStream | null = null;
-
+    const task = (async () => {
       try {
-        // 비디오 단독 요청
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: cameraFacingMode },
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          setHasLiveStream(false);
+          return null;
+        }
+
+        const isCameraBlocked = localStorage.getItem('WALWAL_PERM_CAMERA') === 'false';
+        if (isCameraBlocked) {
+          stopLiveCamera(true);
+          setIsCameraLive(false);
+          return null;
+        }
+
+        // iOS WebKit OverconstrainedError 방지를 위해 ideal facingMode 사용
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: cameraFacingMode } },
           audio: false
         });
-      } catch (e1) {
-        try {
-          // 비디오 폴백
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: false
-          });
-        } catch (e2) {
-          console.log('No physical camera or permission denied:', e2);
-        }
-      }
 
-      if (!isMountedRef.current) {
-        if (stream) stream.getTracks().forEach(t => t.stop());
-        return;
-      }
-
-      if (stream && videoRef.current) {
-        liveStreamRef.current = stream;
+        globalCameraStream = stream;
         (window as any).__WALWAL_CAMERA_STREAM__ = stream;
-        const v = videoRef.current;
-        v.muted = true;
-        (v as any).defaultMuted = true;
-        v.playsInline = true;
-        v.srcObject = stream;
+        liveStreamRef.current = stream;
 
-        try {
-          await v.play();
-        } catch (playErr) {
-          console.log('Video auto-play delayed/prevented:', playErr);
+        if (videoRef.current) {
+          const v = videoRef.current;
+          v.muted = true;
+          (v as any).defaultMuted = true;
+          v.playsInline = true;
+          v.srcObject = stream;
+
+          try {
+            await v.play();
+          } catch (playErr) {
+            console.log('Video auto-play delayed/prevented:', playErr);
+          }
         }
 
         setHasLiveStream(true);
         setIsCameraLive(true);
-
-        // 마이크 하드웨어 연결 불필요: 자연스러운 환경 소음(45~55dB) 시뮬레이션
         setAudioLevel(48);
-      } else {
+        return stream;
+      } catch (err: any) {
+        console.log('Camera initialization error:', err);
         setHasLiveStream(false);
+        return null;
+      } finally {
+        globalCameraPromise = null;
       }
-    } catch (err: any) {
-      console.log('Camera initialization error:', err);
-      if (isMountedRef.current) {
-        setHasLiveStream(false);
-      }
-    } finally {
-      clearTimeout(unlockTimeout);
-      isStartingRef.current = false;
-    }
+    })();
+
+    globalCameraPromise = task;
+    await task;
   };
 
   const toggleRealCamera = async () => {
     if (isCameraLive && hasLiveStream) {
       setIsCameraLive(false);
       localStorage.setItem('WALWAL_PERM_CAMERA', 'false');
-      stopLiveCamera();
+      stopLiveCamera(true);
     } else {
       setIsCameraLive(true);
       localStorage.setItem('WALWAL_PERM_CAMERA', 'true');
@@ -779,7 +800,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
         const nextLive = permValue !== undefined ? Boolean(permValue) : localStorage.getItem('WALWAL_PERM_CAMERA') === 'true';
         setIsCameraLive(nextLive);
         if (!nextLive) {
-          stopLiveCamera();
+          stopLiveCamera(true);
         } else {
           startLiveCamera();
         }
@@ -791,7 +812,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
         const cameraOn = localStorage.getItem('WALWAL_PERM_CAMERA') === 'true';
         setIsCameraLive(cameraOn);
         if (!cameraOn) {
-          stopLiveCamera();
+          stopLiveCamera(true);
         }
       }
     };
@@ -817,13 +838,29 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       startLiveCamera();
     }
 
-    window.addEventListener('beforeunload', stopLiveCamera);
+    const handleBeforeUnload = () => stopLiveCamera(true);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        stopLiveCamera(true);
+      } else if (document.visibilityState === 'visible' && isMountedRef.current) {
+        const isBlocked = localStorage.getItem('WALWAL_PERM_CAMERA') === 'false';
+        if (!isBlocked) {
+          setIsCameraLive(true);
+          startLiveCamera();
+        }
+      }
+    };
 
-    // cleanup
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // cleanup: 탭 전환 또는 언마운트 시 물리 하드웨어 카메라를 즉시 완전 종료(stopLiveCamera(true))
+    // -> 다른 탭(피드, 커뮤니티, 마이펫 등)으로 이동 시 iOS 상단 다이내믹 아일랜드/빨간색 녹화 아이콘 즉시 소멸
     return () => {
-      window.removeEventListener('beforeunload', stopLiveCamera);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       isMountedRef.current = false;
-      stopLiveCamera();
+      stopLiveCamera(true);
       if (audioStreamRef.current) {
         audioStreamRef.current.getTracks().forEach(t => t.stop());
         audioStreamRef.current = null;
@@ -855,6 +892,12 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
   const currentTurn = packTurns[turnIndex % packTurns.length] || packTurns[0];
   // 화면 및 카메라 실제 앵글에 따른 동적 가로/세로 해상도 계산 (1280x720 vs 720x1280)
   const getCaptureDimensions = () => {
+    // 0. PC 버전 확인: PC 웹/데스크톱에서는 사진 촬영 및 동영상 녹화 시 항상 세로 버전(720x1280)으로 캡처
+    const isMobileDevice = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (!isMobileDevice) {
+      return { width: 720, height: 1280, isLandscape: false };
+    }
+
     // 1. 센서 가속도/자이로 실시간 물리적 방향 확인
     let isLandscapeBySensor = orientationStateRef.current.isLandscape;
     if (lastAccRef.current) {
@@ -896,7 +939,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
   };
 
   // 캔버스에 가로/세로 영상/사진 배경 + 실시간 AI 행동 분석 말풍선 합성
-  const drawFrameWithBubble = (context: CanvasRenderingContext2D, cWidth: number, cHeight: number, elapsedSec: number = 0) => {
+  const drawFrameWithBubble = (context: CanvasRenderingContext2D, cWidth: number, cHeight: number, elapsedSec: number = 0, overrideThought?: string) => {
     const activeTurn = packTurns[turnIndexRef.current % packTurns.length] || packTurns[0];
     const isLandscape = cWidth > cHeight;
     const s = (isLandscape ? cHeight : cWidth) / 400;
@@ -906,8 +949,8 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       const v = videoRef.current;
       const isVideoVertical = v.videoHeight > v.videoWidth;
       const isPhysicalLandscape = (typeof window !== 'undefined' && window.innerWidth > window.innerHeight) ||
-                                  (typeof window.orientation !== 'undefined' && Math.abs(Number(window.orientation)) === 90) ||
-                                  Boolean(typeof window !== 'undefined' && window.screen?.orientation?.type?.includes('landscape'));
+        (typeof window.orientation !== 'undefined' && Math.abs(Number(window.orientation)) === 90) ||
+        Boolean(typeof window !== 'undefined' && window.screen?.orientation?.type?.includes('landscape'));
 
       if (isLandscape && isVideoVertical) {
         // 스마트폰을 가로로 돌려 찍었을 때: 세로 카메라 비디오(720x1280) 전체를 90도 회전시켜 1280x720 가로 전체 화면에 시원하게 꽉 채움
@@ -959,8 +1002,8 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       context.drawImage(img, sx, sy, sW, sH, 0, 0, cWidth, cHeight);
     } else {
       const bgGrad = context.createLinearGradient(0, 0, 0, cHeight);
-      bgGrad.addColorStop(0, '#1E293B');
-      bgGrad.addColorStop(0.5, '#0F172A');
+      bgGrad.addColorStop(0, '#000');
+      bgGrad.addColorStop(0.5, '#111');
       bgGrad.addColorStop(1, '#020617');
       context.fillStyle = bgGrad;
       context.fillRect(0, 0, cWidth, cHeight);
@@ -1033,7 +1076,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       const tagY = currY - 2 * s;
 
       // Draw title with fixed color and maxWidth to prevent overlap
-      context.fillStyle = '#FFB320';
+      context.fillStyle = '#FF9E58';
       context.font = `bold ${12 * s}px sans-serif`;
       context.textAlign = 'left';
       context.textBaseline = 'top';
@@ -1070,13 +1113,13 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
 
       currY += textBlockH + 10 * s;
       context.font = `${10.5 * s}px sans-serif`;
-      context.fillStyle = '#2D3748';
+      context.fillStyle = '#333';
       context.textAlign = 'left';
       context.textBaseline = 'top';
       const maxBottomLeftW = maxTextW * 0.55;
       context.fillText(behaviorDetail, bubbleX + padX, currY, maxBottomLeftW);
 
-      context.fillStyle = '#718096';
+      context.fillStyle = '#121212';
       context.textAlign = 'right';
       const maxBottomRightW = maxTextW * 0.40;
       context.fillText(signal, bubbleX + bubbleW - padX, currY, maxBottomRightW);
@@ -1092,7 +1135,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       // Left Dog (Index 0)
       drawBubble(
         activeTurn.dogs[0].thought, activeTurn.dogs[0].behavior, activeTurn.dogs[0].behavior, t.ar.behaviorCalm || '이완 안정', activeTurn.dogs[0].conf,
-        cWidth * 0.04, cHeight * 0.11 + floatY1, w, '#FFB320', (t.ar.mockDogLeftName || '') + (t.ar.speechSuffix || '')
+        cWidth * 0.04, cHeight * 0.11 + floatY1, w, '#FF9E58', (t.ar.mockDogLeftName || '') + (t.ar.speechSuffix || '')
       );
 
       // Right Dog (Index 2)
@@ -1108,7 +1151,10 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       );
     } else {
       const floatY = elapsedSec > 0 ? Math.sin(elapsedSec * (Math.PI * 2 / 2.8)) * (7 * s) : 0;
-      const targetThought = isCameraLive ? aiThoughtTextRef.current : activeTurn.dogs[1].thought;
+      const noDogStr = (LANG_CONFIG[language] || LANG_CONFIG.ko).noDogThought;
+      let targetThought = isCameraLive
+        ? (isDogInView ? (overrideThought || aiThoughtTextRef.current || noDogStr) : noDogStr)
+        : activeTurn.dogs[1].thought;
       const behaviorObj = (t.ar.behaviors as any)?.[behaviorState] || (t.ar.behaviors as any)?.calm;
       const targetConfidence = isCameraLive ? (liveThought.confidence || 95) : 98;
       const targetBehavior = behaviorObj ? `${behaviorObj.detail} ${targetConfidence}%` : (isCameraLive ? liveThought.behavior : '이완 안정 · 신뢰 유대 신호');
@@ -1152,7 +1198,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
               onClick={() => window.dispatchEvent(new CustomEvent('walwal_open_all_services'))}
               aria-label="전체서비스"
               title="전체서비스" >
-              <Menu size={24} color="#1E293B" />
+              <Menu size={24} color="#000" />
             </button>
           </div>
         </div>
@@ -1373,7 +1419,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
                           color: '#64748B'
                         }}>
                           <span style={{ fontWeight: 500, color: '#334155' }}>{detailText}</span>
-                          <span style={{ color: '#94A3B8' }}>{signalText}</span>
+                          <span style={{ color: '#c8c8c8' }}>{signalText}</span>
                         </div>
                       );
                     })()}
@@ -1437,7 +1483,9 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
                 });
 
                 const targetDog = anglePreset === 'pack3' ? getMockDogs(language)[1] : (myDogProfile || getMockDogs(language)[0]);
-                const targetThought = isCameraLive ? (isDogInView ? aiThoughtText : (LANG_CONFIG[language] || LANG_CONFIG.ko).noDogThought) : currentTurn.dogs[1].thought;
+                const targetThought = isCameraLive
+                  ? (isDogInView ? aiThoughtText : (LANG_CONFIG[language] || LANG_CONFIG.ko).noDogThought)
+                  : currentTurn.dogs[1].thought;
 
                 try {
                   // 실제 촬영 앵글(가로 1280x720 / 세로 720x1280)에 맞춘 동적 해상도 적용
@@ -1456,7 +1504,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
                   if (!ctx) throw new Error('Could not create canvas 2d context');
 
                   const startTime = performance.now();
-                  drawFrameWithBubble(ctx, canvas.width, canvas.height, 0);
+                  drawFrameWithBubble(ctx, canvas.width, canvas.height, 0, targetThought);
 
                   const captureStreamFn = (canvas as any).captureStream || (canvas as any).webkitCaptureStream;
                   let stream: MediaStream | null = null;
@@ -1513,7 +1561,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
                       poster = canvas.toDataURL('image/jpeg', 0.85);
                     } catch (e) { }
 
-                    // 3초 동영상 녹화 완료 후 스냅스(Snaps) 등록으로 직행
+                    // 3초 동영상 녹화 완료 후 피드스(Snaps) 등록으로 직행
                     if (onCaptureToSnaps) {
                       onCaptureToSnaps(targetDog, targetThought, videoUrl, poster, true);
                     } else if (onCaptureToFeed) {
@@ -1539,7 +1587,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
                   let animationId: number;
                   const renderFrame = () => {
                     const elapsed = (performance.now() - startTime) / 1000;
-                    drawFrameWithBubble(ctx, canvas.width, canvas.height, elapsed);
+                    drawFrameWithBubble(ctx, canvas.width, canvas.height, elapsed, targetThought);
                     animationId = requestAnimationFrame(renderFrame);
                   };
                   renderFrame();
@@ -1564,7 +1612,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
                   canvas.height = CANVAS_H;
                   const ctx = canvas.getContext('2d');
                   if (ctx) {
-                    drawFrameWithBubble(ctx, canvas.width, canvas.height, 0);
+                    drawFrameWithBubble(ctx, canvas.width, canvas.height, 0, targetThought);
                     snapshot = canvas.toDataURL('image/jpeg', 0.85);
                     fetch(snapshot).then(r => r.blob()).then(blob => blobCache.set(snapshot, blob)).catch(console.error);
                   }
@@ -1580,7 +1628,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
               title={
                 isCapturingVideo
                   ? (t.ar.recordingTitle || '녹화 중... ({sec}s)').replace('{sec}', String(captureCountdown))
-                  : (t.ar.captureVideoTitle || "스냅스 동영상 촬영 (3초)")
+                  : (t.ar.captureVideoTitle || "피드스 동영상 촬영 (3초)")
               }
             >
               {isCapturingVideo ? (
@@ -1624,7 +1672,9 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
               });
 
               const targetDog = anglePreset === 'pack3' ? getMockDogs(language)[1] : (myDogProfile || getMockDogs(language)[0]);
-              const targetThought = isCameraLive ? (isDogInView ? aiThoughtText : (LANG_CONFIG[language] || LANG_CONFIG.ko).noDogThought) : currentTurn.dogs[1].thought;
+              const targetThought = isCameraLive
+                ? (isDogInView ? aiThoughtText : (LANG_CONFIG[language] || LANG_CONFIG.ko).noDogThought)
+                : currentTurn.dogs[1].thought;
 
               const { width: CANVAS_W, height: CANVAS_H } = getCaptureDimensions();
               const canvas = document.createElement('canvas');
@@ -1634,7 +1684,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
               let snapshot = '';
 
               if (ctx) {
-                drawFrameWithBubble(ctx, CANVAS_W, CANVAS_H, 0);
+                drawFrameWithBubble(ctx, CANVAS_W, CANVAS_H, 0, targetThought);
                 snapshot = canvas.toDataURL('image/jpeg', 0.9);
               }
 
@@ -1644,7 +1694,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
                 onCaptureToFeed(targetDog || myDogProfile, targetThought, snapshot);
               }
             }}
-            title={t.ar.capturePhotoTitle || "스냅샷 추가"}
+            title={t.ar.capturePhotoTitle || "피드샷 추가"}
           >
             <Camera size={30} strokeWidth={2} />
           </button>

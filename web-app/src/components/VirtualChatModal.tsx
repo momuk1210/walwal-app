@@ -83,7 +83,7 @@ export const VirtualChatModal: React.FC<VirtualChatModalProps> = ({
       {/* Modal Header */}
       <div className="row-between mb-16">
         <div className="row gap-8">
-          <Sparkles size={20} color="#FFB320" />
+          <Sparkles size={20} color="#FF9E58" />
           <div>
             <h3 className="title-md">{dog1.name} & {dog2.name} 가상 티키타카</h3>
             <p className="text-sub">AI가 두 반려견의 성향을 분석해 시뮬레이션한 대화입니다</p>
@@ -92,7 +92,7 @@ export const VirtualChatModal: React.FC<VirtualChatModalProps> = ({
         <button
           onClick={onClose}
           className="btn-ghost"
-          style={{ background: 'rgba(255,255,255,0.1)', borderRadius: '50%', width: '32px', height: '32px', justifyContent: 'center', color: '#2D3748' }}
+          style={{ background: 'rgba(255,255,255,0.1)', borderRadius: '50%', width: '32px', height: '32px', justifyContent: 'center', color: '#333' }}
         >
           <X size={18} />
         </button>
@@ -101,9 +101,9 @@ export const VirtualChatModal: React.FC<VirtualChatModalProps> = ({
       {/* Dog Duel Header Bar */}
       <div className="card row-between mb-16" style={{ padding: '12px 16px' }}>
         <div className="row gap-8">
-          <img src={dog1.avatar} alt={dog1.name} style={{ width: '38px', height: '38px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #FFB320' }} />
+          <img src={dog1.avatar} alt={dog1.name} style={{ width: '38px', height: '38px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #FF9E58' }} />
           <div>
-            <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#FFB320' }}>{dog1.name}</div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#FF9E58' }}>{dog1.name}</div>
             <div className="text-sub">{dog1.personality[0]}</div>
           </div>
         </div>
@@ -145,10 +145,10 @@ export const VirtualChatModal: React.FC<VirtualChatModalProps> = ({
                 borderRadius: isDog1 ? '18px 18px 18px 4px' : '18px 18px 4px 18px',
                 padding: '12px 14px'
               }}>
-                <div style={{ fontSize: '0.7rem', fontWeight: 800, color: isDog1 ? '#FFB320' : '#2EC4B6', marginBottom: '3px' }}>
+                <div style={{ fontSize: '0.7rem', fontWeight: 800, color: isDog1 ? '#FF9E58' : '#2EC4B6', marginBottom: '3px' }}>
                   {msg.sender.name}
                 </div>
-                <div style={{ fontSize: '0.88rem', color: '#2D3748', lineHeight: 1.4 }}>
+                <div style={{ fontSize: '0.88rem', color: '#333', lineHeight: 1.4 }}>
                   {msg.text}
                 </div>
               </div>
@@ -167,11 +167,11 @@ export const VirtualChatModal: React.FC<VirtualChatModalProps> = ({
           disabled={simulating}
           className="glow-btn"
           style={{
-            background: 'linear-gradient(135deg, #FFB320, #FFBF00)',
+            background: 'linear-gradient(135deg, #FF9E58, #FFBF00)',
             border: 'none',
             borderRadius: '16px',
             padding: '12px',
-            color: '#2D3748',
+            color: '#333',
             fontSize: '0.85rem',
             fontWeight: 800,
             cursor: 'pointer',

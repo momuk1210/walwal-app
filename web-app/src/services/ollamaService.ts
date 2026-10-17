@@ -103,9 +103,9 @@ export class OllamaService {
       };
 
       const prompt =
-        "Examine this camera image carefully. Is there an actual, real domestic dog or puppy clearly visible in this photo? " +
-        `If there is NO dog (e.g. wall, floor, ceiling, desk, chair, laptop, room, objects, human with no pet, blurry background): output JSON: {"isDogDetected": false, "tag": "${langRules.noDogTag}", "thought": "${langRules.noDogThought}"}. ` +
-        `If and ONLY IF there is an actual dog clearly visible: observe its posture and facial expression, and generate a short, witty 1-sentence inner thought in ${langRules.guide}. ` +
+        "Examine this camera image carefully. Is there a dog, puppy, or pet canine visible in this photo (including moving, side/back angles, or partial)? " +
+        `If there is truly NO dog (e.g. wall, floor, ceiling, desk, room, objects, human with no pet): output JSON: {"isDogDetected": false, "tag": "${langRules.noDogTag}", "thought": "${langRules.noDogThought}"}. ` +
+        `If a dog is visible: observe its posture and facial expression, and generate a short, witty 1-sentence inner thought in ${langRules.guide}. ` +
         'output JSON: {"isDogDetected": true, "tag": "EmotionTag", "thought": "ShortDogThought"}. ' +
         "Output ONLY the JSON string without any markdown formatting.";
 

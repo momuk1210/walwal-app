@@ -436,9 +436,9 @@ export const ServiceFeedbackModal: React.FC<ServiceFeedbackModalProps> = ({
                     </div>
 
                     {isExpanded ? (
-                      <ChevronUp size={18} color="#94A3B8" />
+                      <ChevronUp size={18} color="#c8c8c8" />
                     ) : (
-                      <ChevronDown size={18} color="#94A3B8" />
+                      <ChevronDown size={18} color="#c8c8c8" />
                     )}
                   </div>
 

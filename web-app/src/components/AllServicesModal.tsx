@@ -37,12 +37,12 @@ interface ServiceItem {
 
 interface ServiceCategory {
   id: string;
-  title: string;
+  title?: string;
   items: ServiceItem[];
 }
 
 const UNIFIED_ICON_COLOR = '#334155';
-const ICON_SIZE = 20;
+const ICON_SIZE = 24;
 
 // Multilingual translations for All Services Menu (ko, en, ja, es)
 const ALL_SERVICES_I18N = {
@@ -63,11 +63,11 @@ const ALL_SERVICES_I18N = {
         nearbyTitle: '동네친구 찾기',
         nearbyDesc: '주변 반려견 탐색 & 지도 보기',
         communityTitle: '산책 모임',
-        communityDesc: '함께 산책하는 번개 모임 개설 및 참여'
+        communityDesc: '함께 산책하는 모임 개설 및 참여'
       },
       feed_snaps: {
         title: '소통 & 피드',
-        snapsTitle: '스냅',
+        snapsTitle: '피드',
         snapsDesc: '댕댕이 일상 사진/영상 공유',
         chatTitle: '모임 실시간 채팅',
         chatDesc: '산책 모임 전용 대화방'
@@ -312,7 +312,7 @@ const ALL_SERVICES_I18N = {
         title: '散步与约行',
         nearbyTitle: '发现附近狗友',
         nearbyDesc: '雷达探索附近散步狗狗与地图'
-        ,communityTitle: '约行活动',
+        , communityTitle: '约行活动',
         communityDesc: '参与或发起附近遛狗聚会'
       },
       feed_snaps: {
@@ -382,7 +382,6 @@ export const AllServicesModal: React.FC<AllServicesModalProps> = ({
     return [
       {
         id: 'ai_ar',
-        title: c.ai_ar.title,
         items: [
           {
             id: 'ar',
@@ -399,7 +398,6 @@ export const AllServicesModal: React.FC<AllServicesModalProps> = ({
       },
       {
         id: 'walk_map',
-        title: c.walk_map.title,
         items: [
           {
             id: 'nearby',
@@ -425,7 +423,6 @@ export const AllServicesModal: React.FC<AllServicesModalProps> = ({
       },
       {
         id: 'feed_snaps',
-        title: c.feed_snaps.title,
         items: [
           {
             id: 'snaps',
@@ -451,7 +448,6 @@ export const AllServicesModal: React.FC<AllServicesModalProps> = ({
       },
       {
         id: 'my_pet',
-        title: c.my_pet.title,
         items: [
           {
             id: 'profile',
@@ -480,7 +476,6 @@ export const AllServicesModal: React.FC<AllServicesModalProps> = ({
       },
       {
         id: 'settings_system',
-        title: c.settings_system.title,
         items: [
           {
             id: 'settings',
@@ -594,7 +589,7 @@ export const AllServicesModal: React.FC<AllServicesModalProps> = ({
         {/* Search Bar */}
         <div className="all-services-search-wrap">
           <div className="all-services-search-box">
-            <Search size={16} color="#94A3B8" />
+            <Search size={24} color="#c8c8c8" />
             <input
               type="text"
               placeholder={tr.searchPlaceholder}
@@ -606,7 +601,7 @@ export const AllServicesModal: React.FC<AllServicesModalProps> = ({
                 onClick={() => setSearchQuery('')}
                 style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
               >
-                <X size={14} color="#94A3B8" />
+                <X size={20} color="#c8c8c8" />
               </button>
             )}
           </div>
@@ -637,7 +632,7 @@ export const AllServicesModal: React.FC<AllServicesModalProps> = ({
                   <p>{activeDog.greeting || tr.greetingFallback}</p>
                 </div>
               </div>
-              <ChevronRight size={16} color="#94A3B8" />
+              <ChevronRight size={20} color="#CBD5E1" />
             </div>
           )}
 
@@ -649,9 +644,7 @@ export const AllServicesModal: React.FC<AllServicesModalProps> = ({
           ) : (
             filteredCategories.map(cat => (
               <div key={cat.id} className="all-services-category">
-                <div className="all-services-cat-header">
-                  <span>{cat.title}</span>
-                </div>
+
 
                 <div className="all-services-list">
                   {cat.items.map(item => (
@@ -678,7 +671,7 @@ export const AllServicesModal: React.FC<AllServicesModalProps> = ({
                           )}
                         </div>
                       </div>
-                      <ChevronRight size={16} color="#CBD5E1" />
+                      <ChevronRight size={20} color="#CBD5E1" />
                     </div>
                   ))}
                 </div>

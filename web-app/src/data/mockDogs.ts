@@ -24,6 +24,10 @@ export interface DogProfile {
   todayWalkMinutes?: number; // 오늘 산책 시간 (분)
   walkDistance?: number; // 누적 산책 거리 (km)
   walkMinutes?: number; // 누적 산책 시간 (분)
+  dailyDistanceGoal?: number; // 일일 목표 산책 거리 (km)
+  dailyTimeGoal?: number; // 일일 목표 산책 시간 (분)
+  walkGoalDistance?: number; // 프로필 편집 목표 산책 거리 (km)
+  walkGoalMinutes?: number; // 프로필 편집 목표 산책 시간 (분)
   stats?: {
     translateCount: number;
     studioCount: number;
@@ -90,16 +94,16 @@ export const AI_QUIPS: Record<string, string[]> = {
 const MOCK_DOGS_EN: DogProfile[] = [
   {
     ...MOCK_DOGS_KO[0],
-    name: 'Bori',
+    name: '보리',
     breed: 'Golden Retriever',
-    ownerName: 'Bori Mom',
+    ownerName: '보리 Mom',
     personality: ['#SocialButterfly', '#Friendly', '#SnackExpert'],
     recentThought: '"Sniff sniff... 100% sausage in bro\'s pocket!! Should I start the tail propeller?"',
     soundPattern: 'Woof (High pitch)',
     posePattern: 'Tail wagging + paws crossed',
     conversationLog: [
-      { speaker: 'Bori', text: 'Hey doggy friend! Sniffing your butt!!', time: 'Just now' },
-      { speaker: 'Bori', text: 'Hehe I can tell what you ate today by the smell!', time: '1m ago' }
+      { speaker: '보리', text: 'Hey doggy friend! Sniffing your butt!!', time: 'Just now' },
+      { speaker: '보리', text: 'Hehe I can tell what you ate today by the smell!', time: '1m ago' }
     ]
   }
 ];
@@ -107,16 +111,16 @@ const MOCK_DOGS_EN: DogProfile[] = [
 const MOCK_DOGS_JA: DogProfile[] = [
   {
     ...MOCK_DOGS_KO[0],
-    name: 'ボリ',
+    name: '보리',
     breed: 'ゴールデンレトリバー',
-    ownerName: 'ボリのママ',
+    ownerName: '보리의ママ',
     personality: ['#人気者', '#フレンドリー', '#おやつ鑑定士'],
     recentThought: '「くんくん…兄ちゃんのポケットにソーセージ入ってるの絶対100%！しっぽプロペラ回しちゃう？！」',
     soundPattern: 'ワン！（高音）',
     posePattern: 'しっぽブンブン＋前足クロス',
     conversationLog: [
-      { speaker: 'ボリ', text: 'わあ！わんこ友達のお尻の匂いをスキャン！！クンクン', time: 'たった今' },
-      { speaker: 'ボリ', text: 'へへっ、匂いを嗅ぐだけで今日の夕飯のメニューがわかるんだ〜', time: '1分前' }
+      { speaker: '보리', text: 'わあ！わんこ友達のお尻の匂いをスキャン！！クンクン', time: 'たった今' },
+      { speaker: '보리', text: 'へへっ、匂いを嗅ぐだけで今日の夕飯のメニューがわかるんだ〜', time: '1분전' }
     ]
   }
 ];
@@ -246,24 +250,17 @@ export const localizePersonalityTags = (tags: string[] = [], targetLang: string 
   });
 };
 
-export const localizeDogName = (name: string, targetLang: string = 'ko'): string => {
+export const localizeDogName = (name: string, _targetLang: string = 'ko'): string => {
   if (!name) return name;
   const n = name.trim().toLowerCase();
+  // 반려견 고유명사: 딸기, 보리는 언어 설정과 무관하게 한글 고유명사 원본 그대로 유지
   if (n === 'bori' || n === '보리' || n === 'ボリ' || n === '波利') {
-    return targetLang === 'ko' ? '보리' : targetLang === 'ja' ? 'ボリ' : targetLang === 'zh' ? '波利' : 'Bori';
+    return '보리';
   }
   if (n === 'strawberry' || n === '딸기' || n === 'イチゴ' || n === 'fresa' || n === '草莓' || n === 'fraise') {
-    return targetLang === 'ko' ? '딸기' : targetLang === 'ja' ? 'イチゴ' : targetLang === 'es' ? 'Fresa' : targetLang === 'zh' ? '草莓' : targetLang === 'fr' ? 'Fraise' : 'Strawberry';
+    return '딸기';
   }
-  if (n === 'peanut' || n === '땅콩' || n === 'ピーナッツ' || n === 'cacahuate' || n === '花生' || n === 'cacahuète') {
-    return targetLang === 'ko' ? '땅콩' : targetLang === 'ja' ? 'ピーナッツ' : targetLang === 'zh' ? '花生' : targetLang === 'fr' ? 'Cacahuète' : 'Peanut';
-  }
-  if (n === 'cloud' || n === '구름' || n === '구름이' || n === 'クラウド' || n === 'nube' || n === '白云' || n === 'nuage') {
-    return targetLang === 'ko' ? '구름이' : targetLang === 'ja' ? 'クラウド' : targetLang === 'zh' ? '白云' : targetLang === 'fr' ? 'Nuage' : 'Cloud';
-  }
-  if (n === 'mochi' || n === '모찌' || n === 'モチ' || n === '麻薯') {
-    return targetLang === 'ko' ? '모찌' : targetLang === 'ja' ? 'モチ' : targetLang === 'zh' ? '麻薯' : 'Mochi';
-  }
+  // 사용자가 한글로 지은 강아지 이름은 고유명사이므로 억지로 번역하지 않고 원본 그대로 유지
   return name;
 };
 
@@ -331,9 +328,12 @@ export const normalizeDogProfile = (dog: DogProfile, targetLang: string = 'ko'):
     fixedAvatar = getDefaultDogAvatar(dog.name || dog.breed);
   }
 
+  // 고유명사인 반려견 이름 정규화 (딸기, 보리 등 한글 고유명사 보존)
+  const normalizedName = isBori ? '보리' : isStrawberry ? '딸기' : localizeDogName(dog.name, targetLang);
+
   return {
     ...dog,
-    name: localizeDogName(dog.name, targetLang),
+    name: normalizedName,
     breed: localizeBreed(dog.breed, targetLang),
     personality: localizePersonalityTags(dog.personality, targetLang),
     avatar: fixedAvatar
@@ -361,26 +361,14 @@ export const isDeletedPet = (p: any): boolean => {
   const cleanName = (p.name || '').trim();
   // 꼬북이 is explicitly marked deleted per user request
   if (cleanName === '꼬북이' || p.id === 'pet-1791121947345') return true;
-  try {
-    if (typeof localStorage !== 'undefined') {
-      const raw = localStorage.getItem('WALWAL_DELETED_PETS');
-      if (raw) {
-        const deletedList: string[] = JSON.parse(raw);
-        if (Array.isArray(deletedList)) {
-          if (p.id && deletedList.includes(p.id)) return true;
-          if (cleanName && deletedList.includes(cleanName)) return true;
-        }
-      }
-    }
-  } catch (e) { }
   return false;
 };
 
 export const sanitizePetList = (list: any[], lang: string = 'ko'): DogProfile[] => {
-  if (!Array.isArray(list) || list.length === 0) return [getMockDogs(lang)[0]];
+  if (!Array.isArray(list) || list.length === 0) return [];
   const filtered = list.filter(p => !isMockNeighborDog(p) && !isDeletedPet(p));
   if (filtered.length === 0) {
-    return [getMockDogs(lang)[0]];
+    return [];
   }
 
   // 엄격한 중복 제거 (이름 및 ID 기준 1마리씩만 유지)
@@ -400,5 +388,76 @@ export const sanitizePetList = (list: any[], lang: string = 'ko'): DogProfile[] 
     }
   }
 
-  return deduped.length > 0 ? deduped : [getMockDogs(lang)[0]];
+  return deduped;
 };
+
+export const getBreedRecommendedGoals = (breedStr?: string) => {
+  const b = (breedStr || '').toLowerCase();
+  // 대형견 (체력과 활동량이 많음)
+  if (
+    b.includes('리트리버') || b.includes('retriever') || b.includes('レトリバー') ||
+    b.includes('허스키') || b.includes('husky') || b.includes('ハスキー') ||
+    b.includes('셰퍼드') || b.includes('shepherd') || b.includes('シェパード') ||
+    b.includes('보더콜리') || b.includes('border collie') || b.includes('ボーダーコリー') ||
+    b.includes('사모예드') || b.includes('samoyed') || b.includes('サモエド') ||
+    b.includes('말라뮤트') || b.includes('malamute')
+  ) {
+    return { distance: 3.0, minutes: 60 };
+  }
+  // 소형견 (관절 및 심장 배려)
+  if (
+    b.includes('말티즈') || b.includes('maltese') || b.includes('マルチーズ') ||
+    b.includes('포메라니안') || b.includes('pomeranian') || b.includes('ポメラニアン') ||
+    b.includes('치와와') || b.includes('chihuahua') || b.includes('チワワ') ||
+    b.includes('요크셔') || b.includes('yorkshire') || b.includes('ヨーキー') ||
+    b.includes('시츄') || b.includes('shih tzu') || b.includes('シーズー') ||
+    b.includes('토이푸들') || b.includes('toy poodle') || b.includes('トイプードル')
+  ) {
+    return { distance: 1.2, minutes: 30 };
+  }
+  // 중형견 / 기본 권장
+  return { distance: 2.0, minutes: 45 };
+};
+
+export const getPetWalkGoals = (pet?: { id?: string; name?: string; breed?: string; dailyDistanceGoal?: number; dailyTimeGoal?: number } | null) => {
+  if (!pet) return { distance: 2.0, minutes: 45 };
+  const recommended = getBreedRecommendedGoals(pet.breed);
+  const key = `WALWAL_WALK_CUSTOM_GOAL_${pet.id || pet.name}`;
+  try {
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return {
+        distance: typeof parsed.distance === 'number' && parsed.distance > 0 ? parsed.distance : (pet.dailyDistanceGoal || recommended.distance),
+        minutes: typeof parsed.minutes === 'number' && parsed.minutes > 0 ? parsed.minutes : (pet.dailyTimeGoal || recommended.minutes)
+      };
+    }
+  } catch (e) { }
+  return {
+    distance: pet.dailyDistanceGoal || recommended.distance,
+    minutes: pet.dailyTimeGoal || recommended.minutes
+  };
+};
+
+export const setPetWalkGoals = (petIdOrName: string, goals: { distance: number; minutes: number }) => {
+  const key = `WALWAL_WALK_CUSTOM_GOAL_${petIdOrName}`;
+  try {
+    localStorage.setItem(key, JSON.stringify(goals));
+    const savedPets = localStorage.getItem('WALWAL_PETS');
+    if (savedPets) {
+      const parsed = JSON.parse(savedPets);
+      if (Array.isArray(parsed)) {
+        const updated = parsed.map((p: any) => {
+          if (p.id === petIdOrName || p.name === petIdOrName) {
+            return { ...p, dailyDistanceGoal: goals.distance, dailyTimeGoal: goals.minutes };
+          }
+          return p;
+        });
+        localStorage.setItem('WALWAL_PETS', JSON.stringify(updated));
+      }
+    }
+  } catch (e) { }
+  window.dispatchEvent(new CustomEvent('walwal_walk_goal_updated', { detail: { id: petIdOrName, ...goals } }));
+  window.dispatchEvent(new CustomEvent('walwal_pets_updated'));
+};
+
