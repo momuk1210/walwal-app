@@ -805,6 +805,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
   const [selectedFeedPostId, setSelectedFeedPostId] = useState<string | null>(null);
   const [activeFeedMenuId, setActiveFeedMenuId] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const lastVisibleFeedPostIdRef = useRef<string | null>(null);
 
   // 팔로우한 사용자 목록 상태 (로컬 스토리지 연동)
   const [followedUsers, setFollowedUsers] = useState<string[]>(() => {
@@ -914,7 +915,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
         if (selectedFeedPostId) {
           const targetEl = document.getElementById(`feed-post-${selectedFeedPostId}`);
           if (targetEl) {
-            targetEl.scrollIntoView({ behavior: 'auto', block: 'start' });
+            targetEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
             return;
           }
         }
@@ -931,15 +932,16 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
     }
   }, [viewMode, selectedFeedPostId]);
 
-  // 그리드 모드로 복귀 시: 선택했던 피드로 위치를 잡거나 최상단(최신 피드)으로 정렬
+  // 그리드 모드로 복귀 시: 피드에서 마지막으로 보던 위치로 스크롤하거나 최상단(최신 피드)으로 정렬
   useEffect(() => {
     if (viewMode === 'grid') {
+      const targetId = lastVisibleFeedPostIdRef.current || selectedFeedPostId;
       const scrollGridTarget = () => {
-        if (selectedFeedPostId) {
-          const targetEl = document.getElementById(`album-post-${selectedFeedPostId}`);
+        if (targetId) {
+          const targetEl = document.getElementById(`album-post-${targetId}`);
           if (targetEl) {
             // 상위 2개(최신) 포스트인 경우 스크롤을 맨 위(0)로 깔끔하게 맞춤
-            const isTopPost = feedPosts.slice(0, 2).some(p => String(p.id) === String(selectedFeedPostId));
+            const isTopPost = feedPosts.slice(0, 2).some(p => String(p.id) === String(targetId));
             if (isTopPost && scrollContainerRef.current) {
               scrollContainerRef.current.scrollTop = 0;
             } else {
@@ -960,9 +962,9 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
         clearTimeout(timer);
       };
     }
-  }, [viewMode, selectedFeedPostId, feedPosts]);
+  }, [viewMode, feedPosts]);
 
-  // 피드 모드에서 스크롤 시 화면 상단/중앙에 위치한 카드 ID를 추적하여 그리드 복귀 시 위치 보존
+  // 피드 모드에서 스크롤 시 화면 상단/중앙에 위치한 카드 ID를 ref로 추적하여 리렌더링 및 스크롤 충돌 방지
   useEffect(() => {
     if (viewMode !== 'feed') return;
     const scrollEl = scrollContainerRef.current;
@@ -994,7 +996,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
           });
 
           if (bestId) {
-            setSelectedFeedPostId(bestId);
+            lastVisibleFeedPostIdRef.current = bestId;
           }
           ticking = false;
         });
@@ -1005,6 +1007,80 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
     scrollEl.addEventListener('scroll', handleFeedScroll, { passive: true });
     return () => scrollEl.removeEventListener('scroll', handleFeedScroll);
   }, [viewMode]);
+
+  // 마우스 휠 및 스크롤 시 부드럽고 자연스러운 모멘텀 스크롤(Smooth Momentum Scroll) 적용
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    let targetScrollTop = container.scrollTop;
+    let currentScrollTop = container.scrollTop;
+    let isAnimating = false;
+    let rafId: number | null = null;
+
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey) return;
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+
+      const target = e.target as HTMLElement | null;
+      if (target && target.closest('textarea, input, select, .snaps-feed-dropdown-menu, .no-smooth-scroll')) {
+        return;
+      }
+
+      const maxScroll = container.scrollHeight - container.clientHeight;
+      if (maxScroll <= 0) return;
+
+      if ((container.scrollTop <= 0 && e.deltaY < 0) || (container.scrollTop >= maxScroll && e.deltaY > 0)) {
+        return;
+      }
+
+      e.preventDefault();
+
+      let delta = e.deltaY;
+      if (e.deltaMode === 1) delta *= 33;
+      else if (e.deltaMode === 2) delta *= container.clientHeight;
+
+      targetScrollTop = Math.max(0, Math.min(maxScroll, targetScrollTop + delta));
+
+      if (!isAnimating) {
+        isAnimating = true;
+        currentScrollTop = container.scrollTop;
+
+        const animate = () => {
+          const diff = targetScrollTop - currentScrollTop;
+          if (Math.abs(diff) < 0.5) {
+            container.scrollTop = targetScrollTop;
+            currentScrollTop = targetScrollTop;
+            isAnimating = false;
+            rafId = null;
+            return;
+          }
+
+          currentScrollTop += diff * 0.16;
+          container.scrollTop = currentScrollTop;
+          rafId = requestAnimationFrame(animate);
+        };
+
+        rafId = requestAnimationFrame(animate);
+      }
+    };
+
+    container.addEventListener('wheel', onWheel, { passive: false });
+
+    const onScroll = () => {
+      if (!isAnimating) {
+        currentScrollTop = container.scrollTop;
+        targetScrollTop = container.scrollTop;
+      }
+    };
+    container.addEventListener('scroll', onScroll, { passive: true });
+
+    return () => {
+      container.removeEventListener('wheel', onWheel);
+      container.removeEventListener('scroll', onScroll);
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, []);
 
   // 반려견 프로필 수정/추가 시 실시간 동기화
   useEffect(() => {
@@ -2323,7 +2399,18 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
         />
       </div>
 
-      <div ref={scrollContainerRef} style={{ flex: 1, overflowX: 'hidden', overflowY: 'auto' }}>
+      <div
+        ref={scrollContainerRef}
+        className="snaps-scroll-container"
+        style={{
+          flex: 1,
+          overflowX: 'hidden',
+          overflowY: 'auto',
+          scrollBehavior: 'smooth',
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehaviorY: 'contain'
+        }}
+      >
         <div className="section-gap">
           {feedPosts.length === 0 ? (
             <div style={{

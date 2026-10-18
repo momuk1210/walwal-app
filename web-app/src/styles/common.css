@@ -77,6 +77,9 @@ textarea {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
   padding: 0 16px;
   letter-spacing: -.01rem;
   z-index: 2;
@@ -2206,6 +2209,25 @@ textarea {
 }
 
 /* Instagram-Style Vertical Feed View */
+.snaps-scroll-container {
+  flex: 1;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  transform: translateZ(0);
+  will-change: scroll-position;
+}
+
+.snaps-scroll-container > .section-gap {
+  overflow: visible !important;
+  overflow-y: visible !important;
+  height: auto !important;
+  min-height: 100% !important;
+  flex: none !important;
+}
+
 .snaps-feed-view-wrapper {
   width: 100%;
   display: flex;
@@ -2220,6 +2242,7 @@ textarea {
   max-width: 520px;
   margin: 0 auto;
   padding: 6px 0 100px;
+  transform: translateZ(0);
 }
 
 .snaps-feed-card {
@@ -2229,6 +2252,10 @@ textarea {
   flex-direction: column;
   scroll-margin-top: 0;
   z-index: 1;
+  contain: layout paint style;
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 550px;
+  transform: translateZ(0);
 }
 
 .snaps-feed-card.active {
