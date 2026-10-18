@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { auth } from '../firebase';
 import {
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword
@@ -24,6 +26,19 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // 모바일 리다이렉트 로그인 결과 자동 감지 및 처리
+  useEffect(() => {
+    getRedirectResult(auth)
+      .then((res) => {
+        if (res?.user?.email) {
+          finalizeLogin(res.user.email.toLowerCase().trim());
+        }
+      })
+      .catch((err) => {
+        console.warn("getRedirectResult note:", err);
+      });
+  }, []);
 
   // Validate Email
   const isValidEmail = (val: string) => {
@@ -221,17 +236,43 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
       setErrorMsg(null);
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
-      const res = await signInWithPopup(auth, provider);
-      const cleanEmail = res?.user?.email ? res.user.email.toLowerCase().trim() : '';
-      finalizeLogin(cleanEmail);
+
+      // 모바일 PWA 환경 감지: 팝업 창이 닫히거나 차단되기 쉬운 환경은 리다이렉트 우선
+      const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      const isStandalone = typeof window !== 'undefined' && ((window.navigator as any).standalone || window.matchMedia('(display-mode: standalone)').matches);
+
+      if (isMobile && isStandalone) {
+        await signInWithRedirect(auth, provider);
+        return;
+      }
+
+      try {
+        const res = await signInWithPopup(auth, provider);
+        const cleanEmail = res?.user?.email ? res.user.email.toLowerCase().trim() : '';
+        if (cleanEmail) {
+          finalizeLogin(cleanEmail);
+        }
+      } catch (popupErr: any) {
+        // 팝업이 차단되었거나 모바일 팝업 에러 시 리다이렉트로 자동 전환
+        if (
+          popupErr?.code === 'auth/popup-blocked' ||
+          popupErr?.code === 'auth/cancelled-popup-request' ||
+          popupErr?.code === 'auth/popup-closed-by-user'
+        ) {
+          console.info("Popup blocked or closed, trying redirect login...");
+          await signInWithRedirect(auth, provider);
+          return;
+        }
+        throw popupErr;
+      }
     } catch (error: any) {
       console.error("Google login failed", error);
       if (error?.code === 'auth/popup-blocked') {
         setErrorMsg("팝업이 차단되었습니다. 브라우저 팝업 차단을 해제해 주세요.");
       } else if (error?.code === 'auth/unauthorized-domain' || String(error?.message).includes('authorized')) {
-        setErrorMsg("Firebase 콘솔의 [승인된 도메인]에 walwal-app.web.app 도메인이 아직 등록되지 않았습니다. 상단의 이메일 회원가입/로그인을 이용하시거나 콘솔에 도메인을 추가해 주세요.");
+        setErrorMsg("Firebase 콘솔의 [승인된 도메인]에 도메인이 등록되어 있는지 확인해 주세요.");
       } else if (error?.code !== 'auth/popup-closed-by-user') {
-        setErrorMsg("Google 로그인 연동 오류가 발생했습니다. 이메일 회원가입/로그인을 이용해 주세요.");
+        setErrorMsg(error?.message || "Google 로그인에 실패했습니다. 이메일 로그인을 이용해 주세요.");
       }
     } finally {
       setLoading(false);
