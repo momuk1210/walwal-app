@@ -564,88 +564,108 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
 
   const DEFAULT_FEED_DATA = [
     {
-      "id": "post_1790236216201",
-      "name": "ボリ",
-      "ownerName": "보리 엄마",
-      "avatar": "https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=300&auto=format&fit=crop&q=80",
-      "breed": "ゴールデンレトリバー",
-      "age": "2",
-      "gender": "male",
-      "personality": ["#陽キャ犬", "#みんな友達", "#おやつ鑑定士"],
-      "recentThought": "Let's play! Give me treats!",
-      "feedImage": "https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=800&auto=format&fit=crop&q=80",
-      "isVideo": false,
-      "createdAt": "2026-09-24T07:50:16.201Z",
-      "likes": 8,
-      "liked": false,
-      "comments": [],
-      "showComments": false,
-      "shares": 2
-    },
-    {
-      "id": "draft_1790231530745",
-      "name": "보리 & 딸기",
-      "breed": "골든 리트리버 · 말티즈",
-      "age": "2, 5",
-      "ownerName": "보리&딸기 맘",
-      "avatar": "https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=300&auto=format&fit=crop&q=80",
-      "personality": ["#다둥이네", "#절친케미", "#우당탕탕"],
-      "distance": "85m",
-      "lat": 37.5445,
-      "lng": 127.056,
-      "recentThought": "아함~ 졸리고 편안하다 멍~",
-      "feedImage": "https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=800&auto=format&fit=crop&q=80",
-      "detectedEmotion": "excited",
-      "soundPattern": "왕! (저음 고주파 혼합음)",
-      "posePattern": "꼬리 수평 회전 + 앞발 교차",
-      "conversationLog": [
-        { "speaker": "보리", "text": "오! 댕댕이 친구 엉덩이 냄새 스캔!! 킁킁", "time": "방금 전" },
-        { "speaker": "땅콩", "text": "덩치값 좀 해라! 냄새 먼저 맡는게 예의지!", "time": "방금 전" },
-        { "speaker": "보리", "text": "헤헤 냄새만 맡아도 오늘 저녁 메뉴 안다구~", "time": "1분 전" }
+      id: "community_post_bori_01",
+      name: "보리",
+      ownerName: "보리 엄마",
+      avatar: "https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=500&auto=format&fit=crop&q=80",
+      breed: "골든 리트리버",
+      age: "2",
+      gender: "male",
+      personality: ["#파워인싸", "#모든인간은내친구", "#간식감별사"],
+      recentThought: "공 던져줘!! 빨리빨리!! 잔디밭에서 우다다 달리는 게 세상에서 제일 좋아!",
+      feedImage: "https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=800&auto=format&fit=crop&q=80",
+      isVideo: false,
+      createdAt: "2026-10-18T08:30:00.000Z",
+      likes: 24,
+      liked: false,
+      comments: [
+        { id: 1, author: "딸기 아빠", text: "보리야 오늘 한강공원에서 만나자~!", createdAt: "2026-10-18T08:45:00.000Z" }
       ],
-      "gender": "male",
-      "greeting": "산책과 간식을 좋아해요",
-      "stats": { "translateCount": 3, "studioCount": 8, "meetupCount": 0 },
-      "subInfo": "골든 리트리버 2살, 말티즈 5살",
-      "likes": 12,
-      "liked": true,
-      "comments": [],
-      "showComments": false,
-      "shares": 0,
-      "isVideo": false
+      showComments: false,
+      shares: 5
     },
     {
-      "id": "draft_1789984025526",
-      "name": "Bori & Fresa",
-      "breed": "Golden Retriever · 말티즈",
-      "age": "2, 5",
-      "ownerName": "Bori&Fresa 맘",
-      "avatar": "https://images.unsplash.com/photo-1517849845537-4d257902454a?w=300&auto=format&fit=crop&q=80",
-      "personality": ["#Duo", "#BestFriends", "#Playful"],
-      "distance": "85m",
-      "lat": 37.5445,
-      "lng": 127.056,
-      "recentThought": "¡Mi humano está aquí! ¡Estoy aquí!",
-      "feedImage": "https://images.unsplash.com/photo-1517849845537-4d257902454a?w=800&auto=format&fit=crop&q=80",
-      "detectedEmotion": "happy",
-      "soundPattern": "Woof!",
-      "posePattern": "Tail wagging",
-      "conversationLog": [],
-      "gender": "female",
-      "greeting": "Love treats!",
-      "stats": { "translateCount": 5, "studioCount": 2, "meetupCount": 1 },
-      "subInfo": "Golden Retriever 2y, Maltese 5y",
-      "likes": 5,
-      "liked": false,
-      "comments": [],
-      "showComments": false,
-      "shares": 0,
-      "isVideo": false
+      id: "community_post_strawberry_02",
+      name: "딸기",
+      ownerName: "딸기 아빠",
+      avatar: "https://images.dog.ceo/breeds/maltese/n02085936_2927.jpg",
+      breed: "말티즈",
+      age: "3",
+      gender: "female",
+      personality: ["#참지않는말티즈", "#귀여움이권력", "#산책중독자"],
+      recentThought: "날씨 좋은 날 공원 산책은 언제나 최고야! 꼬리 살랑살랑 기분 최고~",
+      feedImage: "https://images.unsplash.com/photo-1534361960057-19889db9621e?w=800&auto=format&fit=crop&q=80",
+      isVideo: false,
+      createdAt: "2026-10-18T07:15:00.000Z",
+      likes: 38,
+      liked: false,
+      comments: [
+        { id: 1, author: "땅콩 누나", text: "딸기 털 완전 뽀송뽀송하다 ㅎㅎ", createdAt: "2026-10-18T07:30:00.000Z" }
+      ],
+      showComments: false,
+      shares: 8
+    },
+    {
+      id: "community_post_peanut_03",
+      name: "땅콩이",
+      ownerName: "땅콩 누나",
+      avatar: "https://images.unsplash.com/photo-1519098901909-b1553a1190af?w=300&auto=format&fit=crop&q=80",
+      breed: "웰시코기",
+      age: "2",
+      gender: "male",
+      personality: ["#식빵엉덩이", "#숏다리의자존심", "#간식헌터"],
+      recentThought: "식빵 엉덩이 흔들며 산책 중! 어디선가 고기 냄새가 솔솔 난다 킁킁",
+      feedImage: "https://images.unsplash.com/photo-1519098901909-b1553a1190af?w=800&auto=format&fit=crop&q=80",
+      isVideo: false,
+      createdAt: "2026-10-18T06:00:00.000Z",
+      likes: 19,
+      liked: false,
+      comments: [],
+      showComments: false,
+      shares: 3
+    },
+    {
+      id: "community_post_cloud_04",
+      name: "구름이",
+      ownerName: "구름 형아",
+      avatar: "https://images.dog.ceo/breeds/pomeranian/n02112018_4813.jpg",
+      breed: "화이트 포메라니안",
+      age: "1",
+      gender: "male",
+      personality: ["#극대노솜뭉치", "#애교쟁이", "#폼생폼사"],
+      recentThought: "목욕하고 털 빗었더니 솜사탕이 되었어요 멍멍! 나 예쁘죠?",
+      feedImage: "https://images.dog.ceo/breeds/pomeranian/n02112018_4813.jpg",
+      isVideo: false,
+      createdAt: "2026-10-17T19:20:00.000Z",
+      likes: 45,
+      liked: false,
+      comments: [],
+      showComments: false,
+      shares: 12
+    },
+    {
+      id: "community_post_mochi_05",
+      name: "모찌",
+      ownerName: "모찌 맘",
+      avatar: "https://images.dog.ceo/breeds/shiba/shiba-16.jpg",
+      breed: "시바견",
+      age: "4",
+      gender: "female",
+      personality: ["#안가시바", "#마이웨이", "#철벽남"],
+      recentThought: "오늘은 절대 안 움직인다 시바... 집에서 낮잠 잘래 멍",
+      feedImage: "https://images.dog.ceo/breeds/shiba/shiba-16.jpg",
+      isVideo: false,
+      createdAt: "2026-10-17T15:00:00.000Z",
+      likes: 31,
+      liked: false,
+      comments: [],
+      showComments: false,
+      shares: 6
     }
   ];
 
   React.useEffect(() => {
-    // 1. Immediately render local/default posts synchronously so feed is NEVER blank!
+    // 1. Immediately render local + community posts synchronously so feed is NEVER blank!
     loadLocal();
 
     const handleFeedUpdate = () => {
@@ -658,6 +678,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
         return prev;
       });
     };
+
     window.addEventListener('walwal_snaps_updated', handleFeedUpdate);
     window.addEventListener('walwal_feed_updated', handleFeedUpdate);
     window.addEventListener('storage', handleFeedUpdate);
@@ -667,8 +688,6 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
       unsubscribe = onSnapshot(collection(db, 'posts'), (querySnapshot) => {
         try {
           const deletedIds = getDeletedPostIds();
-          const currentUserId = auth.currentUser?.uid || localStorage.getItem('walwal_user_id') || 'guest_user';
-          const currentUserEmail = auth.currentUser?.email || '';
 
           const getPostTime = (p: any): number => {
             if (!p) return 0;
@@ -702,15 +721,19 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
           try {
             const saved = localStorage.getItem('WALWAL_USER_SNAPS_POSTS') || localStorage.getItem('WALWAL_USER_FEED_POSTS');
             if (saved) localPosts = JSON.parse(saved);
-            localPosts = localPosts.filter((p: any) => p && !deletedIds.has(String(p.id)) && p.name !== 'Test Dog' && !DEFAULT_FEED_DATA.some(d => String(d.id) === String(p.id)));
+            localPosts = localPosts.filter((p: any) => p && !deletedIds.has(String(p.id)) && p.name !== 'Test Dog');
           } catch (lsErr) { }
 
           const remoteIds = new Set(remotePosts.map(p => String(p.id)));
           const pendingLocalPosts = localPosts.filter((lp: any) =>
-            lp && lp.id && !remoteIds.has(String(lp.id)) && !DEFAULT_FEED_DATA.some(d => String(d.id) === String(lp.id)) && !deletedIds.has(String(lp.id))
+            lp && lp.id && !remoteIds.has(String(lp.id)) && !deletedIds.has(String(lp.id))
           );
 
-          const mergedPosts = [...pendingLocalPosts, ...remotePosts];
+          // Merge local posts, remote posts, and community neighbor posts
+          const combinedIds = new Set([...remoteIds, ...pendingLocalPosts.map((p: any) => String(p.id))]);
+          const communityPosts = DEFAULT_FEED_DATA.filter(d => !combinedIds.has(String(d.id)) && !deletedIds.has(String(d.id)));
+
+          const mergedPosts = [...pendingLocalPosts, ...remotePosts, ...communityPosts];
           mergedPosts.sort((a, b) => getPostTime(b) - getPostTime(a));
 
           try {
@@ -751,7 +774,6 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
         return;
       }
       const interactions = getStoredInteractions();
-      const defaultIds = new Set(DEFAULT_FEED_DATA.map(d => String(d.id)));
       const deletedIds = getDeletedPostIds();
       const getPostTime = (p: any): number => {
         if (!p) return 0;
@@ -764,12 +786,9 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
       };
 
       const processedPosts = postsToLoad
-        .filter(item => item && !defaultIds.has(String(item.id)) && !deletedIds.has(String(item.id)))
+        .filter(item => item && !deletedIds.has(String(item.id)))
         .map(item => ({ ...item, isMine: checkIsMyPost(item) }))
         .sort((a, b) => getPostTime(b) - getPostTime(a));
-
-      const currentUserId = auth.currentUser?.uid || localStorage.getItem('walwal_user_id') || 'guest_user';
-      const currentUserEmail = auth.currentUser?.email || '';
 
       for (let i = 0; i < processedPosts.length; i++) {
         const post = processedPosts[i];
@@ -845,25 +864,26 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
       });
     } catch (err) {
       console.error('Error in loadPostsWithMedia:', err);
-      setFeedPosts(Array.isArray(postsToLoad) ? postsToLoad.filter(p => !DEFAULT_FEED_DATA.some(d => String(d.id) === String(p.id))) : []);
+      setFeedPosts(Array.isArray(postsToLoad) ? postsToLoad.filter(p => !getDeletedPostIds().has(String(p.id))) : []);
     }
   };
 
   const loadLocal = () => {
     const deletedIds = getDeletedPostIds();
-    const defaultIds = new Set(DEFAULT_FEED_DATA.map(d => String(d.id)));
     let localPosts: any[] = [];
     try {
       const saved = localStorage.getItem('WALWAL_USER_SNAPS_POSTS') || localStorage.getItem('WALWAL_USER_FEED_POSTS');
       if (saved) localPosts = JSON.parse(saved);
-      localPosts = localPosts.filter((p: any) => p && !deletedIds.has(String(p.id)) && p.name !== 'Test Dog' && !defaultIds.has(String(p.id)));
-      localStorage.setItem('WALWAL_USER_SNAPS_POSTS', JSON.stringify(localPosts));
-      localStorage.setItem('WALWAL_USER_FEED_POSTS', JSON.stringify(localPosts));
+      localPosts = localPosts.filter((p: any) => p && !deletedIds.has(String(p.id)) && p.name !== 'Test Dog');
     } catch (e) {
       console.error('Failed to load WALWAL_USER_SNAPS_POSTS:', e);
       localPosts = [];
     }
-    loadPostsWithMedia(localPosts);
+
+    const localIds = new Set(localPosts.map(p => String(p.id)));
+    const communityPosts = DEFAULT_FEED_DATA.filter(d => !localIds.has(String(d.id)) && !deletedIds.has(String(d.id)));
+
+    loadPostsWithMedia([...localPosts, ...communityPosts]);
   };
 
   const [newCommentText, setNewCommentText] = useState<{ [key: string]: string }>({});
