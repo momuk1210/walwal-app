@@ -647,6 +647,17 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                   createdAt: lp.createdAt ? new Date(lp.createdAt) : serverTimestamp()
                 }, { merge: true });
                 console.log('Successfully synced pending local post to Firestore:', postId, lp.name);
+
+                if (lp.isVideo) {
+                  try {
+                    const blob = await getMedia(postId);
+                    if (blob) {
+                      uploadVideoToCloud(postId, blob).catch(console.warn);
+                    }
+                  } catch (vidErr) {
+                    console.warn('Failed to upload video for pending post:', vidErr);
+                  }
+                }
               } catch (syncErr) {
                 console.warn('Failed to sync pending local post to Firestore:', syncErr);
               }
@@ -707,19 +718,19 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
         .map(item => ({ ...item, isMine: checkIsMyPost(item) }))
         .sort((a, b) => getPostTime(b) - getPostTime(a));
 
+      let myLikedPostIds = new Set<string>();
+      try {
+        const savedLiked = localStorage.getItem('WALWAL_LIKED_POST_IDS');
+        if (savedLiked) myLikedPostIds = new Set(JSON.parse(savedLiked).map(String));
+      } catch (e) {}
+
       for (let i = 0; i < processedPosts.length; i++) {
         const post = processedPosts[i];
-        if (interactions[post.id]) {
-          const inter = interactions[post.id];
-          if (inter.liked !== undefined) post.liked = inter.liked;
-          if (inter.likes !== undefined) post.likes = inter.likes;
-          if (inter.comments !== undefined) post.comments = inter.comments;
-          if (inter.shares !== undefined) post.shares = inter.shares;
-        }
-
-        if (post.feedImage && typeof post.feedImage === 'string' && post.feedImage.startsWith('data:image') && !post.hasCloudMedia) {
-          post.isVideo = false;
-        }
+        // 1. Single source of truth: likes and comments come directly from Firestore
+        post.likes = typeof post.likes === 'number' ? post.likes : (interactions[post.id]?.likes || 0);
+        post.comments = Array.isArray(post.comments) ? post.comments : (Array.isArray(interactions[post.id]?.comments) ? interactions[post.id].comments : []);
+        post.liked = myLikedPostIds.has(String(post.id)) || Boolean(interactions[post.id]?.liked);
+        if (interactions[post.id]?.shares !== undefined) post.shares = interactions[post.id].shares;
 
         const isVideoPost = Boolean(
           post.isVideo ||
@@ -2069,12 +2080,17 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
   };
 
   const handleLikeFeed = (id: string) => {
+    let targetNewLikes = 0;
+    let targetNewLiked = false;
+
     setFeedPosts(prev => {
       const updated = prev.map(p => {
-        if (p.id === id) {
+        if (String(p.id) === String(id)) {
           const newLiked = !p.liked;
-          const currentLikes = p.likes || 0;
+          const currentLikes = typeof p.likes === 'number' ? p.likes : 0;
           const newLikes = newLiked ? currentLikes + 1 : Math.max(0, currentLikes - 1);
+          targetNewLikes = newLikes;
+          targetNewLiked = newLiked;
           saveFeedInteraction(id, { liked: newLiked, likes: newLikes });
           return {
             ...p,
@@ -2098,6 +2114,21 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
       }
 
       return updated;
+    });
+
+    // 1. Update local liked post IDs for this client
+    try {
+      const likedIds: string[] = JSON.parse(localStorage.getItem('WALWAL_LIKED_POST_IDS') || '[]');
+      const strId = String(id);
+      const nextIds = targetNewLiked ? [...new Set([...likedIds, strId])] : likedIds.filter(x => x !== strId);
+      localStorage.setItem('WALWAL_LIKED_POST_IDS', JSON.stringify(nextIds));
+    } catch (e) {}
+
+    // 2. Direct Cloud Firestore sync so ALL devices and PWAs see the exact same like count
+    setDoc(doc(db, 'posts', String(id)), {
+      likes: targetNewLikes
+    }, { merge: true }).catch(err => {
+      console.warn('Failed to update likes in Firestore:', err);
     });
   };
 
@@ -2153,7 +2184,11 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
     // Firestore 동기화 (원격 게시물인 경우)
     if (targetNewComments) {
       try {
-        updateFeedPost(String(postId), { comments: targetNewComments }).catch(() => {});
+        setDoc(doc(db, 'posts', String(postId)), {
+          comments: cleanForFirestore(targetNewComments)
+        }, { merge: true }).catch((err) => {
+          console.warn('Failed to sync deleted comment to Firestore:', err);
+        });
       } catch (e) {}
     }
 
@@ -2248,11 +2283,13 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
       }
     } catch (e) {}
 
+    let targetNewComments: any[] | null = null;
     setFeedPosts(prev => {
       const updated = prev.map(p => {
         if (p.id === activeCommentPostId) {
           const existing = Array.isArray(p.comments) ? p.comments : [];
           const newCommentList = [...existing, newComment];
+          targetNewComments = newCommentList;
           saveFeedInteraction(activeCommentPostId, { comments: newCommentList });
           return {
             ...p,
@@ -2275,6 +2312,15 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
 
       return updated;
     });
+
+    // Direct Cloud Firestore sync so ALL devices and PWAs receive the comment in real time
+    if (targetNewComments && activeCommentPostId) {
+      setDoc(doc(db, 'posts', String(activeCommentPostId)), {
+        comments: cleanForFirestore(targetNewComments)
+      }, { merge: true }).catch(err => {
+        console.warn('Failed to save comment to Firestore:', err);
+      });
+    }
 
     setModalCommentInput('');
     setModalCommentImage(null);
@@ -2299,6 +2345,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
       return;
     }
 
+    let targetInlineComments: any[] | null = null;
     setFeedPosts(prev => {
       const updated = prev.map(p => {
         if (p.id === id) {
@@ -2306,6 +2353,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
             ...(p.comments || []),
             { id: Date.now(), author: myDog.name, text: commentText }
           ];
+          targetInlineComments = newCommentList;
           saveFeedInteraction(id, { comments: newCommentList });
           return {
             ...p,
@@ -2329,6 +2377,16 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
 
       return updated;
     });
+
+    // Direct Cloud Firestore sync so ALL devices and PWAs receive the comment in real time
+    if (targetInlineComments) {
+      setDoc(doc(db, 'posts', String(id)), {
+        comments: cleanForFirestore(targetInlineComments)
+      }, { merge: true }).catch(err => {
+        console.warn('Failed to save inline comment to Firestore:', err);
+      });
+    }
+
     setNewCommentText(prev => ({ ...prev, [id]: '' }));
   };
 

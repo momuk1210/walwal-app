@@ -56,6 +56,15 @@ export const uploadVideoToCloud = async (
       });
     }
 
+    try {
+      await setDoc(doc(db, 'posts', postId), {
+        hasCloudMedia: true,
+        isVideo: true
+      }, { merge: true });
+    } catch (e) {
+      console.warn('Failed to set hasCloudMedia flag on post doc:', e);
+    }
+
     return { success: true, totalChunks, mimeType };
   } catch (err) {
     console.warn('Failed to upload video chunks to Firestore:', err);
