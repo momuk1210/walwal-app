@@ -180,6 +180,9 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
   const [isMuted, setIsMuted] = useState<boolean>(true);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [posterSrc, setPosterSrc] = useState<string | null>(post.poster || null);
+  const [naturalAspect, setNaturalAspect] = useState<number | null>(null);
+  const [containerDim, setContainerDim] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -201,20 +204,77 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
     return () => { isMounted = false; };
   }, [post.id, post.feedImage]);
 
-  const isSwap = post.rotation === 90 || post.rotation === 270;
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const updateDim = () => {
+      if (containerRef.current) {
+        setContainerDim({
+          w: containerRef.current.clientWidth,
+          h: containerRef.current.clientHeight
+        });
+      }
+    };
+    updateDim();
+    const ro = new ResizeObserver(updateDim);
+    ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  const normRot = ((Number(post.rotation) || 0) % 360 + 360) % 360;
+  const isSwap = normRot === 90 || normRot === 270;
+
+  // Calculate target aspect ratio for container so there are NO dead black letterboxes
+  let containerAspect: string;
+  if (post.cropRatio === '1:1') {
+    containerAspect = '1 / 1';
+  } else if (post.cropRatio === '9:16') {
+    containerAspect = '9 / 16';
+  } else if (post.cropRatio === '16:9') {
+    containerAspect = '16 / 9';
+  } else {
+    // 'original' or not set:
+    if (naturalAspect) {
+      containerAspect = isSwap ? `${1 / naturalAspect}` : `${naturalAspect}`;
+    } else {
+      containerAspect = isSwap ? '16 / 9' : '4 / 5';
+    }
+  }
+
+  // Media transform style to guarantee 100% full coverage without black margins
+  const mediaStyle: React.CSSProperties = isSwap && containerDim.w > 0 && containerDim.h > 0
+    ? {
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
+        width: `${containerDim.h}px`,
+        height: `${containerDim.w}px`,
+        transform: `translate(-50%, -50%) rotate(${normRot}deg)`,
+        objectFit: 'cover',
+        display: 'block'
+      }
+    : {
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+        transform: normRot ? `rotate(${normRot}deg)` : undefined,
+        display: 'block'
+      };
 
   return (
     <div
+      ref={containerRef}
       className="snaps-feed-media-container"
       style={{
-        aspectRatio: post.cropRatio === '1:1' ? '1 / 1' : post.cropRatio === '9:16' ? '9 / 16' : post.cropRatio === '16:9' ? '16 / 9' : (isSwap ? '16 / 9' : undefined),
+        aspectRatio: containerAspect,
+        width: '100%',
+        maxHeight: '75vh',
         overflow: 'hidden',
         position: 'relative',
         zIndex: 1,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#000',
+        background: '#0f172a',
         cursor: 'pointer'
       }}
       onClick={() => {
@@ -238,13 +298,12 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
           playsInline
           preload="auto"
           className="snaps-feed-media"
-          style={{
-            transform: post.rotation ? `rotate(${post.rotation}deg)` : undefined,
-            objectFit: (post.cropRatio && post.cropRatio !== 'original') ? 'cover' : 'contain',
-            width: '100%',
-            height: (post.cropRatio && post.cropRatio !== 'original') ? '100%' : 'auto',
-            maxHeight: isSwap ? '100%' : '75vh',
-            transition: 'transform 0.25s ease'
+          style={mediaStyle}
+          onLoadedMetadata={(e) => {
+            const v = e.currentTarget;
+            if (v.videoWidth && v.videoHeight) {
+              setNaturalAspect(v.videoWidth / v.videoHeight);
+            }
           }}
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
@@ -254,18 +313,14 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
           src={posterSrc}
           alt={post.name || 'Snap'}
           className="snaps-feed-media"
-          style={{
-            transform: post.rotation ? `rotate(${post.rotation}deg)` : undefined,
-            objectFit: (post.cropRatio && post.cropRatio !== 'original') ? 'cover' : 'contain',
-            width: '100%',
-            height: (post.cropRatio && post.cropRatio !== 'original') ? '100%' : 'auto'
-          }}
+          style={mediaStyle}
         />
       ) : (
         <img
           src={post.avatar || getDefaultDogAvatar()}
           alt={post.name || 'Snap'}
           className="snaps-feed-media snaps-album-fallback"
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
         />
       )}
 
@@ -283,21 +338,22 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
             position: 'absolute',
             bottom: '12px',
             right: '12px',
-            background: 'rgba(0, 0, 0, 0.6)',
-            backdropFilter: 'blur(6px)',
+            background: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(8px)',
             border: 'none',
             borderRadius: '50%',
-            width: '32px',
-            height: '32px',
+            width: '34px',
+            height: '34px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             color: '#fff',
-            zIndex: 10
+            zIndex: 10,
+            boxShadow: '0 2px 6px rgba(0,0,0,0.3)'
           }}
           title={isMuted ? '음소거 해제' : '음소거'}
         >
-          {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+          {isMuted ? <VolumeX size={17} /> : <Volume2 size={17} />}
         </button>
       )}
 
@@ -307,12 +363,13 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
           style={{
             position: 'absolute',
             pointerEvents: 'none',
-            background: 'rgba(0,0,0,0.4)',
+            background: 'rgba(0,0,0,0.45)',
             borderRadius: '50%',
             padding: '14px',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
           }}
         >
           <Play size={28} fill="#fff" color="#fff" />
@@ -2877,7 +2934,9 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          background: '#000'
+                          width: '100%',
+                          maxHeight: '75vh',
+                          background: '#0f172a'
                         }}
                       >
                         <img
@@ -2885,6 +2944,13 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                           alt={post.name || 'Snap'}
                           className="snaps-feed-media"
                           loading="lazy"
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                            display: 'block',
+                            transform: post.rotation ? `rotate(${post.rotation}deg)` : undefined
+                          }}
                           onError={(e) => {
                             (e.currentTarget as HTMLImageElement).src = post.avatar || getDefaultDogAvatar();
                           }}
@@ -3177,7 +3243,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                       <div
                         className="snaps-video-crop-container"
                         style={{
-                          aspectRatio: editCropRatio === '1:1' ? '1 / 1' : editCropRatio === '9:16' ? '9 / 16' : editCropRatio === '16:9' ? '16 / 9' : undefined,
+                          aspectRatio: editCropRatio === '1:1' ? '1 / 1' : editCropRatio === '9:16' ? '9 / 16' : editCropRatio === '16:9' ? '16 / 9' : ((editRotation === 90 || editRotation === 270) ? '16 / 9' : '9 / 16'),
                           width: '100%',
                           maxHeight: '65vh',
                           overflow: 'hidden',
@@ -3185,7 +3251,8 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          background: '#000'
+                          position: 'relative',
+                          background: '#0f172a'
                         }}
                       >
                         <video
@@ -3195,9 +3262,18 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                           loop
                           muted
                           playsInline
-                          style={{
+                          style={(editRotation === 90 || editRotation === 270) ? {
+                            position: 'absolute',
+                            top: '50%',
+                            left: '50%',
+                            width: editCropRatio === '1:1' ? '100%' : '56.25%',
+                            height: editCropRatio === '1:1' ? '100%' : '177.78%',
+                            transform: `translate(-50%, -50%) rotate(${editRotation}deg)`,
+                            objectFit: 'cover',
+                            transition: 'transform 0.25s ease'
+                          } : {
                             transform: editRotation ? `rotate(${editRotation}deg)` : undefined,
-                            objectFit: editCropRatio !== 'original' ? 'cover' : 'contain',
+                            objectFit: 'cover',
                             width: '100%',
                             height: '100%',
                             transition: 'transform 0.25s ease'
@@ -3349,12 +3425,15 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                 <div
                   className="snaps-modal-media-wrapper"
                   style={{
-                    aspectRatio: selectedDetailPost.cropRatio === '1:1' ? '1 / 1' : selectedDetailPost.cropRatio === '9:16' ? '9 / 16' : selectedDetailPost.cropRatio === '16:9' ? '16 / 9' : ((selectedDetailPost.rotation === 90 || selectedDetailPost.rotation === 270) ? '16 / 9' : undefined),
+                    aspectRatio: selectedDetailPost.cropRatio === '1:1' ? '1 / 1' : selectedDetailPost.cropRatio === '9:16' ? '9 / 16' : selectedDetailPost.cropRatio === '16:9' ? '16 / 9' : ((selectedDetailPost.rotation === 90 || selectedDetailPost.rotation === 270) ? '16 / 9' : '4 / 5'),
+                    width: '100%',
+                    maxHeight: '75vh',
                     overflow: 'hidden',
+                    position: 'relative',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    background: '#000'
+                    background: '#0f172a'
                   }}
                 >
                   {selectedDetailPost.isVideo ? (
@@ -3366,18 +3445,31 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                       muted
                       playsInline
                       controls
-                      style={{
+                      style={(selectedDetailPost.rotation === 90 || selectedDetailPost.rotation === 270) ? {
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        width: selectedDetailPost.cropRatio === '1:1' ? '100%' : '56.25%',
+                        height: selectedDetailPost.cropRatio === '1:1' ? '100%' : '177.78%',
+                        transform: `translate(-50%, -50%) rotate(${selectedDetailPost.rotation}deg)`,
+                        objectFit: 'cover'
+                      } : {
                         transform: selectedDetailPost.rotation ? `rotate(${selectedDetailPost.rotation}deg)` : undefined,
-                        objectFit: (selectedDetailPost.cropRatio && selectedDetailPost.cropRatio !== 'original') ? 'cover' : 'contain',
+                        objectFit: 'cover',
                         width: '100%',
-                        height: (selectedDetailPost.cropRatio && selectedDetailPost.cropRatio !== 'original') ? '100%' : 'auto',
-                        maxHeight: (selectedDetailPost.rotation === 90 || selectedDetailPost.rotation === 270) ? '100%' : '75vh'
+                        height: '100%'
                       }}
                     />
                   ) : (
                     <img
                       src={selectedDetailPost.feedImage}
                       alt={selectedDetailPost.name || 'Snap'}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        transform: selectedDetailPost.rotation ? `rotate(${selectedDetailPost.rotation}deg)` : undefined
+                      }}
                     />
                   )}
                   {selectedDetailPost.recentThought && (
