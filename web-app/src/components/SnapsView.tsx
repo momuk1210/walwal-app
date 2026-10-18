@@ -631,6 +631,28 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
           const mergedPosts = [...pendingLocalPosts, ...remotePosts];
           mergedPosts.sort((a, b) => getPostTime(b) - getPostTime(a));
 
+          // Automatically sync pending local posts to Firestore so other devices/PWAs can see them
+          if (pendingLocalPosts.length > 0) {
+            pendingLocalPosts.forEach(async (lp) => {
+              try {
+                const postId = String(lp.id);
+                const sanitized = cleanForFirestore({
+                  ...lp,
+                  createdAt: null
+                });
+                delete sanitized.createdAt;
+
+                await setDoc(doc(db, 'posts', postId), {
+                  ...sanitized,
+                  createdAt: lp.createdAt ? new Date(lp.createdAt) : serverTimestamp()
+                }, { merge: true });
+                console.log('Successfully synced pending local post to Firestore:', postId, lp.name);
+              } catch (syncErr) {
+                console.warn('Failed to sync pending local post to Firestore:', syncErr);
+              }
+            });
+          }
+
           try {
             const lightPosts = mergedPosts.slice(0, 50).map(p => ({
               ...p,

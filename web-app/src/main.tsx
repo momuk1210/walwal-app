@@ -57,10 +57,10 @@ try {
     if (Array.isArray(parsed)) {
       const activeLang = localStorage.getItem('WALWAL_LANGUAGE') || 'ko';
       const owned = parsed.filter((p: any) => {
-        if (!curEmail) return false;
+        if (!curEmail) return true;
         const petOwner = (p.ownerEmail || '').toLowerCase().trim();
         if (curEmail.includes('daisynara')) return true;
-        return petOwner === curEmail;
+        return !petOwner || petOwner === curEmail;
       });
       const sanitized = sanitizePetList(owned, activeLang);
       localStorage.setItem('WALWAL_PETS', JSON.stringify(sanitized));
