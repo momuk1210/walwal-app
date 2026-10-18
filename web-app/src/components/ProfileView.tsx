@@ -206,28 +206,65 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
 
       const currentEmail = (currentUser?.email || localStorage.getItem('WALWAL_USER_EMAIL') || localStorage.getItem('walwal_user_email') || '').toLowerCase().trim();
 
-      // 로그인하지 않은 경우 개인 반려견은 0마리 (게스트 상태)
-      if (!currentEmail) {
-        setPets([]);
-        localStorage.setItem('WALWAL_PETS', JSON.stringify([]));
-        window.dispatchEvent(new Event('walwal_pets_updated'));
-        return;
-      }
+      // 기존 로컬 반려견 로드 (절대 강제 삭제 금지)
+      let localPets: DogProfile[] = [];
+      try {
+        const saved = localStorage.getItem('WALWAL_PETS');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) localPets = parsed;
+        }
+      } catch (e) { }
 
-      // 오직 현재 로그인된 계정(ownerEmail)의 반려견만 필터링 (타인/디폴트견 강제 삽입 금지)
+      // 유효한 사용자 반려견만 필터링 (가짜 이웃견/삭제된 견 제외)
+      const validLocalPets = localPets.filter(lp => lp && lp.name && !isMockNeighborDog(lp) && !isDeletedPet(lp));
+
+      // 로컬에 등록된 반려견이 Firestore에 없으면 자동 백업 업로드
+      validLocalPets.forEach(lp => {
+        const existsRemote = remoteDogs.some(rd => rd.id === lp.id || rd.name === lp.name);
+        if (!existsRemote) {
+          saveDogProfile(lp, currentUser?.uid);
+        }
+      });
+
+      // 내 소유의 원격 반려견 필터링
       const myRemoteDogs = remoteDogs.filter(rd => {
         if (isMockNeighborDog(rd) || isDeletedPet(rd)) return false;
         const ownerEmail = (rd.ownerEmail || '').toLowerCase().trim();
-        return ownerEmail === currentEmail;
+        if (currentEmail) {
+          return ownerEmail === currentEmail || (!ownerEmail && validLocalPets.some(lp => lp.name === rd.name));
+        }
+        // 비로그인(게스트) 상태일 경우 로컬에 있던 강아지 이름/ID와 매칭되는 원격 강아지 유지
+        return validLocalPets.some(lp => lp.id === rd.id || lp.name === rd.name);
       });
 
-      // Firestore에서 읽은 내 반려견 목록으로 정규화
-      const normalizedRemote = myRemoteDogs.map(rd => normalizeDogProfile(rd, language));
+      // 로컬 반려견과 원격 반려견 병합 (단일 진실 공급원 Firestore 우선 병합)
+      const combinedMap = new Map<string, DogProfile>();
+      validLocalPets.forEach(lp => {
+        combinedMap.set(lp.id || lp.name, lp);
+      });
+      myRemoteDogs.forEach(rd => {
+        combinedMap.set(rd.id || rd.name, rd);
+      });
+
+      // 만약 currentEmail이 wal.wal.app365@gmail.com 이거나 daisynara 인데 로컬에 없다면 원격에서 불러오기
+      if (currentEmail && combinedMap.size === 0) {
+        remoteDogs.forEach(rd => {
+          if (!isMockNeighborDog(rd) && !isDeletedPet(rd) && (rd.ownerEmail || '').toLowerCase().trim() === currentEmail) {
+            combinedMap.set(rd.id || rd.name, rd);
+          }
+        });
+      }
+
+      const mergedList = Array.from(combinedMap.values());
+      const normalizedRemote = mergedList.map(rd => normalizeDogProfile(rd, language));
       const sanitized = sanitizePetList(normalizedRemote, language);
 
-      setPets(sanitized);
-      localStorage.setItem('WALWAL_PETS', JSON.stringify(sanitized));
-      window.dispatchEvent(new Event('walwal_pets_updated'));
+      if (sanitized.length > 0 || validLocalPets.length === 0) {
+        setPets(sanitized);
+        localStorage.setItem('WALWAL_PETS', JSON.stringify(sanitized));
+        window.dispatchEvent(new Event('walwal_pets_updated'));
+      }
     }, (err) => {
       console.warn('ProfileView dogs onSnapshot error:', err);
     });
@@ -377,6 +414,7 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
       });
       savePetsToStorage(updated);
     } else if (modalMode === 'add') {
+      const curEmail = (currentUser?.email || localStorage.getItem('WALWAL_USER_EMAIL') || localStorage.getItem('walwal_user_email') || '').toLowerCase().trim();
       const newPet: DogProfile = {
         id: 'pet-' + Date.now(),
         name: formName.trim(),
@@ -384,6 +422,7 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
         age: formAge.trim(),
         gender: formGender,
         ownerName: `${formName.trim()} ${formOwnerTitle === 'dad' ? t.profile.dad : t.profile.mom}`,
+        ownerEmail: curEmail || undefined,
         avatar: formAvatar || AVATAR_PRESETS[0],
         personality: formPersonalities.length > 0 ? formPersonalities : [t.profile.presetPersonalities?.[0] || '#새로운댕댕이'],
         greeting: formGreeting.trim(),

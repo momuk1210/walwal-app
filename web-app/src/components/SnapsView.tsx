@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Heart, MessageSquare, MessageCircle, Send, X, Image as ImageIcon, Circle, Download, Share2, AlignRight, Bone, Sparkles, MoreVertical, Edit3, Trash2, Plus, MoreHorizontal, Bookmark, Camera, Play, Menu, Flag, ShieldAlert, RotateCcw, RotateCw, ArrowLeft, ChevronsLeft, LayoutGrid, Link2, Check, Undo, Redo, Square, Repeat2, Volume2, VolumeX } from 'lucide-react';
+import { Heart, MessageSquare, MessageCircle, Send, X, Image as ImageIcon, Circle, Download, Share2, AlignRight, Bone, Sparkles, MoreVertical, Edit3, Trash2, Plus, MoreHorizontal, Bookmark, Camera, Play, Pause, Menu, Flag, ShieldAlert, RotateCcw, RotateCw, ArrowLeft, ChevronsLeft, LayoutGrid, Link2, Check, Undo, Redo, Square, Repeat2, Volume2, VolumeX } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { getMockDogs, isSameDogName, getDefaultDogAvatar, sanitizePetList } from '../data/mockDogs';
 import { useTranslation } from '../i18n/LanguageContext';
@@ -179,30 +179,111 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
   });
   const [isMuted, setIsMuted] = useState<boolean>(true);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [showPlayIcon, setShowPlayIcon] = useState<boolean>(false);
   const [posterSrc, setPosterSrc] = useState<string | null>(post.poster || null);
   const [naturalAspect, setNaturalAspect] = useState<number | null>(null);
   const [containerDim, setContainerDim] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // Video resolution and automatic cloud chunk upload if needed
   useEffect(() => {
     let isMounted = true;
-    if (!videoSrc) {
+    let retryTimer: any = null;
+
+    const attemptLoad = () => {
       ensureVideoPlayable(post).then((playable) => {
-        if (isMounted && playable) {
+        if (!isMounted) return;
+        if (playable) {
           setVideoSrc(playable);
           post.feedImage = playable;
+
+          // If this client resolved the blob from IndexedDB or memory, but Firestore doesn't have chunks yet, upload them
+          if (!post.hasCloudMedia || post.feedImage?.startsWith('indexeddb:')) {
+            try {
+              const b = blobCache.get(post.id) || blobCache.get(playable);
+              if (b) {
+                uploadVideoToCloud(String(post.id), b).catch(console.warn);
+              } else {
+                getMedia(String(post.id)).then(blob => {
+                  if (blob) uploadVideoToCloud(String(post.id), blob).catch(console.warn);
+                }).catch(() => {});
+              }
+            } catch (e) {}
+          }
+
           extractPosterFromVideo(playable).then(p => {
             if (isMounted && p) {
               setPosterSrc(p);
               post.poster = p;
             }
           }).catch(() => {});
+        } else if (post.isVideo) {
+          retryTimer = setTimeout(attemptLoad, 3000);
         }
       });
+    };
+
+    if (!videoSrc) {
+      attemptLoad();
+    } else if (!post.hasCloudMedia) {
+      // Already has videoSrc, ensure cloud sync
+      try {
+        const b = blobCache.get(post.id) || blobCache.get(videoSrc);
+        if (b) {
+          uploadVideoToCloud(String(post.id), b).catch(console.warn);
+        }
+      } catch (e) {}
     }
-    return () => { isMounted = false; };
+
+    return () => {
+      isMounted = false;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, [post.id, post.feedImage]);
+
+  // Ensure DOM video muted property is set immediately on mount (fixes mobile browser autoplay policy)
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.muted = isMuted;
+      videoRef.current.defaultMuted = true;
+      (videoRef.current as any).playsInline = true;
+    }
+  }, [videoSrc, isMuted]);
+
+  // Viewport IntersectionObserver: auto-play video when in view, pause when scrolled away
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        const video = videoRef.current;
+        if (!video) return;
+
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.4) {
+          video.muted = isMuted;
+          video.defaultMuted = true;
+          const playPromise = video.play();
+          if (playPromise !== undefined) {
+            playPromise.then(() => {
+              setIsPlaying(true);
+            }).catch(() => {
+              // Browser may require user interaction for unmuted, retry muted
+              video.muted = true;
+              video.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+            });
+          }
+        } else if (!entry.isIntersecting || entry.intersectionRatio < 0.2) {
+          video.pause();
+          setIsPlaying(false);
+        }
+      });
+    }, { threshold: [0.2, 0.4] });
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [videoSrc, isMuted]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -232,7 +313,6 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
   } else if (post.cropRatio === '16:9') {
     containerAspect = '16 / 9';
   } else {
-    // 'original' or not set:
     if (naturalAspect) {
       containerAspect = isSwap ? `${1 / naturalAspect}` : `${naturalAspect}`;
     } else {
@@ -260,6 +340,29 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
         display: 'block'
       };
 
+  const handleTogglePlay = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (video.paused) {
+      video.muted = isMuted;
+      video.play().then(() => {
+        setIsPlaying(true);
+        setShowPlayIcon(true);
+        setTimeout(() => setShowPlayIcon(false), 700);
+      }).catch(() => {
+        video.muted = true;
+        video.play().then(() => setIsPlaying(true)).catch(console.warn);
+      });
+    } else {
+      video.pause();
+      setIsPlaying(false);
+      setShowPlayIcon(true);
+      setTimeout(() => setShowPlayIcon(false), 700);
+    }
+  };
+
   return (
     <div
       ref={containerRef}
@@ -277,15 +380,7 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
         background: '#0f172a',
         cursor: 'pointer'
       }}
-      onClick={() => {
-        if (videoRef.current) {
-          if (videoRef.current.paused) {
-            videoRef.current.play().catch(() => {});
-          } else {
-            videoRef.current.pause();
-          }
-        }
-      }}
+      onClick={handleTogglePlay}
     >
       {videoSrc ? (
         <video
@@ -296,7 +391,6 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
           loop
           muted={isMuted}
           playsInline
-          preload="auto"
           className="snaps-feed-media"
           style={mediaStyle}
           onLoadedMetadata={(e) => {
@@ -349,7 +443,8 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
             justifyContent: 'center',
             color: '#fff',
             zIndex: 10,
-            boxShadow: '0 2px 6px rgba(0,0,0,0.3)'
+            boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+            cursor: 'pointer'
           }}
           title={isMuted ? '음소거 해제' : '음소거'}
         >
@@ -357,22 +452,24 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
         </button>
       )}
 
-      {/* Centered Play Button Overlay when paused */}
-      {videoSrc && !isPlaying && (
+      {/* Centered Play Button Overlay when paused or tapped */}
+      {videoSrc && (!isPlaying || showPlayIcon) && (
         <div
           style={{
             position: 'absolute',
             pointerEvents: 'none',
-            background: 'rgba(0,0,0,0.45)',
+            background: 'rgba(0,0,0,0.5)',
+            backdropFilter: 'blur(4px)',
             borderRadius: '50%',
-            padding: '14px',
+            padding: '16px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+            boxShadow: '0 4px 14px rgba(0,0,0,0.4)',
+            transition: 'opacity 0.25s ease'
           }}
         >
-          <Play size={28} fill="#fff" color="#fff" />
+          {isPlaying ? <Pause size={28} fill="#fff" color="#fff" /> : <Play size={28} fill="#fff" color="#fff" style={{ marginLeft: '3px' }} />}
         </div>
       )}
     </div>
@@ -817,7 +914,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
   const [modalCommentImage, setModalCommentImage] = useState<string | null>(null);
   const [replyingToComment, setReplyingToComment] = useState<{ id: number; author: string } | null>(null);
   const commentInputRef = useRef<HTMLInputElement>(null);
-  const activeCommentPost = feedPosts.find(p => p.id === activeCommentPostId);
+  const activeCommentPost = feedPosts.find(p => String(p.id) === String(activeCommentPostId));
   const [draftText, setDraftText] = useState('');
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -1960,32 +2057,43 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
   };
 
   const handleShareFeed = async (id: string) => {
-    const postToShare = feedPosts.find(p => p.id === id);
+    const targetId = String(id);
+    const postToShare = feedPosts.find(p => String(p.id) === targetId);
+    if (!postToShare) return;
+
+    const newShares = (postToShare.shares || 0) + 1;
 
     setFeedPosts(prev => prev.map(p => {
-      if (p.id === id) {
-        const newShares = (p.shares || 0) + 1;
-        saveFeedInteraction(id, { shares: newShares });
+      if (String(p.id) === targetId) {
         return { ...p, shares: newShares };
       }
       return p;
     }));
 
-    if (postToShare) {
-      try {
-        if (navigator.share) {
-          await navigator.share({
-            title: `WalWal - ${postToShare.name}의 속마음`,
-            text: `"${postToShare.recentThought}"\n우리 댕댕이 무슨 생각하는지 궁금하다면? WalWal 앱에서 확인해보세요!`,
-            url: window.location.href,
-          });
-        } else {
-          await navigator.clipboard.writeText(`"${postToShare.recentThought}"\n- ${postToShare.name}의 속마음 (WalWal에서 확인하기)`);
-          alert('내용이 클립보드에 복사되었습니다! SNS에 붙여넣기 해보세요.');
-        }
-      } catch (error) {
-        console.log('Share canceled or failed:', error);
+    saveFeedInteraction(targetId, { shares: newShares });
+
+    // Sync shares to Firestore
+    try {
+      await setDoc(doc(db, 'posts', targetId), {
+        shares: newShares
+      }, { merge: true });
+    } catch (e) {
+      console.warn('Failed to update shares in Firestore:', e);
+    }
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: `WalWal - ${postToShare.name}의 속마음`,
+          text: `"${postToShare.recentThought}"\n우리 댕댕이 무슨 생각하는지 궁금하다면? WalWal 앱에서 확인해보세요!`,
+          url: window.location.href,
+        });
+      } else {
+        await navigator.clipboard.writeText(`"${postToShare.recentThought}"\n- ${postToShare.name}의 속마음 (WalWal에서 확인하기)`);
+        showToast(language === 'ko' ? '링크가 클립보드에 복사되었습니다!' : 'Link copied to clipboard!');
       }
+    } catch (error) {
+      console.log('Share canceled or failed:', error);
     }
   };
 
@@ -2023,9 +2131,9 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
         document.execCommand('copy');
         document.body.removeChild(textarea);
       }
-      showToast(language === 'ko' ? '링크가 클립보드에 복사되었습니다!' : language === 'ja' ? 'リンクがコピーされました！' : 'Link copied to clipboard!');
+      showToast(language === 'ko' ? '링크가 클립보드에 복사되었습니다!' : language === 'ja' ? '링크가 복사되었습니다！' : 'Link copied to clipboard!');
     } catch (e) {
-      showToast(language === 'ko' ? '링크 복사 실패' : language === 'ja' ? 'リンクのコピーに失敗しました' : 'Failed to copy link');
+      showToast(language === 'ko' ? '링크 복사 실패' : language === 'ja' ? '링크 복사 실패' : 'Failed to copy link');
     }
   };
 
@@ -2036,7 +2144,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
     const sharePrefix = language === 'ko'
       ? `우리 댕댕이 ${dogTitle}의 피드샷 🐶\n`
       : language === 'ja'
-        ? `『${dogTitle}』のきもちスナップ 🐶\n`
+        ? `『${dogTitle}』의 피드샷 🐶\n`
         : `Our cute dog ${dogTitle}'s snap 🐶\n`;
     const shareText = encodeURIComponent(`${thoughtText}${sharePrefix}${shareUrl}`);
     window.open(`https://api.whatsapp.com/send?text=${shareText}`, '_blank');
@@ -2049,7 +2157,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
     const sharePrefix = language === 'ko'
       ? `우리 댕댕이 ${dogTitle}의 피드샷 🐶\n`
       : language === 'ja'
-        ? `『${dogTitle}』のきもちスナップ 🐶\n`
+        ? `『${dogTitle}』의 피드샷 🐶\n`
         : `Our cute dog ${dogTitle}'s snap 🐶\n`;
     const shareText = encodeURIComponent(`${thoughtText}${sharePrefix}${shareUrl}`);
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -2058,7 +2166,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
   };
 
   const handlePostDownload = async (post: any) => {
-    showToast(language === 'ko' ? '파일 다운로드 중...' : language === 'ja' ? 'ファイルをダウンロード中...' : 'Downloading file...');
+    showToast(language === 'ko' ? '파일 다운로드 중...' : language === 'ja' ? '파일 다운로드 중...' : 'Downloading file...');
     try {
       if (post.feedImage) {
         const link = document.createElement('a');
@@ -2068,10 +2176,10 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
         link.click();
         document.body.removeChild(link);
         confetti({ particleCount: 30, spread: 50, origin: { y: 0.6 } });
-        showToast(language === 'ko' ? '파일이 다운로드되었습니다!' : language === 'ja' ? 'ダウンロードが完了しました！' : 'Downloaded!');
+        showToast(language === 'ko' ? '파일이 다운로드되었습니다!' : language === 'ja' ? '다운로드 완료!' : 'Downloaded!');
       }
     } catch (e) {
-      showToast(language === 'ko' ? '다운로드 실패' : language === 'ja' ? 'ダウンロードに失敗しました' : 'Download failed');
+      showToast(language === 'ko' ? '다운로드 실패' : language === 'ja' ? '다운로드 실패' : 'Download failed');
     }
   };
 
@@ -2079,61 +2187,47 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
     await handleShareFeed(post.id);
   };
 
-  const handleLikeFeed = (id: string) => {
-    let targetNewLikes = 0;
-    let targetNewLiked = false;
+  const handleLikeFeed = async (id: string) => {
+    const targetId = String(id);
+    const targetPost = feedPosts.find(p => String(p.id) === targetId);
+    if (!targetPost) return;
 
-    setFeedPosts(prev => {
-      const updated = prev.map(p => {
-        if (String(p.id) === String(id)) {
-          const newLiked = !p.liked;
-          const currentLikes = typeof p.likes === 'number' ? p.likes : 0;
-          const newLikes = newLiked ? currentLikes + 1 : Math.max(0, currentLikes - 1);
-          targetNewLikes = newLikes;
-          targetNewLiked = newLiked;
-          saveFeedInteraction(id, { liked: newLiked, likes: newLikes });
-          return {
-            ...p,
-            liked: newLiked,
-            likes: newLikes
-          };
-        }
-        return p;
-      });
+    const newLiked = !targetPost.liked;
+    const currentLikes = typeof targetPost.likes === 'number' ? targetPost.likes : 0;
+    const newLikes = newLiked ? currentLikes + 1 : Math.max(0, currentLikes - 1);
 
-      // customPosts에도 반영하여 최신 상태 동기화
-      try {
-        const userPosts = updated.filter(p => !p.id.toString().startsWith('dog-')).map(p => ({
+    // 1. Optimistic UI update
+    setFeedPosts(prev => prev.map(p => {
+      if (String(p.id) === targetId) {
+        return {
           ...p,
-          feedImage: p.originalFeedImage || p.feedImage,
-          originalFeedImage: undefined
-        }));
-        saveAndSyncUserPosts(userPosts);
-      } catch (e) {
-        console.error('Failed to sync WALWAL_USER_FEED_POSTS on like:', e);
+          liked: newLiked,
+          likes: newLikes
+        };
       }
+      return p;
+    }));
 
-      return updated;
-    });
-
-    // 1. Update local liked post IDs for this client
+    // 2. Update local storage liked status
     try {
       const likedIds: string[] = JSON.parse(localStorage.getItem('WALWAL_LIKED_POST_IDS') || '[]');
-      const strId = String(id);
-      const nextIds = targetNewLiked ? [...new Set([...likedIds, strId])] : likedIds.filter(x => x !== strId);
+      const nextIds = newLiked ? [...new Set([...likedIds, targetId])] : likedIds.filter(x => x !== targetId);
       localStorage.setItem('WALWAL_LIKED_POST_IDS', JSON.stringify(nextIds));
+      saveFeedInteraction(targetId, { liked: newLiked, likes: newLikes });
     } catch (e) {}
 
-    // 2. Direct Cloud Firestore sync so ALL devices and PWAs see the exact same like count
-    setDoc(doc(db, 'posts', String(id)), {
-      likes: targetNewLikes
-    }, { merge: true }).catch(err => {
+    // 3. Direct Cloud Firestore sync with the computed newLikes value
+    try {
+      await setDoc(doc(db, 'posts', targetId), {
+        likes: newLikes
+      }, { merge: true });
+    } catch (err) {
       console.warn('Failed to update likes in Firestore:', err);
-    });
+    }
   };
 
   const handleOpenComments = (post: any) => {
-    setActiveCommentPostId(post.id);
+    setActiveCommentPostId(String(post.id));
     setModalCommentInput('');
   };
 
@@ -2144,61 +2238,41 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
     setReplyingToComment(null);
   };
 
-  const handleDeleteComment = (postId: string, commentId: any) => {
-    if (!postId || !commentId) return;
+  const handleDeleteComment = async (postId: string, commentId: any) => {
+    const targetPostId = String(postId);
+    const targetPost = feedPosts.find(p => String(p.id) === targetPostId);
+    if (!targetPost) return;
 
-    let targetNewComments: any[] | null = null;
+    const existing = Array.isArray(targetPost.comments) ? targetPost.comments : [];
+    const newComments = existing.filter((c: any) => 
+      String(c.id) !== String(commentId) && 
+      String(c.parentId || '') !== String(commentId)
+    );
 
-    setFeedPosts(prev => {
-      const updated = prev.map(p => {
-        if (String(p.id) === String(postId)) {
-          const existing = Array.isArray(p.comments) ? p.comments : [];
-          const newComments = existing.filter((c: any) => 
-            String(c.id) !== String(commentId) && 
-            String(c.parentId || '') !== String(commentId)
-          );
-          targetNewComments = newComments;
-          saveFeedInteraction(String(postId), { comments: newComments });
-          return {
-            ...p,
-            comments: newComments
-          };
-        }
-        return p;
-      });
-
-      try {
-        const userPosts = updated.filter(p => !p.id.toString().startsWith('dog-')).map(p => ({
+    setFeedPosts(prev => prev.map(p => {
+      if (String(p.id) === targetPostId) {
+        return {
           ...p,
-          feedImage: p.originalFeedImage || p.feedImage,
-          originalFeedImage: undefined
-        }));
-        saveAndSyncUserPosts(userPosts);
-      } catch (err) {
-        console.error('Failed to sync WALWAL_USER_FEED_POSTS on delete comment:', err);
+          comments: newComments
+        };
       }
-
-      return updated;
-    });
-
-    // Firestore 동기화 (원격 게시물인 경우)
-    if (targetNewComments) {
-      try {
-        setDoc(doc(db, 'posts', String(postId)), {
-          comments: cleanForFirestore(targetNewComments)
-        }, { merge: true }).catch((err) => {
-          console.warn('Failed to sync deleted comment to Firestore:', err);
-        });
-      } catch (e) {}
-    }
+      return p;
+    }));
 
     try {
+      saveFeedInteraction(targetPostId, { comments: newComments });
       const savedIds: any[] = JSON.parse(localStorage.getItem('WALWAL_MY_COMMENT_IDS') || '[]');
       const filtered = savedIds.filter(id => String(id) !== String(commentId));
       localStorage.setItem('WALWAL_MY_COMMENT_IDS', JSON.stringify(filtered));
-    } catch (e) {}
 
-    showToast(language === 'ko' ? '댓글이 삭제되었습니다.' : language === 'ja' ? 'コメントが削除されました。' : 'Comment deleted.');
+      await setDoc(doc(db, 'posts', targetPostId), {
+        comments: cleanForFirestore(newComments)
+      }, { merge: true });
+    } catch (err) {
+      console.warn('Failed to sync deleted comment to Firestore:', err);
+    }
+
+    showToast(language === 'ko' ? '댓글이 삭제되었습니다.' : language === 'ja' ? '댓글이 삭제되었습니다.' : 'Comment deleted.');
   };
 
   const handleStartReply = (comment: any) => {
@@ -2243,9 +2317,13 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
     return false;
   };
 
-  const handleModalSubmitComment = (e?: React.FormEvent) => {
+  const handleModalSubmitComment = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!activeCommentPostId || (!modalCommentInput.trim() && !modalCommentImage)) return;
+
+    const targetPostId = String(activeCommentPostId);
+    const targetPost = feedPosts.find(p => String(p.id) === targetPostId);
+    if (!targetPost) return;
 
     const commentText = modalCommentInput.trim();
     if (commentText) {
@@ -2271,9 +2349,24 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
       userId: auth.currentUser?.uid || undefined,
       parentId: replyingToComment ? replyingToComment.id : undefined,
       replyToAuthor: replyingToComment ? replyingToComment.author : undefined,
-      createdAt: language === 'ko' ? '방금 전' : (language === 'ja' ? 'たった今' : 'Just now')
+      createdAt: language === 'ko' ? '방금 전' : (language === 'ja' ? '방금 전' : 'Just now')
     };
 
+    const existingComments = Array.isArray(targetPost.comments) ? targetPost.comments : [];
+    const newCommentList = [...existingComments, newComment];
+
+    // 1. Optimistic UI update
+    setFeedPosts(prev => prev.map(p => {
+      if (String(p.id) === targetPostId) {
+        return {
+          ...p,
+          comments: newCommentList
+        };
+      }
+      return p;
+    }));
+
+    // 2. Local interactions
     try {
       const savedIds: any[] = JSON.parse(localStorage.getItem('WALWAL_MY_COMMENT_IDS') || '[]');
       if (!savedIds.some(id => String(id) === String(newCommentId))) {
@@ -2281,45 +2374,16 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
         savedIds.push(String(newCommentId));
         localStorage.setItem('WALWAL_MY_COMMENT_IDS', JSON.stringify(savedIds));
       }
+      saveFeedInteraction(targetPostId, { comments: newCommentList });
     } catch (e) {}
 
-    let targetNewComments: any[] | null = null;
-    setFeedPosts(prev => {
-      const updated = prev.map(p => {
-        if (p.id === activeCommentPostId) {
-          const existing = Array.isArray(p.comments) ? p.comments : [];
-          const newCommentList = [...existing, newComment];
-          targetNewComments = newCommentList;
-          saveFeedInteraction(activeCommentPostId, { comments: newCommentList });
-          return {
-            ...p,
-            comments: newCommentList
-          };
-        }
-        return p;
-      });
-
-      try {
-        const userPosts = updated.filter(p => !p.id.toString().startsWith('dog-')).map(p => ({
-          ...p,
-          feedImage: p.originalFeedImage || p.feedImage,
-          originalFeedImage: undefined
-        }));
-        saveAndSyncUserPosts(userPosts);
-      } catch (err) {
-        console.error('Failed to sync WALWAL_USER_FEED_POSTS on modal comment:', err);
-      }
-
-      return updated;
-    });
-
-    // Direct Cloud Firestore sync so ALL devices and PWAs receive the comment in real time
-    if (targetNewComments && activeCommentPostId) {
-      setDoc(doc(db, 'posts', String(activeCommentPostId)), {
-        comments: cleanForFirestore(targetNewComments)
-      }, { merge: true }).catch(err => {
-        console.warn('Failed to save comment to Firestore:', err);
-      });
+    // 3. Direct Cloud Firestore sync
+    try {
+      await setDoc(doc(db, 'posts', targetPostId), {
+        comments: cleanForFirestore(newCommentList)
+      }, { merge: true });
+    } catch (err) {
+      console.warn('Failed to save comment to Firestore:', err);
     }
 
     setModalCommentInput('');
@@ -2328,15 +2392,16 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
   };
 
   const handleToggleComments = (id: string) => {
-    const post = feedPosts.find(p => p.id === id);
+    const post = feedPosts.find(p => String(p.id) === String(id));
     if (post) {
       handleOpenComments(post);
     }
   };
 
-  const handleSubmitComment = (id: string, e: React.FormEvent) => {
+  const handleSubmitComment = async (id: string, e: React.FormEvent) => {
     e.preventDefault();
-    const commentText = newCommentText[id]?.trim();
+    const targetId = String(id);
+    const commentText = newCommentText[targetId]?.trim();
     if (!commentText) return;
 
     const valid = validateUserContent(commentText);
@@ -2345,49 +2410,41 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
       return;
     }
 
-    let targetInlineComments: any[] | null = null;
-    setFeedPosts(prev => {
-      const updated = prev.map(p => {
-        if (p.id === id) {
-          const newCommentList = [
-            ...(p.comments || []),
-            { id: Date.now(), author: myDog.name, text: commentText }
-          ];
-          targetInlineComments = newCommentList;
-          saveFeedInteraction(id, { comments: newCommentList });
-          return {
-            ...p,
-            comments: newCommentList
-          };
-        }
-        return p;
-      });
+    const targetPost = feedPosts.find(p => String(p.id) === targetId);
+    if (!targetPost) return;
 
-      // customPosts에도 반영
-      try {
-        const userPosts = updated.filter(p => !p.id.toString().startsWith('dog-')).map(p => ({
+    const newComment = {
+      id: Date.now(),
+      author: myDog?.name || '나',
+      avatar: myDog?.avatar || getDefaultDogAvatar(),
+      text: commentText,
+      isMine: true,
+      createdAt: language === 'ko' ? '방금 전' : 'Just now'
+    };
+
+    const existingComments = Array.isArray(targetPost.comments) ? targetPost.comments : [];
+    const newCommentList = [...existingComments, newComment];
+
+    setFeedPosts(prev => prev.map(p => {
+      if (String(p.id) === targetId) {
+        return {
           ...p,
-          feedImage: p.originalFeedImage || p.feedImage,
-          originalFeedImage: undefined
-        }));
-        saveAndSyncUserPosts(userPosts);
-      } catch (e) {
-        console.error('Failed to sync WALWAL_USER_FEED_POSTS on comment:', e);
+          comments: newCommentList
+        };
       }
+      return p;
+    }));
 
-      return updated;
-    });
-
-    // Direct Cloud Firestore sync so ALL devices and PWAs receive the comment in real time
-    if (targetInlineComments) {
-      setDoc(doc(db, 'posts', String(id)), {
-        comments: cleanForFirestore(targetInlineComments)
-      }, { merge: true }).catch(err => {
-        console.warn('Failed to save inline comment to Firestore:', err);
-      });
+    try {
+      saveFeedInteraction(targetId, { comments: newCommentList });
+      await setDoc(doc(db, 'posts', targetId), {
+        comments: cleanForFirestore(newCommentList)
+      }, { merge: true });
+    } catch (err) {
+      console.warn('Failed to save inline comment to Firestore:', err);
     }
 
-    setNewCommentText(prev => ({ ...prev, [id]: '' }));
+    setNewCommentText(prev => ({ ...prev, [targetId]: '' }));
   };
 
   return (
