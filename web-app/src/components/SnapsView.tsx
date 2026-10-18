@@ -12,7 +12,7 @@ import { auth, db, storage } from '../firebase';
 import { doc, getDoc, setDoc, onSnapshot, serverTimestamp, collection, query, orderBy } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { syncGlobalFeedPosts, syncSinglePost, deleteFeedPost, updateFeedPost } from '../services/db';
-import { ensureVideoPlayable, uploadVideoToCloud, extractPosterFromVideo } from '../services/mediaSync';
+import { ensureVideoPlayable, uploadVideoToCloud, extractPosterFromVideo, rotateAndCropVideoBlob } from '../services/mediaSync';
 import '../styles/OwnerNoteModal.css';
 
 export interface SnapsViewProps {
@@ -201,11 +201,33 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
     }
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setLocalFeedDraft({ dog: myDog, thought: '', image: reader.result as string });
-      };
-      reader.readAsDataURL(file);
+      const isVid = file.type.startsWith('video');
+      if (isVid) {
+        const videoUrl = URL.createObjectURL(file);
+        blobCache.set(videoUrl, file);
+        extractPosterFromVideo(videoUrl).then(poster => {
+          setLocalFeedDraft({
+            dog: myDog,
+            thought: '',
+            image: videoUrl,
+            poster: poster || undefined,
+            isVideo: true
+          });
+        }).catch(() => {
+          setLocalFeedDraft({
+            dog: myDog,
+            thought: '',
+            image: videoUrl,
+            isVideo: true
+          });
+        });
+      } else {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setLocalFeedDraft({ dog: myDog, thought: '', image: reader.result as string, isVideo: false });
+        };
+        reader.readAsDataURL(file);
+      }
     }
     if (e.target) e.target.value = '';
   };
@@ -1078,9 +1100,12 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
 
   const isVideo = Boolean(
     feedDraft?.isVideo ||
-    (feedDraft?.image && (feedDraft.image.endsWith('.webm') || feedDraft.image.endsWith('.mp4'))) ||
+    (feedDraft?.image && (feedDraft.image.endsWith('.webm') || feedDraft.image.endsWith('.mp4') || feedDraft.image.includes('.webm') || feedDraft.image.includes('.mp4'))) ||
+    (feedDraft?.image && typeof feedDraft.image === 'string' && feedDraft.image.startsWith('data:video')) ||
     (feedDraft?.image && feedDraft.image.startsWith('blob:') && blobCache.get(feedDraft.image)?.type.startsWith('video'))
   );
+
+  const [isPostingDraft, setIsPostingDraft] = useState<boolean>(false);
 
   // 피드샷 이미지/비디오 회전 및 비율 자르기 편집 상태
   const [editRotation, setEditRotation] = useState<number>(0);
@@ -1192,8 +1217,27 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
   };
 
   const downloadDraftMedia = async (suffix: string): Promise<string> => {
-    const targetSrc = displayImage || feedDraft?.image;
+    let targetSrc = displayImage || feedDraft?.image;
     if (!targetSrc) return '';
+
+    if (isVideo && (editRotation !== 0 || editCropRatio !== 'original') && feedDraft?.image) {
+      try {
+        const tr = await rotateAndCropVideoBlob(
+          feedDraft.image,
+          blobCache.get(feedDraft.image) || null,
+          editRotation,
+          editCropRatio
+        );
+        if (tr.videoBlob) {
+          const rotatedUrl = URL.createObjectURL(tr.videoBlob);
+          blobCache.set(rotatedUrl, tr.videoBlob);
+          targetSrc = rotatedUrl;
+        }
+      } catch (e) {
+        console.warn('Download video rotation transcode failed:', e);
+      }
+    }
+
     const link = document.createElement('a');
     link.href = targetSrc;
     link.download = `walwal_feed_${suffix}.${getMediaExt(targetSrc, undefined, isVideo)}`;
@@ -1312,7 +1356,8 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
   }, [feedDraft, petOptions]);
 
   const handlePostFeedDraft = async () => {
-    if (!feedDraft) return;
+    if (!feedDraft || isPostingDraft) return;
+    setIsPostingDraft(true);
 
     if (!petOptions || petOptions.length === 0) {
       alert(language === 'ko'
@@ -1354,13 +1399,15 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
       const isPostVideo = Boolean(
         feedDraft.isVideo ||
         isVideo ||
-        (feedDraft.image && (feedDraft.image.endsWith('.webm') || feedDraft.image.endsWith('.mp4'))) ||
+        (feedDraft.image && (feedDraft.image.endsWith('.webm') || feedDraft.image.endsWith('.mp4') || feedDraft.image.includes('.webm') || feedDraft.image.includes('.mp4'))) ||
+        (feedDraft.image && typeof feedDraft.image === 'string' && feedDraft.image.startsWith('data:video')) ||
         (feedDraft.image && feedDraft.image.startsWith('blob:') && blobCache.get(feedDraft.image)?.type.startsWith('video'))
       );
 
-      // 1. 비디오 및 포스터 추출 / 변환
+      // 1. 비디오 및 포스터 추출 / 물리적 회전 변환
       let posterDataUrl = feedDraft.poster || '';
       let videoBlob: Blob | null = null;
+      let effectiveRotation = editRotation || 0;
 
       if (isPostVideo && feedDraft.image) {
         if (blobCache.has(feedDraft.image)) {
@@ -1374,6 +1421,31 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
           }
         }
 
+        // 회전 또는 비율 편집이 적용된 경우 비디오를 물리적으로 트랜스코딩
+        if (editRotation !== 0 || editCropRatio !== 'original') {
+          try {
+            const transResult = await rotateAndCropVideoBlob(
+              feedDraft.image,
+              videoBlob,
+              editRotation,
+              editCropRatio
+            );
+            if (transResult.videoBlob && transResult.videoBlob.size > 1000) {
+              videoBlob = transResult.videoBlob;
+              // 물리적으로 회전 인코딩 완료 -> CSS 회전값은 0으로 리셋하여 이중 회전 방지
+              effectiveRotation = 0;
+              const newUrl = URL.createObjectURL(videoBlob);
+              blobCache.set(newUrl, videoBlob);
+              feedDraft.image = newUrl;
+            }
+            if (transResult.posterDataUrl) {
+              posterDataUrl = transResult.posterDataUrl;
+            }
+          } catch (transErr) {
+            console.warn('rotateAndCropVideoBlob failed, fallback:', transErr);
+          }
+        }
+
         if (!posterDataUrl && feedDraft.image) {
           try {
             const ext = await extractPosterFromVideo(feedDraft.image);
@@ -1383,7 +1455,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
           }
         }
 
-        if (posterDataUrl && (editRotation !== 0 || editCropRatio !== 'original')) {
+        if (posterDataUrl && effectiveRotation !== 0) {
           try {
             const pImg = new Image();
             await new Promise<void>((resolve) => {
@@ -1391,10 +1463,10 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
               pImg.onload = () => { clearTimeout(timer); resolve(); };
               pImg.onerror = () => { clearTimeout(timer); resolve(); };
               pImg.src = posterDataUrl;
-              if (pImg.complete) { clearTimeout(timer); resolve(); }
+              if (pImg.complete && pImg.naturalWidth > 0) { clearTimeout(timer); resolve(); }
             });
             if (pImg.naturalWidth > 0) {
-              posterDataUrl = transformImage(pImg, editRotation, editCropRatio);
+              posterDataUrl = transformImage(pImg, effectiveRotation, editCropRatio);
             }
           } catch (err) {
             console.warn('Transform video poster error:', err);
@@ -1503,7 +1575,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
         shares: 0,
         isVideo: isPostVideo,
         hasCloudMedia: isPostVideo,
-        rotation: editRotation || 0,
+        rotation: effectiveRotation,
         cropRatio: editCropRatio || 'original',
         isMine: true,
         createdAt: new Date().toISOString(),
@@ -1562,6 +1634,8 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
     } catch (criticalErr) {
       console.error('Critical error in handlePostFeedDraft:', criticalErr);
       alert(language === 'ko' ? '피드 등록 중 오류가 발생했습니다. 다시 시도해 주세요.' : 'An error occurred while posting. Please try again.');
+    } finally {
+      setIsPostingDraft(false);
     }
   };
 
@@ -2646,7 +2720,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                     <div
                       className="snaps-feed-media-container"
                       style={{
-                        aspectRatio: post.cropRatio === '1:1' ? '1 / 1' : post.cropRatio === '9:16' ? '9 / 16' : post.cropRatio === '16:9' ? '16 / 9' : undefined,
+                        aspectRatio: post.cropRatio === '1:1' ? '1 / 1' : post.cropRatio === '9:16' ? '9 / 16' : post.cropRatio === '16:9' ? '16 / 9' : ((post.rotation === 90 || post.rotation === 270) ? '16 / 9' : undefined),
                         overflow: 'hidden',
                         position: 'relative',
                         zIndex: 1,
@@ -2670,6 +2744,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                             objectFit: (post.cropRatio && post.cropRatio !== 'original') ? 'cover' : 'contain',
                             width: '100%',
                             height: (post.cropRatio && post.cropRatio !== 'original') ? '100%' : 'auto',
+                            maxHeight: (post.rotation === 90 || post.rotation === 270) ? '100%' : '75vh',
                             transition: 'transform 0.25s ease'
                           }}
                           onPlay={async (e) => {
@@ -3089,11 +3164,13 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                 </button>
 
                 {/* 6. 피드샷 (노란색 #FF9E58 + 북마크 아이콘) */}
-                <button onClick={handlePostFeedDraft}>
-                  <div className="share-icon-btn snaps">
+                <button onClick={handlePostFeedDraft} disabled={isPostingDraft}>
+                  <div className={`share-icon-btn snaps ${isPostingDraft ? 'opacity-60' : ''}`}>
                     <Bone size={22} color="#fff" />
                   </div>
-                  <span className="share-label-snaps share-label-feed">{language === 'ko' ? '내피드' : language === 'ja' ? '保存' : 'Feed'}</span>
+                  <span className="share-label-snaps share-label-feed">
+                    {isPostingDraft ? (language === 'ko' ? '저장 중...' : language === 'ja' ? '保存中...' : 'Saving...') : (language === 'ko' ? '내피드' : language === 'ja' ? '保存' : 'Feed')}
+                  </span>
                 </button>
               </div>
 
@@ -3152,7 +3229,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                 <div
                   className="snaps-modal-media-wrapper"
                   style={{
-                    aspectRatio: selectedDetailPost.cropRatio === '1:1' ? '1 / 1' : selectedDetailPost.cropRatio === '9:16' ? '9 / 16' : selectedDetailPost.cropRatio === '16:9' ? '16 / 9' : undefined,
+                    aspectRatio: selectedDetailPost.cropRatio === '1:1' ? '1 / 1' : selectedDetailPost.cropRatio === '9:16' ? '9 / 16' : selectedDetailPost.cropRatio === '16:9' ? '16 / 9' : ((selectedDetailPost.rotation === 90 || selectedDetailPost.rotation === 270) ? '16 / 9' : undefined),
                     overflow: 'hidden',
                     display: 'flex',
                     alignItems: 'center',
@@ -3173,7 +3250,8 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                         transform: selectedDetailPost.rotation ? `rotate(${selectedDetailPost.rotation}deg)` : undefined,
                         objectFit: (selectedDetailPost.cropRatio && selectedDetailPost.cropRatio !== 'original') ? 'cover' : 'contain',
                         width: '100%',
-                        height: (selectedDetailPost.cropRatio && selectedDetailPost.cropRatio !== 'original') ? '100%' : 'auto'
+                        height: (selectedDetailPost.cropRatio && selectedDetailPost.cropRatio !== 'original') ? '100%' : 'auto',
+                        maxHeight: (selectedDetailPost.rotation === 90 || selectedDetailPost.rotation === 270) ? '100%' : '75vh'
                       }}
                     />
                   ) : (

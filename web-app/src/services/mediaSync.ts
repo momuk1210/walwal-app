@@ -170,6 +170,10 @@ export const extractPosterFromVideo = (videoUrl: string): Promise<string | null>
     video.muted = true;
     video.playsInline = true;
 
+    const timer = setTimeout(() => {
+      resolve(null);
+    }, 2500);
+
     video.onloadeddata = () => {
       try {
         const canvas = document.createElement('canvas');
@@ -179,16 +183,213 @@ export const extractPosterFromVideo = (videoUrl: string): Promise<string | null>
         if (ctx) {
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
           const posterData = canvas.toDataURL('image/jpeg', 0.8);
+          clearTimeout(timer);
           resolve(posterData);
           return;
         }
       } catch (err) {
         console.warn('Failed to extract poster from video:', err);
       }
+      clearTimeout(timer);
       resolve(null);
     };
 
-    video.onerror = () => resolve(null);
+    video.onerror = () => {
+      clearTimeout(timer);
+      resolve(null);
+    };
     video.load();
   });
 };
+
+/**
+ * Rotate and crop video blob using Canvas & MediaRecorder
+ * Produces a physically rotated video file & poster for smooth native playback
+ */
+export const rotateAndCropVideoBlob = async (
+  videoSrc: string,
+  sourceBlob: Blob | null,
+  rotation: number,
+  cropRatio: 'original' | '1:1' | '9:16' | '16:9' = 'original'
+): Promise<{ videoBlob: Blob | null; posterDataUrl: string | null }> => {
+  const normRot = ((rotation % 360) + 360) % 360;
+  if (normRot === 0 && cropRatio === 'original') {
+    return { videoBlob: sourceBlob, posterDataUrl: null };
+  }
+
+  return new Promise((resolve) => {
+    let resolved = false;
+    let cleanupVideo: (() => void) | null = null;
+    let fallbackPoster: string | null = null;
+
+    const finish = (result: { videoBlob: Blob | null; posterDataUrl: string | null }) => {
+      if (resolved) return;
+      resolved = true;
+      if (cleanupVideo) cleanupVideo();
+      resolve(result);
+    };
+
+    try {
+      const video = document.createElement('video');
+      video.muted = true;
+      video.playsInline = true;
+      video.crossOrigin = 'anonymous';
+
+      let tempUrl = '';
+      if (sourceBlob && !videoSrc.startsWith('blob:') && !videoSrc.startsWith('http')) {
+        tempUrl = URL.createObjectURL(sourceBlob);
+        video.src = tempUrl;
+      } else {
+        video.src = videoSrc;
+      }
+
+      cleanupVideo = () => {
+        try {
+          video.pause();
+          video.removeAttribute('src');
+          video.load();
+          if (tempUrl) URL.revokeObjectURL(tempUrl);
+        } catch (e) { }
+      };
+
+      // Hard safety timeout: if anything stalls, finish gracefully
+      const globalTimeout = setTimeout(() => {
+        finish({ videoBlob: sourceBlob, posterDataUrl: fallbackPoster });
+      }, 7000);
+
+      video.onloadedmetadata = async () => {
+        try {
+          const vw = video.videoWidth || 640;
+          const vh = video.videoHeight || 480;
+          const isSwap = normRot === 90 || normRot === 270;
+          const rotatedW = isSwap ? vh : vw;
+          const rotatedH = isSwap ? vw : vh;
+
+          let targetAspect = rotatedW / rotatedH;
+          if (cropRatio === '1:1') targetAspect = 1;
+          else if (cropRatio === '9:16') targetAspect = 9 / 16;
+          else if (cropRatio === '16:9') targetAspect = 16 / 9;
+
+          let cropW = rotatedW;
+          let cropH = rotatedH;
+          const currentAspect = rotatedW / rotatedH;
+          if (cropRatio !== 'original') {
+            if (currentAspect > targetAspect) {
+              cropH = rotatedH;
+              cropW = Math.round(cropH * targetAspect);
+            } else {
+              cropW = rotatedW;
+              cropH = Math.round(cropW / targetAspect);
+            }
+          }
+
+          const maxDim = 1280;
+          let scaleFactor = 1;
+          if (cropW > maxDim || cropH > maxDim) {
+            scaleFactor = maxDim / Math.max(cropW, cropH);
+          }
+          const canvasW = Math.max(2, Math.round(cropW * scaleFactor) & ~1);
+          const canvasH = Math.max(2, Math.round(cropH * scaleFactor) & ~1);
+
+          const canvas = document.createElement('canvas');
+          canvas.width = canvasW;
+          canvas.height = canvasH;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            clearTimeout(globalTimeout);
+            return finish({ videoBlob: sourceBlob, posterDataUrl: null });
+          }
+
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+
+          const drawFrame = () => {
+            ctx.save();
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.rotate((normRot * Math.PI) / 180);
+            const scale = scaleFactor * Math.max(cropW / rotatedW, cropH / rotatedH);
+            ctx.drawImage(video, (-vw / 2) * scale, (-vh / 2) * scale, vw * scale, vh * scale);
+            ctx.restore();
+          };
+
+          drawFrame();
+          fallbackPoster = canvas.toDataURL('image/jpeg', 0.85);
+
+          // For long videos (> 12s) or when MediaRecorder is not available, return rotated poster
+          if ((video.duration && video.duration > 12) || typeof MediaRecorder === 'undefined' || !(canvas as any).captureStream) {
+            clearTimeout(globalTimeout);
+            return finish({ videoBlob: sourceBlob, posterDataUrl: fallbackPoster });
+          }
+
+          const stream = (canvas as any).captureStream(30);
+
+          try {
+            const vStream = (video as any).captureStream ? (video as any).captureStream() : null;
+            const aTracks = vStream?.getAudioTracks();
+            if (aTracks && aTracks.length > 0) stream.addTrack(aTracks[0]);
+          } catch (e) { }
+
+          let mimeType = 'video/webm;codecs=vp8';
+          if (!MediaRecorder.isTypeSupported(mimeType)) {
+            mimeType = MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' : (sourceBlob?.type || 'video/webm');
+          }
+
+          const recorder = new MediaRecorder(stream, { mimeType: mimeType.split(';')[0] });
+          const chunks: Blob[] = [];
+
+          recorder.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) chunks.push(e.data);
+          };
+
+          recorder.onstop = () => {
+            clearTimeout(globalTimeout);
+            if (chunks.length > 0) {
+              const rotatedBlob = new Blob(chunks, { type: recorder.mimeType || mimeType });
+              finish({ videoBlob: rotatedBlob, posterDataUrl: fallbackPoster });
+            } else {
+              finish({ videoBlob: sourceBlob, posterDataUrl: fallbackPoster });
+            }
+          };
+
+          recorder.start(100);
+          video.currentTime = 0;
+          video.playbackRate = 1.5;
+
+          let animId = 0;
+          const loop = () => {
+            if (video.paused || video.ended) return;
+            drawFrame();
+            animId = requestAnimationFrame(loop);
+          };
+
+          video.onended = () => {
+            cancelAnimationFrame(animId);
+            if (recorder.state !== 'inactive') recorder.stop();
+          };
+
+          await video.play().catch(() => {
+            cancelAnimationFrame(animId);
+            clearTimeout(globalTimeout);
+            finish({ videoBlob: sourceBlob, posterDataUrl: fallbackPoster });
+          });
+          loop();
+        } catch (err) {
+          console.warn('Transcode frame loop error:', err);
+          clearTimeout(globalTimeout);
+          finish({ videoBlob: sourceBlob, posterDataUrl: fallbackPoster });
+        }
+      };
+
+      video.onerror = () => {
+        clearTimeout(globalTimeout);
+        finish({ videoBlob: sourceBlob, posterDataUrl: null });
+      };
+
+      video.load();
+    } catch (e) {
+      console.warn('Failed to start rotateAndCropVideoBlob:', e);
+      finish({ videoBlob: sourceBlob, posterDataUrl: fallbackPoster });
+    }
+  });
+};
+
