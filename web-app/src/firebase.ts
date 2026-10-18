@@ -16,12 +16,12 @@ const authConfig = {
 
 // Database & Storage config (Active Cloud Firestore database on walwal-59c61)
 const dbConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyCCEqipAxHJ4iaqGuBucLKonQEA1KnFuLI",
-  authDomain: "walwal-app.firebaseapp.com",
+  apiKey: "AIzaSyCEb71Y1DS2C8m0WpWif-LRxAIME-Z1VhU",
+  authDomain: "walwal-59c61.firebaseapp.com",
   projectId: "walwal-59c61",
   storageBucket: "walwal-59c61.firebasestorage.app",
-  messagingSenderId: "689075476335",
-  appId: "1:689075476335:web:1fd0eabd311b487e3cfa9a"
+  messagingSenderId: "49008197937",
+  appId: "1:49008197937:web:8de3f2b80456fc55e9754f"
 };
 
 // Initialize default app for Auth

@@ -562,110 +562,8 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
     } catch (e) { }
   };
 
-  const DEFAULT_FEED_DATA = [
-    {
-      id: "community_post_bori_01",
-      name: "보리",
-      ownerName: "보리 엄마",
-      avatar: "https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=500&auto=format&fit=crop&q=80",
-      breed: "골든 리트리버",
-      age: "2",
-      gender: "male",
-      personality: ["#파워인싸", "#모든인간은내친구", "#간식감별사"],
-      recentThought: "공 던져줘!! 빨리빨리!! 잔디밭에서 우다다 달리는 게 세상에서 제일 좋아!",
-      feedImage: "https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=800&auto=format&fit=crop&q=80",
-      isVideo: false,
-      createdAt: "2026-10-18T08:30:00.000Z",
-      likes: 24,
-      liked: false,
-      comments: [
-        { id: 1, author: "딸기 아빠", text: "보리야 오늘 한강공원에서 만나자~!", createdAt: "2026-10-18T08:45:00.000Z" }
-      ],
-      showComments: false,
-      shares: 5
-    },
-    {
-      id: "community_post_strawberry_02",
-      name: "딸기",
-      ownerName: "딸기 아빠",
-      avatar: "https://images.dog.ceo/breeds/maltese/n02085936_2927.jpg",
-      breed: "말티즈",
-      age: "3",
-      gender: "female",
-      personality: ["#참지않는말티즈", "#귀여움이권력", "#산책중독자"],
-      recentThought: "날씨 좋은 날 공원 산책은 언제나 최고야! 꼬리 살랑살랑 기분 최고~",
-      feedImage: "https://images.unsplash.com/photo-1534361960057-19889db9621e?w=800&auto=format&fit=crop&q=80",
-      isVideo: false,
-      createdAt: "2026-10-18T07:15:00.000Z",
-      likes: 38,
-      liked: false,
-      comments: [
-        { id: 1, author: "땅콩 누나", text: "딸기 털 완전 뽀송뽀송하다 ㅎㅎ", createdAt: "2026-10-18T07:30:00.000Z" }
-      ],
-      showComments: false,
-      shares: 8
-    },
-    {
-      id: "community_post_peanut_03",
-      name: "땅콩이",
-      ownerName: "땅콩 누나",
-      avatar: "https://images.unsplash.com/photo-1519098901909-b1553a1190af?w=300&auto=format&fit=crop&q=80",
-      breed: "웰시코기",
-      age: "2",
-      gender: "male",
-      personality: ["#식빵엉덩이", "#숏다리의자존심", "#간식헌터"],
-      recentThought: "식빵 엉덩이 흔들며 산책 중! 어디선가 고기 냄새가 솔솔 난다 킁킁",
-      feedImage: "https://images.unsplash.com/photo-1519098901909-b1553a1190af?w=800&auto=format&fit=crop&q=80",
-      isVideo: false,
-      createdAt: "2026-10-18T06:00:00.000Z",
-      likes: 19,
-      liked: false,
-      comments: [],
-      showComments: false,
-      shares: 3
-    },
-    {
-      id: "community_post_cloud_04",
-      name: "구름이",
-      ownerName: "구름 형아",
-      avatar: "https://images.dog.ceo/breeds/pomeranian/n02112018_4813.jpg",
-      breed: "화이트 포메라니안",
-      age: "1",
-      gender: "male",
-      personality: ["#극대노솜뭉치", "#애교쟁이", "#폼생폼사"],
-      recentThought: "목욕하고 털 빗었더니 솜사탕이 되었어요 멍멍! 나 예쁘죠?",
-      feedImage: "https://images.dog.ceo/breeds/pomeranian/n02112018_4813.jpg",
-      isVideo: false,
-      createdAt: "2026-10-17T19:20:00.000Z",
-      likes: 45,
-      liked: false,
-      comments: [],
-      showComments: false,
-      shares: 12
-    },
-    {
-      id: "community_post_mochi_05",
-      name: "모찌",
-      ownerName: "모찌 맘",
-      avatar: "https://images.dog.ceo/breeds/shiba/shiba-16.jpg",
-      breed: "시바견",
-      age: "4",
-      gender: "female",
-      personality: ["#안가시바", "#마이웨이", "#철벽남"],
-      recentThought: "오늘은 절대 안 움직인다 시바... 집에서 낮잠 잘래 멍",
-      feedImage: "https://images.dog.ceo/breeds/shiba/shiba-16.jpg",
-      isVideo: false,
-      createdAt: "2026-10-17T15:00:00.000Z",
-      likes: 31,
-      liked: false,
-      comments: [],
-      showComments: false,
-      shares: 6
-    }
-  ];
-
   React.useEffect(() => {
-    // 1. Immediately render local + community posts synchronously so feed is NEVER blank!
+    // 1. Immediately render cached posts synchronously so feed displays instantly
     loadLocal();
 
     const handleFeedUpdate = () => {
@@ -729,15 +627,12 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
             lp && lp.id && !remoteIds.has(String(lp.id)) && !deletedIds.has(String(lp.id))
           );
 
-          // Merge local posts, remote posts, and community neighbor posts
-          const combinedIds = new Set([...remoteIds, ...pendingLocalPosts.map((p: any) => String(p.id))]);
-          const communityPosts = DEFAULT_FEED_DATA.filter(d => !combinedIds.has(String(d.id)) && !deletedIds.has(String(d.id)));
-
-          const mergedPosts = [...pendingLocalPosts, ...remotePosts, ...communityPosts];
+          // Merge local posts with remote Firestore posts
+          const mergedPosts = [...pendingLocalPosts, ...remotePosts];
           mergedPosts.sort((a, b) => getPostTime(b) - getPostTime(a));
 
           try {
-            const lightPosts = mergedPosts.slice(0, 30).map(p => ({
+            const lightPosts = mergedPosts.slice(0, 50).map(p => ({
               ...p,
               feedImage: (typeof p.feedImage === 'string' && p.feedImage.length > 50000 && p.poster) ? p.poster : p.feedImage
             }));
@@ -880,10 +775,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
       localPosts = [];
     }
 
-    const localIds = new Set(localPosts.map(p => String(p.id)));
-    const communityPosts = DEFAULT_FEED_DATA.filter(d => !localIds.has(String(d.id)) && !deletedIds.has(String(d.id)));
-
-    loadPostsWithMedia([...localPosts, ...communityPosts]);
+    loadPostsWithMedia(localPosts);
   };
 
   const [newCommentText, setNewCommentText] = useState<{ [key: string]: string }>({});
