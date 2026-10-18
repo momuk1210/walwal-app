@@ -166,38 +166,62 @@ export const extractPosterFromVideo = (videoUrl: string): Promise<string | null>
   return new Promise((resolve) => {
     const video = document.createElement('video');
     video.crossOrigin = 'anonymous';
-    video.src = videoUrl;
     video.muted = true;
     video.playsInline = true;
+    video.preload = 'auto';
+
+    let resolved = false;
+    const finish = (result: string | null) => {
+      if (resolved) return;
+      resolved = true;
+      clearTimeout(timer);
+      try {
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+      } catch (e) { }
+      resolve(result);
+    };
 
     const timer = setTimeout(() => {
-      resolve(null);
-    }, 2500);
+      finish(null);
+    }, 3000);
 
-    video.onloadeddata = () => {
+    const grab = () => {
       try {
+        if (!video.videoWidth || !video.videoHeight) return false;
         const canvas = document.createElement('canvas');
-        canvas.width = Math.min(video.videoWidth || 480, 480);
-        canvas.height = Math.min(video.videoHeight || 640, 640);
+        canvas.width = Math.min(video.videoWidth, 720);
+        canvas.height = Math.round(canvas.width * (video.videoHeight / video.videoWidth));
         const ctx = canvas.getContext('2d');
         if (ctx) {
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const posterData = canvas.toDataURL('image/jpeg', 0.8);
-          clearTimeout(timer);
-          resolve(posterData);
-          return;
+          const posterData = canvas.toDataURL('image/jpeg', 0.85);
+          if (posterData && posterData.length > 500) {
+            finish(posterData);
+            return true;
+          }
         }
       } catch (err) {
         console.warn('Failed to extract poster from video:', err);
       }
-      clearTimeout(timer);
-      resolve(null);
+      return false;
     };
 
-    video.onerror = () => {
-      clearTimeout(timer);
-      resolve(null);
+    video.onloadeddata = () => {
+      try {
+        video.currentTime = 0.001;
+      } catch (e) {
+        grab();
+      }
     };
+
+    video.onseeked = () => {
+      grab();
+    };
+
+    video.onerror = () => finish(null);
+    video.src = videoUrl;
     video.load();
   });
 };

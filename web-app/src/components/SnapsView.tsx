@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Heart, MessageSquare, MessageCircle, Send, X, Image as ImageIcon, Circle, Download, Share2, AlignRight, Bone, Sparkles, MoreVertical, Edit3, Trash2, Plus, MoreHorizontal, Bookmark, Camera, Play, Menu, Flag, ShieldAlert, RotateCcw, RotateCw, ArrowLeft, ChevronsLeft, LayoutGrid, Link2, Check, Undo, Redo, Square, Repeat2 } from 'lucide-react';
+import { Heart, MessageSquare, MessageCircle, Send, X, Image as ImageIcon, Circle, Download, Share2, AlignRight, Bone, Sparkles, MoreVertical, Edit3, Trash2, Plus, MoreHorizontal, Bookmark, Camera, Play, Menu, Flag, ShieldAlert, RotateCcw, RotateCw, ArrowLeft, ChevronsLeft, LayoutGrid, Link2, Check, Undo, Redo, Square, Repeat2, Volume2, VolumeX } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { getMockDogs, isSameDogName, getDefaultDogAvatar, sanitizePetList } from '../data/mockDogs';
 import { useTranslation } from '../i18n/LanguageContext';
@@ -169,6 +169,158 @@ export function transformImage(
 
   return canvas.toDataURL('image/jpeg', 0.95);
 }
+
+const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
+  const [videoSrc, setVideoSrc] = useState<string | null>(() => {
+    if (post.feedImage && typeof post.feedImage === 'string' && (post.feedImage.startsWith('blob:') || (post.feedImage.startsWith('http') && !post.feedImage.endsWith('.jpg') && !post.feedImage.endsWith('.jpeg') && !post.feedImage.endsWith('.png')))) {
+      return post.feedImage;
+    }
+    return null;
+  });
+  const [isMuted, setIsMuted] = useState<boolean>(true);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [posterSrc, setPosterSrc] = useState<string | null>(post.poster || null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (!videoSrc) {
+      ensureVideoPlayable(post).then((playable) => {
+        if (isMounted && playable) {
+          setVideoSrc(playable);
+          post.feedImage = playable;
+          extractPosterFromVideo(playable).then(p => {
+            if (isMounted && p) {
+              setPosterSrc(p);
+              post.poster = p;
+            }
+          }).catch(() => {});
+        }
+      });
+    }
+    return () => { isMounted = false; };
+  }, [post.id, post.feedImage]);
+
+  const isSwap = post.rotation === 90 || post.rotation === 270;
+
+  return (
+    <div
+      className="snaps-feed-media-container"
+      style={{
+        aspectRatio: post.cropRatio === '1:1' ? '1 / 1' : post.cropRatio === '9:16' ? '9 / 16' : post.cropRatio === '16:9' ? '16 / 9' : (isSwap ? '16 / 9' : undefined),
+        overflow: 'hidden',
+        position: 'relative',
+        zIndex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#000',
+        cursor: 'pointer'
+      }}
+      onClick={() => {
+        if (videoRef.current) {
+          if (videoRef.current.paused) {
+            videoRef.current.play().catch(() => {});
+          } else {
+            videoRef.current.pause();
+          }
+        }
+      }}
+    >
+      {videoSrc ? (
+        <video
+          ref={videoRef}
+          src={videoSrc}
+          poster={posterSrc || undefined}
+          autoPlay
+          loop
+          muted={isMuted}
+          playsInline
+          preload="auto"
+          className="snaps-feed-media"
+          style={{
+            transform: post.rotation ? `rotate(${post.rotation}deg)` : undefined,
+            objectFit: (post.cropRatio && post.cropRatio !== 'original') ? 'cover' : 'contain',
+            width: '100%',
+            height: (post.cropRatio && post.cropRatio !== 'original') ? '100%' : 'auto',
+            maxHeight: isSwap ? '100%' : '75vh',
+            transition: 'transform 0.25s ease'
+          }}
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+        />
+      ) : posterSrc ? (
+        <img
+          src={posterSrc}
+          alt={post.name || 'Snap'}
+          className="snaps-feed-media"
+          style={{
+            transform: post.rotation ? `rotate(${post.rotation}deg)` : undefined,
+            objectFit: (post.cropRatio && post.cropRatio !== 'original') ? 'cover' : 'contain',
+            width: '100%',
+            height: (post.cropRatio && post.cropRatio !== 'original') ? '100%' : 'auto'
+          }}
+        />
+      ) : (
+        <img
+          src={post.avatar || getDefaultDogAvatar()}
+          alt={post.name || 'Snap'}
+          className="snaps-feed-media snaps-album-fallback"
+        />
+      )}
+
+      {/* Audio Mute/Unmute Button in bottom-right corner */}
+      {videoSrc && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            const nextMuted = !isMuted;
+            setIsMuted(nextMuted);
+            if (videoRef.current) videoRef.current.muted = nextMuted;
+          }}
+          style={{
+            position: 'absolute',
+            bottom: '12px',
+            right: '12px',
+            background: 'rgba(0, 0, 0, 0.6)',
+            backdropFilter: 'blur(6px)',
+            border: 'none',
+            borderRadius: '50%',
+            width: '32px',
+            height: '32px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            zIndex: 10
+          }}
+          title={isMuted ? '음소거 해제' : '음소거'}
+        >
+          {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+        </button>
+      )}
+
+      {/* Centered Play Button Overlay when paused */}
+      {videoSrc && !isPlaying && (
+        <div
+          style={{
+            position: 'absolute',
+            pointerEvents: 'none',
+            background: 'rgba(0,0,0,0.4)',
+            borderRadius: '50%',
+            padding: '14px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <Play size={28} fill="#fff" color="#fff" />
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft, feedDraft: propFeedDraft, onClearFeedDraft: propOnClearFeedDraft, onClearSnapsDraft: propOnClearSnapsDraft, handleClearFeedDraft: propHandleClearFeedDraft, onRetake }) => {
   const { t, language } = useTranslation();
@@ -596,8 +748,6 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
 
           if (cachedBlob) {
             post.feedImage = URL.createObjectURL(cachedBlob);
-          } else if (post.poster) {
-            post.feedImage = post.poster;
           }
         }
 
@@ -621,7 +771,15 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
           try {
             const playableUrl = await ensureVideoPlayable(post);
             if (playableUrl && playableUrl !== post.feedImage) {
-              setFeedPosts(prev => prev.map(p => p.id === post.id ? { ...p, feedImage: playableUrl } : p));
+              extractPosterFromVideo(playableUrl).then(p => {
+                if (p) {
+                  setFeedPosts(prev => prev.map(item => item.id === post.id ? { ...item, feedImage: playableUrl, poster: (!item.poster || item.poster.length < 500) ? p : item.poster } : item));
+                } else {
+                  setFeedPosts(prev => prev.map(p => p.id === post.id ? { ...p, feedImage: playableUrl } : p));
+                }
+              }).catch(() => {
+                setFeedPosts(prev => prev.map(p => p.id === post.id ? { ...p, feedImage: playableUrl } : p));
+              });
             }
           } catch (e) {
             console.error('Error resolving video for post:', post.id, e);
@@ -662,6 +820,18 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [selectedDetailPost, setSelectedDetailPost] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (selectedDetailPost && selectedDetailPost.isVideo) {
+      if (!selectedDetailPost.feedImage || selectedDetailPost.feedImage.startsWith('indexeddb:')) {
+        ensureVideoPlayable(selectedDetailPost).then(playable => {
+          if (playable) {
+            setSelectedDetailPost((prev: any) => prev ? { ...prev, feedImage: playable } : prev);
+          }
+        });
+      }
+    }
+  }, [selectedDetailPost?.id]);
   const [viewMode, setViewMode] = useState<'grid' | 'feed'>('feed');
   const [selectedFeedPostId, setSelectedFeedPostId] = useState<string | null>(null);
   const [activeFeedMenuId, setActiveFeedMenuId] = useState<string | null>(null);
@@ -1421,31 +1591,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
           }
         }
 
-        // 회전 또는 비율 편집이 적용된 경우 비디오를 물리적으로 트랜스코딩
-        if (editRotation !== 0 || editCropRatio !== 'original') {
-          try {
-            const transResult = await rotateAndCropVideoBlob(
-              feedDraft.image,
-              videoBlob,
-              editRotation,
-              editCropRatio
-            );
-            if (transResult.videoBlob && transResult.videoBlob.size > 1000) {
-              videoBlob = transResult.videoBlob;
-              // 물리적으로 회전 인코딩 완료 -> CSS 회전값은 0으로 리셋하여 이중 회전 방지
-              effectiveRotation = 0;
-              const newUrl = URL.createObjectURL(videoBlob);
-              blobCache.set(newUrl, videoBlob);
-              feedDraft.image = newUrl;
-            }
-            if (transResult.posterDataUrl) {
-              posterDataUrl = transResult.posterDataUrl;
-            }
-          } catch (transErr) {
-            console.warn('rotateAndCropVideoBlob failed, fallback:', transErr);
-          }
-        }
-
+        // 1) 포스터가 없으면 비디오로부터 첫 프레임 추출
         if (!posterDataUrl && feedDraft.image) {
           try {
             const ext = await extractPosterFromVideo(feedDraft.image);
@@ -1455,18 +1601,19 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
           }
         }
 
-        if (posterDataUrl && effectiveRotation !== 0) {
+        // 2) 회전 또는 크롭이 적용된 경우 포스터 이미지 회전 변환
+        if (posterDataUrl && (editRotation !== 0 || editCropRatio !== 'original')) {
           try {
             const pImg = new Image();
             await new Promise<void>((resolve) => {
-              const timer = setTimeout(() => resolve(), 800);
+              const timer = setTimeout(resolve, 1000);
               pImg.onload = () => { clearTimeout(timer); resolve(); };
               pImg.onerror = () => { clearTimeout(timer); resolve(); };
               pImg.src = posterDataUrl;
               if (pImg.complete && pImg.naturalWidth > 0) { clearTimeout(timer); resolve(); }
             });
             if (pImg.naturalWidth > 0) {
-              posterDataUrl = transformImage(pImg, effectiveRotation, editCropRatio);
+              posterDataUrl = transformImage(pImg, editRotation, editCropRatio);
             }
           } catch (err) {
             console.warn('Transform video poster error:', err);
@@ -2717,49 +2864,22 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                     </div>
 
                     {/* 2. Media Container */}
-                    <div
-                      className="snaps-feed-media-container"
-                      style={{
-                        aspectRatio: post.cropRatio === '1:1' ? '1 / 1' : post.cropRatio === '9:16' ? '9 / 16' : post.cropRatio === '16:9' ? '16 / 9' : ((post.rotation === 90 || post.rotation === 270) ? '16 / 9' : undefined),
-                        overflow: 'hidden',
-                        position: 'relative',
-                        zIndex: 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        background: '#000'
-                      }}
-                    >
-                      {isVideo ? (
-                        <video
-                          src={post.feedImage && !post.feedImage.startsWith('indexeddb:') ? post.feedImage : undefined}
-                          poster={post.poster}
-                          controls
-                          playsInline
-                          loop
-                          preload="metadata"
-                          className="snaps-feed-media"
-                          style={{
-                            transform: post.rotation ? `rotate(${post.rotation}deg)` : undefined,
-                            objectFit: (post.cropRatio && post.cropRatio !== 'original') ? 'cover' : 'contain',
-                            width: '100%',
-                            height: (post.cropRatio && post.cropRatio !== 'original') ? '100%' : 'auto',
-                            maxHeight: (post.rotation === 90 || post.rotation === 270) ? '100%' : '75vh',
-                            transition: 'transform 0.25s ease'
-                          }}
-                          onPlay={async (e) => {
-                            const videoEl = e.currentTarget;
-                            if (!videoEl.src || videoEl.src.includes('undefined') || post.feedImage?.startsWith('indexeddb:')) {
-                              const playable = await ensureVideoPlayable(post);
-                              if (playable) {
-                                post.feedImage = playable;
-                                videoEl.src = playable;
-                                videoEl.play().catch(() => { });
-                              }
-                            }
-                          }}
-                        />
-                      ) : (
+                    {isVideo ? (
+                      <FeedVideoCard post={post} />
+                    ) : (
+                      <div
+                        className="snaps-feed-media-container"
+                        style={{
+                          aspectRatio: post.cropRatio === '1:1' ? '1 / 1' : post.cropRatio === '9:16' ? '9 / 16' : post.cropRatio === '16:9' ? '16 / 9' : undefined,
+                          overflow: 'hidden',
+                          position: 'relative',
+                          zIndex: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          background: '#000'
+                        }}
+                      >
                         <img
                           src={(post.feedImage && !post.feedImage.startsWith('indexeddb:')) ? post.feedImage : (post.poster || post.avatar || getDefaultDogAvatar())}
                           alt={post.name || 'Snap'}
@@ -2769,8 +2889,8 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                             (e.currentTarget as HTMLImageElement).src = post.avatar || getDefaultDogAvatar();
                           }}
                         />
-                      )}
-                    </div>
+                      </div>
+                    )}
 
                     {/* 3. Instagram Actions (Like, Comment, Repost/Share, Send, Bookmark) */}
                     <div className="snaps-insta-actions-row">
