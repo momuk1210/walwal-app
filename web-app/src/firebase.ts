@@ -5,12 +5,12 @@ import { getStorage } from "firebase/storage";
 
 // Real Firebase config for walwal-app
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyCEb71Y1DS2C8m0WpWif-LRxAIME-Z1VhU",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "walwal-59c61.firebaseapp.com",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "walwal-59c61",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "walwal-59c61.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "49008197937",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:49008197937:web:8bb1c84d7a3fe56b69b010",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyCCEqipAxHJ4iaqGuBucLKonQEA1KnFuLI",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "walwal-app.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "walwal-app",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "walwal-app.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "689075476335",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:689075476335:web:1fd0eabd311b487e3cfa9a",
   measurementId: "G-LF1YSFWX2G"
 };
 
