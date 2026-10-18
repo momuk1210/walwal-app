@@ -638,6 +638,19 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
     }
   };
 
+  const isMockDummyPost = (p: any): boolean => {
+    if (!p) return true;
+    const id = String(p.id || '');
+    if (id === 'test_post_1791081404195') return true;
+    const name = (p.name || p.dog?.name || '').trim();
+    if (name === 'Test Dog') return true;
+    // Stale dummy posts from early mock tests
+    if ((name === '보리' || name === 'Bori' || name === 'ボリ') && id !== 'post_1792315865476') {
+      return true;
+    }
+    return false;
+  };
+
   const getDeletedPostIds = (): Set<string> => {
     try {
       const saved = localStorage.getItem('WALWAL_DELETED_POST_IDS');
@@ -667,7 +680,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
       setFeedPosts(prev => {
         const deletedIds = getDeletedPostIds();
         if (prev && prev.length > 0) {
-          return prev.filter(p => p && !deletedIds.has(String(p.id)));
+          return prev.filter(p => p && !deletedIds.has(String(p.id)) && !isMockDummyPost(p));
         }
         loadLocal();
         return prev;
@@ -687,26 +700,38 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
           const getPostTime = (p: any): number => {
             if (!p) return 0;
             const t = p.createdAt || p.clientCreatedAt;
-            if (!t) return 0;
-            if (typeof t.toDate === 'function') return t.toDate().getTime();
-            if (t.seconds) return t.seconds * 1000;
-            const parsed = new Date(t).getTime();
-            return isNaN(parsed) ? 0 : parsed;
+            if (t) {
+              if (typeof t.toDate === 'function') return t.toDate().getTime();
+              if (t.seconds) return t.seconds * 1000;
+              const parsed = new Date(t).getTime();
+              if (!isNaN(parsed) && parsed > 0) return parsed;
+            }
+            if (p.id && typeof p.id === 'string' && p.id.startsWith('post_')) {
+              const num = parseInt(p.id.replace('post_', ''), 10);
+              if (!isNaN(num) && num > 1000000000000) return num;
+            }
+            return 0;
           };
 
           const remotePosts: any[] = [];
           querySnapshot.forEach(docSnap => {
             if (deletedIds.has(String(docSnap.id))) return;
             const data = docSnap.data();
-            if (data.name === 'Test Dog' || data.dog?.name === 'Test Dog') return;
+            if (isMockDummyPost({ ...data, id: docSnap.id })) return;
 
             const isMine = checkIsMyPost({ ...data, id: docSnap.id });
-            const createdAt = data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || data.clientCreatedAt || new Date().toISOString());
+            let createdAt = data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || data.clientCreatedAt);
+            if (!createdAt && docSnap.id.startsWith('post_')) {
+              const num = parseInt(docSnap.id.replace('post_', ''), 10);
+              if (!isNaN(num) && num > 1000000000000) {
+                createdAt = new Date(num).toISOString();
+              }
+            }
             remotePosts.push({
               ...data,
               id: docSnap.id,
               isMine,
-              createdAt
+              createdAt: createdAt || new Date().toISOString()
             });
           });
 
@@ -716,12 +741,12 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
           try {
             const saved = localStorage.getItem('WALWAL_USER_SNAPS_POSTS') || localStorage.getItem('WALWAL_USER_FEED_POSTS');
             if (saved) localPosts = JSON.parse(saved);
-            localPosts = localPosts.filter((p: any) => p && !deletedIds.has(String(p.id)) && p.name !== 'Test Dog');
+            localPosts = localPosts.filter((p: any) => p && !deletedIds.has(String(p.id)) && !isMockDummyPost(p));
           } catch (lsErr) { }
 
           const remoteIds = new Set(remotePosts.map(p => String(p.id)));
           const pendingLocalPosts = localPosts.filter((lp: any) =>
-            lp && lp.id && !remoteIds.has(String(lp.id)) && !deletedIds.has(String(lp.id))
+            lp && lp.id && !remoteIds.has(String(lp.id)) && !deletedIds.has(String(lp.id)) && !isMockDummyPost(lp)
           );
 
           // Merge local posts with remote Firestore posts
@@ -899,7 +924,11 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
     try {
       const saved = localStorage.getItem('WALWAL_USER_SNAPS_POSTS') || localStorage.getItem('WALWAL_USER_FEED_POSTS');
       if (saved) localPosts = JSON.parse(saved);
-      localPosts = localPosts.filter((p: any) => p && !deletedIds.has(String(p.id)) && p.name !== 'Test Dog');
+      localPosts = localPosts.filter((p: any) => p && !deletedIds.has(String(p.id)) && !isMockDummyPost(p));
+      try {
+        localStorage.setItem('WALWAL_USER_SNAPS_POSTS', JSON.stringify(localPosts));
+        localStorage.setItem('WALWAL_USER_FEED_POSTS', JSON.stringify(localPosts));
+      } catch (e) {}
     } catch (e) {
       console.error('Failed to load WALWAL_USER_SNAPS_POSTS:', e);
       localPosts = [];
@@ -2452,22 +2481,25 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
       {/* Header */}
       <div className="page-header row-between">
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button
-            type="button"
-            className="btn-ghost"
-            style={{ padding: '6px', marginLeft: '-6px' }}
-            onClick={() => {
-              if (showBookmarkedOnly) {
-                setShowBookmarkedOnly(false);
-              } else {
-                setViewMode(prev => prev === 'feed' ? 'grid' : 'feed');
-              }
-            }}
-            aria-label={showBookmarkedOnly ? (language === 'ko' ? '전체 피드로 돌아가기' : 'Back to all feeds') : (language === 'ko' ? '화면 전환' : 'Switch view')}
-            title={showBookmarkedOnly ? (language === 'ko' ? '전체 피드로 돌아가기' : 'Back to all feeds') : (language === 'ko' ? '화면 전환' : 'Switch view')}
-          >
-            <ArrowLeft size={24} />
-          </button>
+          {(showBookmarkedOnly || (viewMode === 'feed' && selectedFeedPostId)) && (
+            <button
+              type="button"
+              className="btn-ghost"
+              style={{ padding: '6px', marginLeft: '-6px' }}
+              onClick={() => {
+                if (showBookmarkedOnly) {
+                  setShowBookmarkedOnly(false);
+                } else if (selectedFeedPostId) {
+                  setSelectedFeedPostId(null);
+                  setViewMode('grid');
+                }
+              }}
+              aria-label={language === 'ko' ? '뒤로가기' : 'Back'}
+              title={language === 'ko' ? '뒤로가기' : 'Back'}
+            >
+              <ArrowLeft size={24} />
+            </button>
+          )}
           <div
             style={{ cursor: 'pointer' }}
             onClick={() => {
