@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { User, Globe, Settings, Award, Zap, Heart, Shield, Sparkles, Edit3, Plus, Camera, X, Check, Upload, LogOut, Trash2, MapPin, Clock, Calendar, ChevronRight, ChevronLeft, Menu, Dog, RotateCcw, ArrowLeft } from 'lucide-react';
 import { DogProfile, MOCK_DOGS, getMockDogs, isSameDogName, getDefaultDogAvatar, normalizeDogProfile, localizeBreed, localizePersonalityTags, localizeDogName, isMockNeighborDog, isDeletedPet, sanitizePetList, getBreedRecommendedGoals } from '../data/mockDogs';
 import { useTranslation } from '../i18n/LanguageContext';
-import { auth, db } from '../firebase';
+import { auth, db, COLLECTIONS } from '../firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { signOut, deleteUser, onAuthStateChanged } from 'firebase/auth';
 import { SettingsView } from './SettingsView';
@@ -194,7 +194,7 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
 
   // 실시간 Firestore dogs 동기화 (Single Source of Truth: Firestore가 최우선 기준)
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'dogs'), (snapshot) => {
+    const unsub = onSnapshot(collection(db, COLLECTIONS.DOGS), (snapshot) => {
       if (snapshot.empty) return;
       const remoteDogs: DogProfile[] = [];
       snapshot.forEach(docSnap => {
@@ -204,7 +204,8 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
         }
       });
 
-      const currentEmail = (currentUser?.email || localStorage.getItem('WALWAL_USER_EMAIL') || localStorage.getItem('walwal_user_email') || '').toLowerCase().trim();
+      const rawEmail = (currentUser?.email || localStorage.getItem('WALWAL_USER_EMAIL') || localStorage.getItem('walwal_user_email') || '').toLowerCase().trim();
+      const currentEmail = rawEmail || (isDaisynara ? 'daisynara@gmail.com' : '');
 
       // 기존 로컬 반려견 로드 (절대 강제 삭제 금지)
       let localPets: DogProfile[] = [];
@@ -393,6 +394,18 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
     const walkGoalMinutesNum = parseInt(formWalkGoalMinutes, 10) || getBreedRecommendedGoals(formBreed).minutes;
 
     if (modalMode === 'edit') {
+      const oldPet = pets[activePetIndex];
+      const oldName = oldPet?.name;
+      const newName = formName.trim();
+      if (oldName && oldName !== newName) {
+        try {
+          const historic = JSON.parse(localStorage.getItem('WALWAL_HISTORIC_PET_NAMES') || '[]');
+          if (!historic.includes(oldName)) {
+            historic.push(oldName);
+            localStorage.setItem('WALWAL_HISTORIC_PET_NAMES', JSON.stringify(historic));
+          }
+        } catch (e) {}
+      }
       const updated = pets.map((p, idx) => {
         if (idx === activePetIndex) {
           return {
@@ -531,7 +544,7 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
         <h2 className="title-lg">{t.profile.title}</h2>
 
         <div className="profile-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button onClick={() => setShowSettings(true)} className="btn-ghost" title={t.profile.settings} aria-label={t.profile.settings}>
+          <button onClick={() => setShowSettings(true)} className="btn-ghost" title={t.settings?.title || "설정 및 활동"} aria-label={t.settings?.title || "설정 및 활동"}>
             <Settings size={24} strokeWidth={2} />
           </button>
           <button

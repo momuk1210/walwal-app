@@ -75,8 +75,8 @@
 
 .location-indicator-wrap {
   position: absolute;
-  top: 20px;
-  left: 24px;
+  top: 15px;
+  left: 15px;
   z-index: 1000;
   background: rgba(0, 0, 0, .3);
   color: #fff;
@@ -95,8 +95,8 @@
 
 .quick-recenter-wrap {
   position: absolute;
-  right: 24px;
-  top: 20px;
+  right: 15px;
+  top: 15px;
   z-index: 1000;
 }
 

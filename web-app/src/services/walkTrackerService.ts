@@ -36,11 +36,11 @@ let currentSession: ActiveWalkSession | null = null;
 function killAllZombieIntervals() {
   if (typeof window !== 'undefined') {
     try {
-      const maxId = window.setInterval(() => {}, 9999);
+      const maxId = window.setInterval(() => { }, 9999);
       for (let i = 1; i <= maxId; i++) {
         window.clearInterval(i);
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 }
 
@@ -54,9 +54,9 @@ function calculateHaversineKm(lat1: number, lon1: number, lat2: number, lon2: nu
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
+    Math.cos((lat2 * Math.PI) / 180) *
+    Math.sin(dLon / 2) *
+    Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
@@ -72,12 +72,12 @@ function notifyUpdate() {
   if (currentSession) {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(currentSession));
-    } catch (e) {}
+    } catch (e) { }
     window.dispatchEvent(new CustomEvent('walwal_walk_tracker_update', { detail: currentSession }));
   } else {
     try {
       localStorage.removeItem(STORAGE_KEY);
-    } catch (e) {}
+    } catch (e) { }
     window.dispatchEvent(new CustomEvent('walwal_walk_tracker_stopped', { detail: null }));
   }
 }
@@ -232,7 +232,7 @@ export function getActiveWalkSession(): ActiveWalkSession | null {
       }
       return currentSession;
     }
-  } catch (e) {}
+  } catch (e) { }
   return null;
 }
 
@@ -342,13 +342,13 @@ export function stopWalk(): StopWalkResult | null {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) currentSession = JSON.parse(saved);
-    } catch (e) {}
+    } catch (e) { }
   }
 
   // Always purge storage first
   try {
     localStorage.removeItem(STORAGE_KEY);
-  } catch (e) {}
+  } catch (e) { }
 
   if (!currentSession) {
     killAllZombieIntervals();
@@ -439,7 +439,7 @@ export function stopWalk(): StopWalkResult | null {
   // 3. Clear session and all storage
   try {
     localStorage.removeItem(STORAGE_KEY);
-  } catch (e) {}
+  } catch (e) { }
 
   // 4. Kill all timers once more
   killAllZombieIntervals();
@@ -460,7 +460,7 @@ export function stopWalk(): StopWalkResult | null {
 
   window.dispatchEvent(new CustomEvent('walwal_push_notification', {
     detail: {
-      title: '🎉 산책 완료 및 기록 저장!',
+      title: '산책 완료 및 기록 저장!',
       body: `${result.distanceKm}km (${result.durationMinutes}분) 산책 일지에 자동 합산되었습니다.`,
       time: '방금 전'
     }

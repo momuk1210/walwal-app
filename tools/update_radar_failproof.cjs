@@ -107,10 +107,10 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
       <div style={{ padding: '14px 16px 8px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 10 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Compass size={20} color="#FF7E36" />
+            <Compass size={20} color="#FF9E58" />
             <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#fff' }}>{t.radar.title}</h2>
           </div>
-          <p style={{ fontSize: '0.7rem', color: '#94A3B8', marginTop: '2px' }}>
+          <p style={{ fontSize: '0.7rem', color: '#c8c8c8', marginTop: '2px' }}>
             {t.radar.dogsNearby} ({radarZoom})
           </p>
         </div>
@@ -167,7 +167,7 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
                 key={range}
                 onClick={() => setRadarZoom(range)}
                 style={{
-                  background: radarZoom === range ? '#FF7E36' : 'transparent',
+                  background: radarZoom === range ? '#FF9E58' : 'transparent',
                   border: 'none',
                   color: '#fff',
                   fontSize: '0.65rem',
@@ -264,7 +264,7 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
               <text x="380" y="500" fill="#64748B" fontSize="9">�����Ϸ�</text>
 
               <path d="M 160 520 L 140 700" stroke="#374151" strokeWidth="14" fill="none" />
-              <text x="175" y="600" fill="#94A3B8" fontSize="9">�����뱳</text>
+              <text x="175" y="600" fill="#c8c8c8" fontSize="9">�����뱳</text>
 
               <path d="M -20 160 C 200 170, 350 150, 520 170" stroke="#252D3D" strokeWidth="8" fill="none" />
               <text x="30" y="150" fill="#64748B" fontSize="9">�Ҽ���</text>
@@ -344,16 +344,16 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
                 width: '24px',
                 height: '24px',
                 borderRadius: '50%',
-                background: '#FF7E36',
+                background: '#FF9E58',
                 border: '3px solid #fff',
-                boxShadow: '0 0 15px #FF7E36',
+                boxShadow: '0 0 15px #FF9E58',
                 display: 'flex',
                 justifyContent: 'center',
                 alignItems: 'center'
               }}>
                 <Navigation size={12} color="#fff" style={{ transform: 'rotate(45deg)' }} />
               </div>
-              <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#FF7E36', background: 'rgba(0,0,0,0.85)', padding: '2px 6px', borderRadius: '6px', marginTop: '3px', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#FF9E58', background: 'rgba(0,0,0,0.85)', padding: '2px 6px', borderRadius: '6px', marginTop: '3px', whiteSpace: 'nowrap' }}>
                 {t.radar.myLocation}
               </span>
             </div>
@@ -385,9 +385,9 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
                     width: isSelected ? '54px' : '44px',
                     height: isSelected ? '54px' : '44px',
                     borderRadius: '50%',
-                    border: isSelected ? '3px solid #FF7E36' : '2px solid rgba(255,255,255,0.8)',
+                    border: isSelected ? '3px solid #FF9E58' : '2px solid rgba(255,255,255,0.8)',
                     overflow: 'hidden',
-                    boxShadow: isSelected ? '0 0 22px #FF7E36' : '0 4px 12px rgba(0,0,0,0.6)',
+                    boxShadow: isSelected ? '0 0 22px #FF9E58' : '0 4px 12px rgba(0,0,0,0.6)',
                     background: '#1F2937',
                     transition: 'all 0.2s ease'
                   }}>
@@ -395,7 +395,7 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
                   </div>
                   <div style={{
                     marginTop: '3px',
-                    background: isSelected ? '#FF7E36' : 'rgba(26, 31, 41, 0.9)',
+                    background: isSelected ? '#FF9E58' : 'rgba(26, 31, 41, 0.9)',
                     border: '1px solid rgba(255,255,255,0.15)',
                     borderRadius: '6px',
                     padding: '2px 6px',
@@ -418,7 +418,7 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
           <button
             onClick={() => setMapOffset({ x: 0, y: 0 })}
             className="glass-panel"
-            style={{ width: '32px', height: '32px', borderRadius: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#FF7E36', cursor: 'pointer' }}
+            style={{ width: '32px', height: '32px', borderRadius: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#FF9E58', cursor: 'pointer' }}
             title="�� ��ġ�� �߽� �̵�"
           >
             <Navigation size={15} />
@@ -443,7 +443,7 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
         }}>
           <button
             onClick={() => setSelectedPin(null)}
-            style={{ position: 'absolute', top: '14px', right: '14px', background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer' }}
+            style={{ position: 'absolute', top: '14px', right: '14px', background: 'none', border: 'none', color: '#c8c8c8', cursor: 'pointer' }}
           >
             <X size={18} />
           </button>
@@ -452,16 +452,16 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
             <img
               src={selectedPin.avatar}
               alt={selectedPin.name}
-              style={{ width: '56px', height: '56px', borderRadius: '18px', objectFit: 'cover', border: '2px solid #FF7E36' }}
+              style={{ width: '56px', height: '56px', borderRadius: '18px', objectFit: 'cover', border: '2px solid #FF9E58' }}
             />
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fff' }}>{selectedPin.name}</h3>
-                <span style={{ fontSize: '0.68rem', color: '#FF7E36', background: 'rgba(255,126,54,0.15)', padding: '2px 8px', borderRadius: '8px', fontWeight: 700 }}>
+                <span style={{ fontSize: '0.68rem', color: '#FF9E58', background: 'rgba(255,126,54,0.15)', padding: '2px 8px', borderRadius: '8px', fontWeight: 700 }}>
                   {selectedPin.distance} �α�
                 </span>
               </div>
-              <p style={{ fontSize: '0.72rem', color: '#94A3B8', marginTop: '2px' }}>
+              <p style={{ fontSize: '0.72rem', color: '#c8c8c8', marginTop: '2px' }}>
                 {selectedPin.breed} �� {selectedPin.age} �� ����: {selectedPin.ownerName}
               </p>
             </div>
@@ -488,7 +488,7 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
               className="glow-btn"
               style={{
                 flex: 1,
-                background: 'linear-gradient(135deg, #FF7E36, #FFBF00)',
+                background: 'linear-gradient(135deg, #FF9E58, #FFBF00)',
                 border: 'none',
                 borderRadius: '14px',
                 padding: '12px',
@@ -552,7 +552,7 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
             <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#fff', marginBottom: '8px' }}>
               ?? {t.radar.apiKeyModalTitle}
             </h3>
-            <p style={{ fontSize: '0.73rem', color: '#94A3B8', marginBottom: '12px', lineHeight: 1.4 }}>
+            <p style={{ fontSize: '0.73rem', color: '#c8c8c8', marginBottom: '12px', lineHeight: 1.4 }}>
               Google Cloud Console���� �߱޹��� API Ű�� �Է��Ͻø� ���� ���� ���� Ÿ�Ϸ� ��ȯ�˴ϴ�.
             </p>
 

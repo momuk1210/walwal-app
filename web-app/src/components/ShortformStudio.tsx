@@ -8,6 +8,7 @@ import { TRANSLATIONS, Language } from '../i18n/translations';
 import { saveMedia, blobCache } from '../utils/mediaStore';
 import { syncSinglePost } from '../services/db';
 import { uploadVideoToCloud, extractPosterFromVideo } from '../services/mediaSync';
+import { STORAGE_KEYS } from '../firebase';
 
 interface ShortformStudioProps {
   initialDog?: any;
@@ -479,21 +480,21 @@ export const ShortformStudio: React.FC<ShortformStudioProps> = ({
 
     // 2. localStorage에 저장 (피드샷 최상단 저장 및 하위 호환)
     try {
-      const saved = localStorage.getItem('WALWAL_USER_SNAPS_POSTS') || localStorage.getItem('WALWAL_USER_FEED_POSTS');
+      const saved = localStorage.getItem(STORAGE_KEYS.SNAPS_POSTS) || localStorage.getItem(STORAGE_KEYS.FEED_POSTS);
       const posts = saved ? JSON.parse(saved) : [];
       const filtered = posts.filter((p: any) => p.id !== postToSave.id);
       filtered.unshift(postToSave);
-      localStorage.setItem('WALWAL_USER_SNAPS_POSTS', JSON.stringify(filtered));
-      localStorage.setItem('WALWAL_USER_FEED_POSTS', JSON.stringify(filtered));
+      localStorage.setItem(STORAGE_KEYS.SNAPS_POSTS, JSON.stringify(filtered));
+      localStorage.setItem(STORAGE_KEYS.FEED_POSTS, JSON.stringify(filtered));
     } catch (e) {
       console.error('Failed to save snaps post to localStorage:', e);
     }
 
     try {
-      const savedDeleted = localStorage.getItem('WALWAL_DELETED_POST_IDS');
+      const savedDeleted = localStorage.getItem(STORAGE_KEYS.DELETED_POST_IDS);
       if (savedDeleted) {
         const ids = JSON.parse(savedDeleted).filter((id: string) => id !== postToSave.id);
-        localStorage.setItem('WALWAL_DELETED_POST_IDS', JSON.stringify(ids));
+        localStorage.setItem(STORAGE_KEYS.DELETED_POST_IDS, JSON.stringify(ids));
       }
     } catch (e) { }
 

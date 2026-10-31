@@ -281,3 +281,12 @@
 .settings-account-action-btn.full-width {
   grid-column: span 2;
 }
+
+.settings-count-badge {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 2px 8px;
+  border-radius: 999px;
+}

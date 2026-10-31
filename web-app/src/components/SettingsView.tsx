@@ -25,9 +25,15 @@ import {
   Lock,
   CheckCircle,
   AlertCircle,
-  X
+  X,
+  Bookmark,
+  Users,
+  UserCheck
 } from 'lucide-react';
 import { triggerPWAInstall, openPWAInstallGuide } from './PWAInstallBanner';
+import { SavedPostsModal, FollowersModal, FollowingModal } from './MyActivityModals';
+import { DogProfileModal } from './DogProfileModal';
+import { OwnerNoteModal } from './OwnerNoteModal';
 import '../styles/SettingsView.css';
 import '../styles/AdminView.css';
 
@@ -122,6 +128,79 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
     };
     window.addEventListener('walwal_permissions_updated', handlePermUpdate);
     return () => window.removeEventListener('walwal_permissions_updated', handlePermUpdate);
+  }, []);
+
+  // 내 활동 (저장됨, 팔로우, 팔로잉) 상태 및 카운트
+  const [activeActivity, setActiveActivity] = useState<'saved' | 'followers' | 'following' | null>(null);
+  const [selectedDogForProfile, setSelectedDogForProfile] = useState<any | null>(null);
+  const [selectedDogForNote, setSelectedDogForNote] = useState<any | null>(null);
+
+  const [savedCount, setSavedCount] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('WALWAL_BOOKMARKED_POST_IDS');
+      return saved ? JSON.parse(saved).length : 0;
+    } catch (e) {
+      return 0;
+    }
+  });
+
+  const [followersCount, setFollowersCount] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('WALWAL_FOLLOWER_USERS');
+      if (!saved) return 0;
+      const parsed = JSON.parse(saved);
+      const clean = Array.isArray(parsed) ? parsed.filter((n: string) => !['모찌', '땅콩', '구름이'].includes(n)) : [];
+      return clean.length;
+    } catch (e) {
+      return 0;
+    }
+  });
+
+  const [followingCount, setFollowingCount] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('WALWAL_FOLLOWED_USERS');
+      if (!saved) return 0;
+      const parsed = JSON.parse(saved);
+      const myPetsStr = localStorage.getItem('WALWAL_PETS');
+      const myPetNames = myPetsStr ? JSON.parse(myPetsStr).map((p: any) => p?.name) : [];
+      const clean = Array.isArray(parsed) ? parsed.filter((n: string) => !myPetNames.includes(n)) : [];
+      return clean.length;
+    } catch (e) {
+      return 0;
+    }
+  });
+
+  const refreshActivityCounts = () => {
+    try {
+      const b = localStorage.getItem('WALWAL_BOOKMARKED_POST_IDS');
+      setSavedCount(b ? JSON.parse(b).length : 0);
+      const fr = localStorage.getItem('WALWAL_FOLLOWER_USERS');
+      const parsedFr = fr ? JSON.parse(fr) : [];
+      const cleanFr = Array.isArray(parsedFr) ? parsedFr.filter((n: string) => !['모찌', '땅콩', '구름이'].includes(n)) : [];
+      setFollowersCount(cleanFr.length);
+      const fg = localStorage.getItem('WALWAL_FOLLOWED_USERS');
+      const myPetsStr = localStorage.getItem('WALWAL_PETS');
+      const myPetNames = myPetsStr ? JSON.parse(myPetsStr).map((p: any) => p?.name) : [];
+      const parsedFg = fg ? JSON.parse(fg) : [];
+      const cleanFg = Array.isArray(parsedFg) ? parsedFg.filter((n: string) => !myPetNames.includes(n)) : [];
+      setFollowingCount(cleanFg.length);
+    } catch (e) { }
+  };
+
+  useEffect(() => {
+    const handleBookmarkUpdate = (e: any) => {
+      if (typeof e?.detail === 'number') {
+        setSavedCount(e.detail);
+      } else {
+        refreshActivityCounts();
+      }
+    };
+    window.addEventListener('walwal_bookmarked_updated', handleBookmarkUpdate);
+    window.addEventListener('storage', refreshActivityCounts);
+    return () => {
+      window.removeEventListener('walwal_bookmarked_updated', handleBookmarkUpdate);
+      window.removeEventListener('storage', refreshActivityCounts);
+    };
   }, []);
 
   // Admin Mode Gate
@@ -461,6 +540,46 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
           </div>
         </div>
 
+        {/* 내 활동 (저장됨, 팔로우, 팔로잉) */}
+        <Section title={t.settings?.myActivity || (language === 'ko' ? "내 활동" : "My Activity")}>
+          <ListItem
+            icon={<Bookmark size={22} />}
+            title={t.settings?.saved || (language === 'ko' ? "저장됨" : "Saved")}
+            subtitle={t.settings?.savedDesc || (language === 'ko' ? "내가 북마크하고 저장한 게시물" : "Posts you've saved")}
+            rightElement={
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="settings-count-badge">{savedCount}</span>
+                <ChevronRight size={18} style={{ opacity: 0.5 }} />
+              </div>
+            }
+            onClick={() => setActiveActivity('saved')}
+          />
+          <ListItem
+            icon={<Users size={22} />}
+            title={t.settings?.followers || (language === 'ko' ? "팔로우" : "Followers")}
+            subtitle={t.settings?.followersDesc || (language === 'ko' ? "나를 팔로우하는 반려견 친구들" : "Friends who follow you")}
+            rightElement={
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="settings-count-badge">{followersCount}</span>
+                <ChevronRight size={18} style={{ opacity: 0.5 }} />
+              </div>
+            }
+            onClick={() => setActiveActivity('followers')}
+          />
+          <ListItem
+            icon={<UserCheck size={22} />}
+            title={t.settings?.following || (language === 'ko' ? "팔로잉" : "Following")}
+            subtitle={t.settings?.followingDesc || (language === 'ko' ? "내가 소식을 받아보는 반려견 친구들" : "Friends you follow")}
+            rightElement={
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="settings-count-badge">{followingCount}</span>
+                <ChevronRight size={18} style={{ opacity: 0.5 }} />
+              </div>
+            }
+            onClick={() => setActiveActivity('following')}
+          />
+        </Section>
+
         {/* Preferences */}
         <Section title={t.settings?.preferences || "앱 설정"}>
           <ListItem
@@ -763,6 +882,61 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 내 활동 - 저장됨 모달 */}
+      <SavedPostsModal
+        isOpen={activeActivity === 'saved'}
+        onClose={() => {
+          setActiveActivity(null);
+          refreshActivityCounts();
+        }}
+        onViewInSnaps={(_postId) => {
+          setActiveActivity(null);
+          onClose();
+          window.dispatchEvent(new CustomEvent('walwal_switch_tab', { detail: 'snaps' }));
+          window.dispatchEvent(new CustomEvent('walwal_view_saved_snaps'));
+        }}
+      />
+
+      {/* 내 활동 - 팔로우(팔로워) 모달 */}
+      <FollowersModal
+        isOpen={activeActivity === 'followers'}
+        onClose={() => {
+          setActiveActivity(null);
+          refreshActivityCounts();
+        }}
+        onOpenDogProfile={(dog) => setSelectedDogForProfile(dog)}
+        onSendNote={(dog) => setSelectedDogForNote(dog)}
+      />
+
+      {/* 내 활동 - 팔로잉 모달 */}
+      <FollowingModal
+        isOpen={activeActivity === 'following'}
+        onClose={() => {
+          setActiveActivity(null);
+          refreshActivityCounts();
+        }}
+        onOpenDogProfile={(dog) => setSelectedDogForProfile(dog)}
+        onSendNote={(dog) => setSelectedDogForNote(dog)}
+      />
+
+      {/* 강아지 프로필 모달 연결 */}
+      {selectedDogForProfile && (
+        <DogProfileModal
+          dog={selectedDogForProfile}
+          onClose={() => setSelectedDogForProfile(null)}
+          onSendNote={(dog) => setSelectedDogForNote(dog)}
+        />
+      )}
+
+      {/* 1:1 쪽지 보내기 모달 연결 */}
+      {selectedDogForNote && (
+        <OwnerNoteModal
+          isOpen={Boolean(selectedDogForNote)}
+          targetDog={selectedDogForNote}
+          onClose={() => setSelectedDogForNote(null)}
+        />
       )}
     </div>
   );

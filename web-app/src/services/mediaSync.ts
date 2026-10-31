@@ -1,4 +1,4 @@
-import { db } from '../firebase';
+import { db, COLLECTIONS } from '../firebase';
 import { doc, setDoc, getDocs, collection, query, orderBy } from 'firebase/firestore';
 import { saveMedia, getMedia, blobCache } from '../utils/mediaStore';
 
@@ -47,7 +47,7 @@ export const uploadVideoToCloud = async (
 
     for (let i = 0; i < totalChunks; i++) {
       const chunkData = base64.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-      const chunkRef = doc(db, 'posts', postId, 'media_chunks', `chunk_${i}`);
+      const chunkRef = doc(db, COLLECTIONS.POSTS, postId, 'media_chunks', `chunk_${i}`);
       await setDoc(chunkRef, {
         index: i,
         totalChunks,
@@ -57,7 +57,7 @@ export const uploadVideoToCloud = async (
     }
 
     try {
-      await setDoc(doc(db, 'posts', postId), {
+      await setDoc(doc(db, COLLECTIONS.POSTS, postId), {
         hasCloudMedia: true,
         isVideo: true
       }, { merge: true });
@@ -77,7 +77,7 @@ export const uploadVideoToCloud = async (
  */
 export const downloadVideoFromCloud = async (postId: string): Promise<Blob | null> => {
   try {
-    const chunksRef = collection(db, 'posts', postId, 'media_chunks');
+    const chunksRef = collection(db, COLLECTIONS.POSTS, postId, 'media_chunks');
     const q = query(chunksRef, orderBy('index', 'asc'));
     const snap = await getDocs(q);
 
@@ -243,10 +243,11 @@ export const rotateAndCropVideoBlob = async (
   videoSrc: string,
   sourceBlob: Blob | null,
   rotation: number,
-  cropRatio: 'original' | '1:1' | '9:16' | '16:9' = 'original'
+  cropRatio: 'original' | '1:1' | '9:16' | '16:9' = 'original',
+  forceSilent: boolean = false
 ): Promise<{ videoBlob: Blob | null; posterDataUrl: string | null }> => {
   const normRot = ((rotation % 360) + 360) % 360;
-  if (normRot === 0 && cropRatio === 'original') {
+  if (normRot === 0 && cropRatio === 'original' && !forceSilent) {
     return { videoBlob: sourceBlob, posterDataUrl: null };
   }
 

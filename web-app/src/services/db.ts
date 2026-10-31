@@ -1,4 +1,4 @@
-import { db, storage, auth } from '../firebase';
+import { db, storage, auth, COLLECTIONS } from '../firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { getMedia } from '../utils/mediaStore';
 import {
@@ -46,7 +46,7 @@ export const saveDogProfile = async (profile: DogProfile, userId?: string) => {
   if (userId) cleanData.userId = userId;
 
   try {
-    await setDoc(doc(db, 'dogs', profile.id), cleanData, { merge: true });
+    await setDoc(doc(db, COLLECTIONS.DOGS, profile.id), cleanData, { merge: true });
     if (userId) {
       await setDoc(doc(db, 'users', userId, 'dogs', profile.id), cleanData, { merge: true });
     }
@@ -58,7 +58,7 @@ export const saveDogProfile = async (profile: DogProfile, userId?: string) => {
 export const deleteDogProfile = async (dogId: string, userId?: string) => {
   if (!dogId) return;
   try {
-    await deleteDoc(doc(db, 'dogs', dogId));
+    await deleteDoc(doc(db, COLLECTIONS.DOGS, dogId));
     if (userId) {
       await deleteDoc(doc(db, 'users', userId, 'dogs', dogId));
     }
@@ -74,7 +74,7 @@ export const getDogProfiles = async (userId: string): Promise<DogProfile[]> => {
 };
 
 export const getAllDogs = async (): Promise<DogProfile[]> => {
-  const q = query(collection(db, 'dogs'));
+  const q = query(collection(db, COLLECTIONS.DOGS));
   const snapshot = await getDocs(q);
   return snapshot.docs.map(doc => doc.data() as DogProfile);
 };
@@ -100,7 +100,7 @@ export interface FeedPostData {
 }
 
 export const createFeedPost = async (post: FeedPostData) => {
-  const postRef = doc(collection(db, 'posts'));
+  const postRef = doc(collection(db, COLLECTIONS.POSTS));
   await setDoc(postRef, {
     ...post,
     id: postRef.id,
@@ -110,18 +110,24 @@ export const createFeedPost = async (post: FeedPostData) => {
 };
 
 export const getFeedPosts = async (): Promise<FeedPostData[]> => {
-  const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'));
+  const q = query(collection(db, COLLECTIONS.POSTS), orderBy('createdAt', 'desc'));
   const snapshot = await getDocs(q);
   return snapshot.docs.map(doc => doc.data() as FeedPostData);
 };
 
 export const updateFeedPost = async (postId: string, updates: Partial<FeedPostData>) => {
-  const postRef = doc(db, 'posts', postId);
+  const postRef = doc(db, COLLECTIONS.POSTS, postId);
   await updateDoc(postRef, updates);
 };
 
 export const deleteFeedPost = async (postId: string) => {
-  const postRef = doc(db, 'posts', postId);
+  const postRef = doc(db, COLLECTIONS.POSTS, postId);
+  try {
+    await updateDoc(postRef, {
+      isDeleted: true,
+      deletedAt: serverTimestamp()
+    });
+  } catch (e) { }
   await deleteDoc(postRef);
 };
 
@@ -160,7 +166,7 @@ export const syncSinglePost = async (post: any) => {
     delete finalPost.createdAt;
 
     // Save to the `posts` collection
-    const postRef = doc(db, 'posts', post.id);
+    const postRef = doc(db, COLLECTIONS.POSTS, post.id);
     await setDoc(postRef, {
       ...finalPost,
       createdAt: serverTimestamp()
@@ -202,13 +208,13 @@ export interface MeetupData {
 }
 
 export const getMeetups = async (): Promise<MeetupData[]> => {
-  const q = query(collection(db, 'meetups'), orderBy('createdAt', 'desc'));
+  const q = query(collection(db, COLLECTIONS.MEETUPS), orderBy('createdAt', 'desc'));
   const snapshot = await getDocs(q);
   return snapshot.docs.map(doc => doc.data() as MeetupData);
 };
 
 export const createMeetup = async (meetup: MeetupData) => {
-  const meetupRef = doc(collection(db, 'meetups'));
+  const meetupRef = doc(collection(db, COLLECTIONS.MEETUPS));
   await setDoc(meetupRef, {
     ...meetup,
     id: meetupRef.id,
@@ -224,15 +230,53 @@ export const syncMeetupToFirestore = async (meetup: any) => {
       ...meetup,
       updatedAt: serverTimestamp()
     });
-    await setDoc(doc(db, 'meetups', meetup.id), cleanMeetup, { merge: true });
+    await setDoc(doc(db, COLLECTIONS.MEETUPS, meetup.id), cleanMeetup, { merge: true });
   } catch (err) {
     console.warn('Failed to sync meetup to Firestore:', err);
   }
 };
 
 // =======================
-// User Accounts (Fallback Authentication)
 // =======================
+// User Accounts & Subscribers
+// =======================
+
+export interface AppUserData {
+  id?: string;
+  email: string;
+  ownerName?: string;
+  displayName?: string;
+  role?: 'admin' | 'user';
+  provider?: string;
+  dogs?: string[];
+  createdAt?: any;
+  lastLoginAt?: any;
+}
+
+export const syncUserToFirestore = async (userData: AppUserData) => {
+  if (!userData.email) return;
+  const cleanEmail = userData.email.toLowerCase().trim();
+  const docId = cleanEmail.replace(/[^a-z0-9@._-]/g, '_');
+  try {
+    const dataToSet: any = {
+      id: docId,
+      email: cleanEmail,
+      ownerName: userData.ownerName || cleanEmail.split('@')[0],
+      role: userData.role || (cleanEmail.includes('daisynara') ? 'admin' : 'user'),
+      updatedAt: serverTimestamp()
+    };
+    if (userData.provider) dataToSet.provider = userData.provider;
+    if (userData.lastLoginAt) dataToSet.lastLoginAt = userData.lastLoginAt;
+    await setDoc(doc(db, COLLECTIONS.USERS, docId), dataToSet, { merge: true });
+    // Also sync to app_users for backward compatibility
+    await setDoc(doc(db, 'app_users', docId), {
+      email: cleanEmail,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  } catch (err) {
+    console.warn('Failed to sync user to Firestore:', err);
+  }
+};
 
 export const registerAppUser = async (email: string, passwordHash: string) => {
   const cleanEmail = email.toLowerCase().trim();
@@ -243,6 +287,11 @@ export const registerAppUser = async (email: string, passwordHash: string) => {
       password: passwordHash,
       createdAt: serverTimestamp()
     }, { merge: true });
+    await syncUserToFirestore({
+      email: cleanEmail,
+      ownerName: cleanEmail.split('@')[0],
+      role: cleanEmail.includes('daisynara') ? 'admin' : 'user'
+    });
   } catch (e) {
     console.warn('registerAppUser cloud fallback note:', e);
   }
@@ -262,4 +311,5 @@ export const verifyAppUser = async (email: string, inputPw: string): Promise<boo
   }
   return false;
 };
+
 

@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { X, LocateFixed, MapPin, Send, Heart, Sparkles, Menu } from 'lucide-react';
+import { X, LocateFixed, MapPin, Send, Heart, Sparkles } from 'lucide-react';
 import { DogProfile, getMockDogs, isSameDogName, getDefaultDogAvatar, normalizeDogProfile, sanitizePetList, localizeBreed, localizePersonalityTags } from '../data/mockDogs';
 import { useTranslation } from '../i18n/LanguageContext';
 import { OwnerNoteModal } from './OwnerNoteModal';
-import { db } from '../firebase';
+import { DogProfileModal } from './DogProfileModal';
+import { db, COLLECTIONS } from '../firebase';
 import { collection, onSnapshot, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import '../styles/NearbyView.css';
 
 export interface NearbyViewProps {
   onStartVirtualChat: (dog1: DogProfile, dog2: DogProfile) => void;
@@ -75,16 +77,14 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat }) =>
 
   const primaryPet = myPets[0] || null;
 
-  // 선택된 핀 (기본값: 내 대표 반려견이 있는 경우에만 선택)
-  const [selectedPin, setSelectedPin] = useState<DogProfile | null>(() => primaryPet);
+  // 선택된 핀 (기본값: null - 지도에서 강아지 사진/핀 클릭 시에만 모달 표시)
+  const [selectedPin, setSelectedPin] = useState<DogProfile | null>(null);
 
   useEffect(() => {
-    if (!selectedPin && primaryPet) {
-      setSelectedPin(primaryPet);
-    } else if (myPets.length === 0 && (selectedPin as any)?.isMyPet) {
+    if (myPets.length === 0 && (selectedPin as any)?.isMyPet) {
       setSelectedPin(null);
     }
-  }, [primaryPet, myPets.length]);
+  }, [myPets.length]);
 
   // Calculate meter distance to lat/lng offsets around actual user coordinates
   const getNearbyOffset = (meterDist: number, angleDeg: number) => {
@@ -93,10 +93,10 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat }) =>
     return { lat: userCoords.lat + latOffset, lng: userCoords.lng + lngOffset };
   };
 
-  // 2. Firestore 'dogs' 컬렉션에서 실제 가입된 모든 강아지 실시간 동기화 (가짜 데이터 없음)
+  // 2. Firestore dogs 컬렉션에서 실제 가입된 모든 강아지 실시간 동기화 (가짜 데이터 없음)
   useEffect(() => {
     try {
-      const unsub = onSnapshot(collection(db, 'dogs'), (snapshot) => {
+      const unsub = onSnapshot(collection(db, COLLECTIONS.DOGS), (snapshot) => {
         const dogsList: DogProfile[] = [];
         snapshot.forEach((docSnap) => {
           const data = docSnap.data();
@@ -126,6 +126,11 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat }) =>
           }
         });
         setFirestoreDogs(dogsList);
+        try {
+          if (dogsList.length > 0) {
+            localStorage.setItem('WALWAL_ALL_DOGS', JSON.stringify(dogsList));
+          }
+        } catch (e) { }
       }, (err) => {
         console.warn('Firestore dogs snapshot error:', err);
       });
@@ -440,11 +445,11 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat }) =>
         const myLocationIcon = L.divIcon({
           className: 'user-my-loc-marker',
           html: `
-            <div style="display:flex;flex-direction:column;align-items:center;cursor:default;">
-              <div style="position:relative;width:20px;height:20px;background:#2EC4B6;border:3px solid #FFFFFF;border-radius:50%;box-shadow:0 0 12px rgba(46,196,182,0.8);">
-                <div style="position:absolute;inset:0;background:rgba(46,196,182,0.4);border-radius:50%;animation:pulse 2s infinite;"></div>
+            <div class="my-loc-marker-wrap">
+              <div class="my-loc-marker-dot">
+                <div class="my-loc-marker-pulse"></div>
               </div>
-              <div style="background:#2EC4B6;color:#FFFFFF;font-size:10px;font-weight:800;padding:2px 6px;border-radius:8px;margin-top:3px;box-shadow:0 2px 6px rgba(0,0,0,0.2);white-space:nowrap;">
+              <div class="my-loc-marker-badge">
                 ${language === 'ko' ? '내 위치' : 'My Location'}
               </div>
             </div>
@@ -461,19 +466,32 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat }) =>
       displayDogs.forEach((dog) => {
         if (!dog.lat || !dog.lng) return;
 
-        const isSelected = selectedPin ? (selectedPin.id === dog.id || isSameDogName(selectedPin.name, dog.name)) : dog.isMyPet;
+        const isSelected = selectedPin ? (selectedPin.id === dog.id || isSameDogName(selectedPin.name, dog.name)) : false;
         const isMyPet = dog.isMyPet;
 
+        const markerClasses = ['dog-marker-icon'];
+        if (isSelected) markerClasses.push('is-selected');
+        if (isMyPet) markerClasses.push('is-my-pet');
+
+        const avatarClasses = ['dog-marker-avatar'];
+        if (isMyPet) avatarClasses.push('is-my-pet');
+        if (isSelected) avatarClasses.push('is-selected');
+
+        const badgeClasses = ['dog-marker-badge'];
+        if (isMyPet) badgeClasses.push('is-my-pet');
+        if (isSelected) badgeClasses.push('is-selected');
+
         const dogIcon = L.divIcon({
-          className: 'dog-marker-icon',
+          className: markerClasses.join(' '),
           html: `
-            <div style="cursor:pointer;display:flex;flex-direction:column;align-items:center;">
-              <div style="position:relative;width:${isSelected ? 52 : 44}px;height:${isSelected ? 52 : 44}px;border-radius:50%;border:${isMyPet ? '3px solid #FF9E58' : (isSelected ? '3px solid #2EC4B6' : '2px solid #FFFFFF')};box-shadow:${isSelected ? (isMyPet ? '0 0 20px rgba(255, 126, 54, 0.6)' : '0 0 20px rgba(46, 196, 182, 0.6)') : '0 4px 12px rgba(0,0,0,0.15)'};overflow:hidden;background:#FFFFFF;transition:all 0.2s;">
-                ${isMyPet ? '<div style="position:absolute;inset:0;background:rgba(255,126,54,0.2);animation:pulse 2s infinite;border-radius:50%;"></div>' : ''}
-                <img src="${dog.avatar}" style="width:100%;height:100%;object-fit:cover;" />
+            <div class="dog-marker-wrap">
+              <div class="${avatarClasses.join(' ')}">
+                ${isMyPet ? '<div class="dog-marker-pulse"></div>' : ''}
+                <img src="${dog.avatar}" class="dog-marker-img" alt="${dog.name}" />
               </div>
-              <div style="background:${isMyPet ? '#FF9E58' : (isSelected ? '#2EC4B6' : '#FFFFFF')};border:1px solid rgba(0,0,0,0.08);padding:2px 8px;border-radius:10px;font-size:11px;font-weight:800;color:${(isMyPet || isSelected) ? '#FFFFFF' : '#333'};margin-top:3px;white-space:nowrap;box-shadow:0 3px 8px rgba(0,0,0,0.15);display:flex;align-items:center;gap:3px;">
-                ${dog.name} ${isMyPet ? `<span style="font-size:10px;background:rgba(255,255,255,0.25);padding:1px 4px;border-radius:6px;">${language === 'ko' ? '나' : language === 'zh' ? '我' : language === 'ja' ? '私' : language === 'fr' ? 'Moi' : language === 'es' ? 'Yo' : 'Me'}</span>` : `<span style="font-size:10px;opacity:0.85;">${dog.distance}</span>`}
+              <div class="${badgeClasses.join(' ')}">
+                <span class="dog-marker-name">${dog.name}</span>
+                ${isMyPet ? `<span class="dog-marker-tag-me">${language === 'ko' ? '나' : language === 'zh' ? '我' : language === 'ja' ? '私' : language === 'fr' ? 'Moi' : language === 'es' ? 'Yo' : 'Me'}</span>` : `<span class="dog-marker-tag-dist">${dog.distance}</span>`}
               </div>
             </div>
           `,
@@ -481,11 +499,19 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat }) =>
           iconAnchor: [30, 30]
         });
 
+        // 선택된 강아지는 무조건 최상위(3000 이상)로 배치하여 다른 마커나 내 반려견에 가려지지 않음
+        const zIndex = isSelected ? 3000 : (isMyPet ? 1000 : 100);
+
         const marker = L.marker([dog.lat, dog.lng], {
           icon: dogIcon,
-          zIndexOffset: isMyPet ? 1000 : (isSelected ? 500 : 100)
+          zIndexOffset: zIndex
         });
-        marker.on('click', () => setSelectedPin(dog));
+
+        marker.on('click', () => {
+          marker.setZIndexOffset(3500);
+          setSelectedPin(dog);
+        });
+
         marker.addTo(dogMarkersGroupRef.current!);
       });
     }
@@ -525,15 +551,6 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat }) =>
               </button>
             ))}
           </div>
-
-          <button
-            className="all-services-header-btn"
-            onClick={() => window.dispatchEvent(new CustomEvent('walwal_open_all_services'))}
-            aria-label="전체서비스"
-            title="전체서비스"
-          >
-            <Menu size={24} />
-          </button>
         </div>
       </div>
 
@@ -563,76 +580,25 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat }) =>
         </div>
       </div>
 
-      {/* Selected Dog Bottom Sheet */}
-      {selectedPin ? (
-        <div className="selected-dog-modal">
-          <button
-            onClick={() => setSelectedPin(null)}
-            className="btn-ghost"
-            style={{ position: 'absolute', top: '16px', right: '16px', color: '#c8c8c8' }}
-          >
-            <X size={20} strokeWidth={3} />
-          </button>
+      {/* Selected Dog Profile Modal */}
+      <DogProfileModal
+        dog={selectedPin}
+        onClose={() => setSelectedPin(null)}
+        onSendNote={(dog) => setOwnerNoteTarget(dog)}
+      />
 
-          <div className="row gap-14">
-            <img
-              className="avatar"
-              src={selectedPin.avatar}
-              alt={selectedPin.name}
-            />
-            <div style={{ flex: 1 }}>
-              <div className="row gap-8 flex align-items-center">
-                <h3 className="title-lg">{selectedPin.name}</h3>
-                {myPets.some(mp => mp.id === selectedPin.id || isSameDogName(mp.name, selectedPin.name)) && (
-                  <span className="badge-sm">
-                    {language === 'ko' ? '내 반려견' : language === 'zh' ? '我的狗狗' : language === 'ja' ? '愛犬' : language === 'fr' ? 'Mon Chien' : language === 'es' ? 'Mi Perro' : 'My Dog'}
-                  </span>
-                )}
-              </div>
-              <div className="text-sub mt-4">
-                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '6px' }}>
-                  {localizePersonalityTags(selectedPin.personality, language)?.map((trait, idx) => (
-                    <span key={idx} className="badge-hashtag">{trait}</span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="text-box">
-            "{selectedPin.greeting || (t.nearby || t.radar)?.greetingEmpty || (language === 'ko' ? '안녕하세요! 함께 신나게 산책해요' : 'Hello! Nice to meet you!')}"
-          </div>
-
-          <div className="row gap-12 mt-20 btn-box">
-            {myPets.some(mp => mp.id === selectedPin.id || isSameDogName(mp.name, selectedPin.name)) ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', padding: '10px 14px', background: '#FFF3E0', borderRadius: '12px', fontSize: '13px', gap: '6px' }}>
-                <span>{language === 'ko' ? '현재 나와 함께 산책 중인 반려견입니다' : 'Walking with you right now'}</span>
-              </div>
-            ) : (
-              <button
-                className="btn"
-                onClick={() => setOwnerNoteTarget(selectedPin)}
-              >
-                <Send size={20} />
-                {(t.nearby || t.radar)?.sendNote || (language === 'ko' ? '산책 쪽지 보내기' : 'Send Note')}
-              </button>
-            )}
-          </div>
+      {/* 안내 배너 */}
+      <div className="card text-center nearby-guide-banner">
+        <div className="nearby-guide-icon">🐾</div>
+        <div className="nearby-guide-title">
+          {language === 'ko' ? `지도에서 반려견 핀을 터치해보세요` : `Tap a dog pin on the map`}
         </div>
-      ) : (
-        /* 주변에 가입된 다른 강아지가 아직 없을 때 표시하는 안내 배너 */
-        <div className="card text-center" style={{ padding: '22px 16px', marginTop: '16px', borderRadius: '16px', background: '#FFFFFF', boxShadow: '0 4px 16px rgba(0,0,0,0.04)' }}>
-          <div style={{ fontSize: '28px', opacity: '.5' }}>🐾</div>
-          <div style={{ fontSize: '16px', fontWeight: 700, margin: '10px 0' }}>
-            {language === 'ko' ? `지도에서 반려견 핀을 터치해보세요` : `Tap a dog pin on the map`}
-          </div>
-          <div style={{ fontSize: '12px', color: '#121212' }}>
-            {language === 'ko'
-              ? '다른 반려견 보호자가 가입하고 산책을 시작하면 지도에 실시간으로 표시됩니다.'
-              : 'When other pet owners join and start walking, they will appear here in real time.'}
-          </div>
+        <div className="nearby-guide-desc">
+          {language === 'ko'
+            ? '다른 반려견 보호자가 가입하고 산책을 시작하면 지도에 실시간으로 표시됩니다.'
+            : 'When other pet owners join and start walking, they will appear here in real time.'}
         </div>
-      )}
+      </div>
 
       {/* Owner Note Modal */}
       <OwnerNoteModal

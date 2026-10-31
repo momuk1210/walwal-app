@@ -16,16 +16,16 @@ cssBlocks.forEach(block => {
   if (!selector || !rules) return;
   const className = selector.trim().replace('.', '');
   if (!className.startsWith('ar-style-')) return;
-  
+
   // Convert rules back to React style object
   const ruleLines = rules.split('\n').map(l => l.trim()).filter(Boolean);
-  
+
   let isMalformedSingleLine = false;
   let restoredStyleString = '';
 
   if (ruleLines.length === 1 && ruleLines[0].includes("', ")) {
     isMalformedSingleLine = true;
-    // Example: font-size: 0.8rem', fontWeight: 700, color: '#2D3748', lineHeight: 1.35, marginBottom: '4px;
+    // Example: font-size: 0.8rem', fontWeight: 700, color: '#333', lineHeight: 1.35, marginBottom: '4px;
     let line = ruleLines[0];
     if (line.endsWith(';')) line = line.slice(0, -1);
     const colonIdx = line.indexOf(':');
@@ -45,7 +45,7 @@ cssBlocks.forEach(block => {
       let prop = l.slice(0, colonIdx).trim();
       prop = prop.replace(/-([a-z])/g, g => g[1].toUpperCase());
       let val = l.slice(colonIdx + 1).trim();
-      
+
       // If it looks like a number, keep it as string if it has units, or maybe just wrap everything in quotes unless it's a number.
       // But in React, strings are quoted. My script stripped quotes!
       // Let's just wrap in single quotes.
@@ -59,7 +59,7 @@ cssBlocks.forEach(block => {
     }).filter(Boolean);
     restoredStyleString = '\n' + styleProps.join(',\n') + '\n';
   }
-  
+
   classMap[className] = `style={{ ${restoredStyleString} }}`;
 });
 

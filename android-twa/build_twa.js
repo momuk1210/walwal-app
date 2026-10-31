@@ -50,7 +50,7 @@ async function main() {
   twaManifest.host = 'walwal-app.web.app';
   twaManifest.name = 'WalWal - 왈왈';
   twaManifest.launcherName = 'WalWal';
-  twaManifest.themeColor = new Color('#FFB320');
+  twaManifest.themeColor = new Color('#FF9E58');
   twaManifest.navigationColor = new Color('#FFFFFF');
   twaManifest.backgroundColor = new Color('#FFFBF7');
   twaManifest.appVersionName = '1.5.0';

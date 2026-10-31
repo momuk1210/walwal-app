@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Calendar, MapPin, Heart, MessageSquare, Plus, CheckCircle2, Navigation, X, Send, PawPrint, Crown, LogOut, MoreVertical, Edit3, Trash2, ChevronDown, RotateCcw, Sparkles, Filter, Check, SlidersHorizontal, Menu, ShieldAlert, Flag, Clock, Flame, Play, Pause, Square, ChevronRight, ArrowLeft } from 'lucide-react';
+import { Calendar, MapPin, Heart, MessageSquare, Plus, CheckCircle2, Navigation, X, Send, PawPrint, Crown, LogOut, MoreVertical, Edit3, Trash2, ChevronDown, RotateCcw, Sparkles, Filter, Check, SlidersHorizontal, ShieldAlert, Flag, Clock, Flame, Play, Pause, Square, ChevronRight, ArrowLeft } from 'lucide-react';
 import { DogProfile, MOCK_DOGS, getMockDogs, isSameDogName, getDefaultDogAvatar, normalizeDogProfile, getLiveDogAvatar, getLiveDogProfile, localizeBreed, localizePersonalityTags, localizeDogName, sanitizePetList } from '../data/mockDogs';
 import { MeetupChatModal } from './MeetupChatModal';
 import { DogProfileModal } from './DogProfileModal';
@@ -18,7 +18,7 @@ import {
 import { isUserBlocked, blockUser } from '../services/moderationService';
 import { validateUserContent } from '../utils/profanityFilter';
 import { useTranslation } from '../i18n/LanguageContext';
-import { auth, db } from '../firebase';
+import { auth, db, COLLECTIONS } from '../firebase';
 import { deleteDoc, doc, collection, onSnapshot } from 'firebase/firestore';
 import { syncMeetupToFirestore } from '../services/db';
 import { formatMeetupDisplay, extractMeetupDateTime, getMeetupDynamicStatus } from '../utils/meetupTime';
@@ -292,7 +292,7 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
 
   // Two-way sync with Firestore meetups collection
   React.useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'meetups'), (snapshot) => {
+    const unsub = onSnapshot(collection(db, COLLECTIONS.MEETUPS), (snapshot) => {
       if (snapshot.empty) return;
       const remoteList: WalkMeetup[] = [];
       snapshot.forEach(docSnap => {
@@ -1269,14 +1269,6 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
           >
             <Plus size={24} strokeWidth={2} />
           </button>
-          <button
-            className="all-services-header-btn"
-            onClick={() => window.dispatchEvent(new CustomEvent('walwal_open_all_services'))}
-            aria-label="전체서비스"
-            title="전체서비스"
-          >
-            <Menu size={24} />
-          </button>
         </div>
       </div>
 
@@ -1321,7 +1313,7 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
       </div>
 
 
-      <div className="section-gap">
+      <div className="section-gap walk">
         {filteredMeetups.length === 0 ? (
           <div className="community-empty-card">
             <div className="community-empty-icon-wrap">
@@ -1417,11 +1409,7 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
                   <div className="host-info-wrapper meetup-host-info-wrap"
                     onClick={() => handleEnterChat(m)}
                   >
-                    <div className="row-between gap-12 meetup-tag-row">
-                      <div className="meetup-badge-group">
-                        <span className="badge">{m.tag}</span>
-
-                      </div>
+                    <div className="meetup-tag-row">
                       <div className="meetup-host-row">
                         <div className="text-sub meetup-host-text">
                           <Crown size={14} className="meetup-crown-icon" />
@@ -1517,15 +1505,18 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
                           )}
                         </div>
                       </div>
+                      <h3 className="title-md meetup-card-title">
+                        {m.title}
+                        {!!m.unreadCount && m.unreadCount > 0 && (
+                          <span className="unreadCount">
+                            {m.unreadCount > 99 ? '99+' : m.unreadCount}
+                          </span>
+                        )}
+                      </h3>
                     </div>
-                    <h3 className="title-md meetup-card-title">
-                      {m.title}
-                      {!!m.unreadCount && m.unreadCount > 0 && (
-                        <span className="unreadCount">
-                          {m.unreadCount > 99 ? '99+' : m.unreadCount}
-                        </span>
-                      )}
-                    </h3>
+                    <div className="meetup-badge-group">
+                      <span className="badge">{m.tag}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2444,8 +2435,8 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
                 <PawPrint size={12} strokeWidth={2.5} />
                 <span>
                   {activeSession.isPaused
-                    ? 'PAUSED'
-                    : 'START MOVING!'}
+                    ? (language === 'ko' ? '일시정지' : language === 'ja' ? '一時停止' : language === 'zh' ? '已暂停' : language === 'es' ? 'EN PAUSA' : language === 'fr' ? 'EN PAUSE' : 'PAUSED')
+                    : (language === 'ko' ? '산책 중' : language === 'ja' ? '散歩中' : language === 'zh' ? '散步中' : language === 'es' ? 'CAMINANDO' : language === 'fr' ? 'EN MARCHE' : 'START MOVING!')}
                 </span>
               </div>
             </div>
@@ -2455,15 +2446,21 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
             {/* 3단 메트릭 그리드 (스크린샷 4 & 5 매칭: DISTANCE / DURATION / CALORIES) */}
             <div className="sheet-metrics-grid">
               <div className="sheet-metric-col">
-                <span className="col-label">DISTANCE</span>
+                <span className="col-label">
+                  {language === 'ko' ? '거리' : language === 'ja' ? '距離' : language === 'zh' ? '距离' : language === 'es' ? 'DISTANCIA' : language === 'fr' ? 'DISTANCE' : 'DISTANCE'}
+                </span>
                 <span className="col-val"><strong>{activeSession.distanceKm.toFixed(2)} </strong><small>KM</small></span>
               </div>
               <div className="sheet-metric-col">
-                <span className="col-label">DURATION</span>
+                <span className="col-label">
+                  {language === 'ko' ? '시간' : language === 'ja' ? '時間' : language === 'zh' ? '时间' : language === 'es' ? 'DURACIÓN' : language === 'fr' ? 'DURÉE' : 'DURATION'}
+                </span>
                 <span className="col-val"><strong>{formatTimer(activeSession.elapsedSeconds)}</strong></span>
               </div>
               <div className="sheet-metric-col">
-                <span className="col-label">CALORIES</span>
+                <span className="col-label">
+                  {language === 'ko' ? '칼로리' : language === 'ja' ? 'カロリー' : language === 'zh' ? '卡路里' : language === 'es' ? 'CALORÍAS' : language === 'fr' ? 'CALORIES' : 'CALORIES'}
+                </span>
                 <span className="col-val"><strong>{activeSession.caloriesKcal} </strong><small>KCAL</small></span>
               </div>
             </div>
@@ -2478,7 +2475,7 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
                   onClick={() => pauseWalk()}
                 >
                   <Pause size={15} fill="currentColor" />
-                  <span>{language === 'ko' ? 'PAUSE RUN (일시정지)' : language === 'ja' ? '一時停止' : language === 'es' ? 'Pausar' : language === 'zh' ? '暂停' : language === 'fr' ? 'Pause' : 'PAUSE RUN'}</span>
+                  <span>{language === 'ko' ? '일시정지' : language === 'ja' ? '一時停止' : language === 'es' ? 'Pausar' : language === 'zh' ? '暂停' : language === 'fr' ? 'Pause' : 'PAUSE RUN'}</span>
                 </button>
               ) : (
                 /* 일시정지 중: RESUME RUN(블랙) + FINISH(화이트 아웃라인) 나란히 배치 (스크린샷 5) */
@@ -2489,7 +2486,7 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
                     onClick={() => resumeWalk()}
                   >
                     <Play size={15} fill="currentColor" />
-                    <span>{language === 'ko' ? 'RESUME RUN' : language === 'ja' ? 'RESUME RUN' : language === 'es' ? 'RESUME RUN' : language === 'zh' ? 'RESUME RUN' : language === 'fr' ? 'RESUME RUN' : 'RESUME RUN'}</span>
+                    <span>{language === 'ko' ? '다시 시작' : language === 'ja' ? '再開' : language === 'es' ? 'Reanudar' : language === 'zh' ? '继续' : language === 'fr' ? 'Reprendre' : 'RESUME RUN'}</span>
                   </button>
                   <button
                     type="button"
@@ -2500,7 +2497,7 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
                     }}
                   >
                     <Square size={15} fill="currentColor" />
-                    <span>{language === 'ko' ? 'FINISH (종료)' : language === 'ja' ? 'FINISH (終了)' : language === 'es' ? 'FINISH (Terminar)' : language === 'zh' ? 'FINISH (结束)' : language === 'fr' ? 'FINISH (Terminer)' : 'HOLD TO FINISH'}</span>
+                    <span>{language === 'ko' ? '종료' : language === 'ja' ? '終了' : language === 'es' ? 'Terminar' : language === 'zh' ? '结束' : language === 'fr' ? 'Terminer' : 'FINISH'}</span>
                   </button>
                 </div>
               )}

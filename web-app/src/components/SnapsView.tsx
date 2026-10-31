@@ -1,18 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Heart, MessageSquare, MessageCircle, Send, X, Image as ImageIcon, Circle, Download, Share2, AlignRight, Bone, Sparkles, MoreVertical, Edit3, Trash2, Plus, MoreHorizontal, Bookmark, Camera, Play, Pause, Menu, Flag, ShieldAlert, RotateCcw, RotateCw, ArrowLeft, ChevronsLeft, LayoutGrid, Link2, Check, Undo, Redo, Square, Repeat2, Volume2, VolumeX } from 'lucide-react';
+import { Heart, MessageSquare, MessageCircle, Send, X, Image as ImageIcon, Circle, Download, Share2, AlignRight, Bone, Sparkles, MoreVertical, Edit3, Trash2, Plus, MoreHorizontal, Bookmark, Camera, Play, Pause, Flag, ShieldAlert, RotateCcw, RotateCw, ArrowLeft, ChevronsLeft, LayoutGrid, Link2, Check, Undo, Redo, Square, Repeat2, Volume2, VolumeX } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { getMockDogs, isSameDogName, getDefaultDogAvatar, sanitizePetList } from '../data/mockDogs';
+import { getMockDogs, isSameDogName, getDefaultDogAvatar, sanitizePetList, isMockNeighborDog, isDeletedPet } from '../data/mockDogs';
 import { useTranslation } from '../i18n/LanguageContext';
 import { getMedia, saveMedia, deleteMedia, blobCache } from '../utils/mediaStore';
 import { DogProfileModal } from './DogProfileModal';
 import { ReportModal, ReportModalTarget } from './ReportModal';
 import { isUserBlocked, blockUser } from '../services/moderationService';
 import { validateUserContent } from '../utils/profanityFilter';
-import { auth, db, storage } from '../firebase';
+import { auth, db, storage, COLLECTIONS, STORAGE_KEYS } from '../firebase';
 import { doc, getDoc, setDoc, onSnapshot, serverTimestamp, collection, query, orderBy } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { syncGlobalFeedPosts, syncSinglePost, deleteFeedPost, updateFeedPost } from '../services/db';
 import { ensureVideoPlayable, uploadVideoToCloud, extractPosterFromVideo, rotateAndCropVideoBlob } from '../services/mediaSync';
+import { OwnerNoteModal } from './OwnerNoteModal';
 import '../styles/OwnerNoteModal.css';
 
 export interface SnapsViewProps {
@@ -36,8 +37,8 @@ const saveAndSyncUserPosts = (posts: any[]) => {
     }
     return p;
   });
-  localStorage.setItem('WALWAL_USER_SNAPS_POSTS', JSON.stringify(sanitized));
-  localStorage.setItem('WALWAL_USER_FEED_POSTS', JSON.stringify(sanitized));
+  localStorage.setItem(STORAGE_KEYS.SNAPS_POSTS, JSON.stringify(sanitized));
+  localStorage.setItem(STORAGE_KEYS.FEED_POSTS, JSON.stringify(sanitized));
   syncGlobalFeedPosts(sanitized).catch(console.error);
 };
 
@@ -94,8 +95,36 @@ const cleanForFirestore = (obj: any): any => {
   }
   const result: any = {};
   for (const [key, val] of Object.entries(obj)) {
+    if (key === 'isMine') continue; // Never persist client-relative isMine to Firestore
     if (val !== undefined) {
       result[key] = cleanForFirestore(val);
+    }
+  }
+  return result;
+};
+
+const deduplicateComments = (comments: any[]): any[] => {
+  if (!Array.isArray(comments) || comments.length === 0) return [];
+  const seenIds = new Set<string>();
+  const result: any[] = [];
+
+  for (const c of comments) {
+    if (!c) continue;
+    const cId = String(c.id || '');
+    if (cId && seenIds.has(cId)) continue;
+    if (cId) seenIds.add(cId);
+
+    // Filter duplicate submissions (same author, same parent, same text within 5s)
+    const isDuplicate = result.some(prev => {
+      const sameAuthor = prev.author === c.author;
+      const sameText = (prev.text || '').trim() === (c.text || '').trim();
+      const sameParent = String(prev.parentId || '') === String(c.parentId || '');
+      const timeDiff = Math.abs(Number(prev.id) - Number(c.id));
+      return sameAuthor && sameText && sameParent && !isNaN(timeDiff) && timeDiff < 5000;
+    });
+
+    if (!isDuplicate) {
+      result.push(c);
     }
   }
   return result;
@@ -147,19 +176,18 @@ export function transformImage(
     }
   }
 
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, cropW);
-  canvas.height = Math.max(1, cropH);
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return img.src;
+  // 1단계: 원본 이미지를 회전 각도에 맞게 온전히 렌더링하는 기본 회전 캔버스
+  const rotCanvas = document.createElement('canvas');
+  rotCanvas.width = rotatedW;
+  rotCanvas.height = rotatedH;
+  const rotCtx = rotCanvas.getContext('2d');
+  if (!rotCtx) return img.src;
 
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-
-  ctx.translate(canvas.width / 2, canvas.height / 2);
-  ctx.rotate((normRot * Math.PI) / 180);
-
-  ctx.drawImage(
+  rotCtx.imageSmoothingEnabled = true;
+  rotCtx.imageSmoothingQuality = 'high';
+  rotCtx.translate(rotatedW / 2, rotatedH / 2);
+  rotCtx.rotate((normRot * Math.PI) / 180);
+  rotCtx.drawImage(
     img,
     -img.naturalWidth / 2,
     -img.naturalHeight / 2,
@@ -167,7 +195,49 @@ export function transformImage(
     img.naturalHeight
   );
 
-  return canvas.toDataURL('image/jpeg', 0.95);
+  // 2단계: 강아지 생각(AI 말풍선) 및 얼굴이 위치한 상단(Top) 영역을 우선 보존하는 스마트 크롭
+  let offsetX = 0;
+  let offsetY = 0;
+
+  if (normRot === 0) {
+    // 세로 정방향: 상단 0px(말풍선 영역)을 최우선으로 보존하여 크롭
+    offsetX = Math.max(0, Math.round((rotatedW - cropW) / 2));
+    offsetY = 0;
+  } else if (normRot === 90) {
+    // 오른쪽 90도 회전: 원본의 상단(말풍선)이 우측 끝으로 회전하므로 우측 우선 정렬
+    offsetX = Math.max(0, Math.round(rotatedW - cropW));
+    offsetY = Math.max(0, Math.round((rotatedH - cropH) / 2));
+  } else if (normRot === 180) {
+    // 180도 회전: 원본 상단이 하단으로 가므로 하단 우선 정렬
+    offsetX = Math.max(0, Math.round((rotatedW - cropW) / 2));
+    offsetY = Math.max(0, Math.round(rotatedH - cropH));
+  } else if (normRot === 270) {
+    // 왼쪽 90도(270도) 회전: 원본 상단이 좌측으로 가므로 좌측 우선 정렬
+    offsetX = 0;
+    offsetY = Math.max(0, Math.round((rotatedH - cropH) / 2));
+  }
+
+  const finalCanvas = document.createElement('canvas');
+  finalCanvas.width = Math.max(1, cropW);
+  finalCanvas.height = Math.max(1, cropH);
+  const finalCtx = finalCanvas.getContext('2d');
+  if (!finalCtx) return rotCanvas.toDataURL('image/jpeg', 0.95);
+
+  finalCtx.imageSmoothingEnabled = true;
+  finalCtx.imageSmoothingQuality = 'high';
+  finalCtx.drawImage(
+    rotCanvas,
+    offsetX,
+    offsetY,
+    cropW,
+    cropH,
+    0,
+    0,
+    cropW,
+    cropH
+  );
+
+  return finalCanvas.toDataURL('image/jpeg', 0.95);
 }
 
 const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
@@ -177,7 +247,9 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
     }
     return null;
   });
+  const isPostAudioMuted = Boolean(post.isAudioMuted);
   const [isMuted, setIsMuted] = useState<boolean>(true);
+  const effectiveMuted = isPostAudioMuted || isMuted;
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [showPlayIcon, setShowPlayIcon] = useState<boolean>(false);
   const [posterSrc, setPosterSrc] = useState<string | null>(post.poster || null);
@@ -207,9 +279,9 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
               } else {
                 getMedia(String(post.id)).then(blob => {
                   if (blob) uploadVideoToCloud(String(post.id), blob).catch(console.warn);
-                }).catch(() => {});
+                }).catch(() => { });
               }
-            } catch (e) {}
+            } catch (e) { }
           }
 
           extractPosterFromVideo(playable).then(p => {
@@ -217,7 +289,7 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
               setPosterSrc(p);
               post.poster = p;
             }
-          }).catch(() => {});
+          }).catch(() => { });
         } else if (post.isVideo) {
           retryTimer = setTimeout(attemptLoad, 3000);
         }
@@ -233,7 +305,7 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
         if (b) {
           uploadVideoToCloud(String(post.id), b).catch(console.warn);
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     return () => {
@@ -245,11 +317,11 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
   // Ensure DOM video muted property is set immediately on mount (fixes mobile browser autoplay policy)
   useEffect(() => {
     if (videoRef.current) {
-      videoRef.current.muted = isMuted;
-      videoRef.current.defaultMuted = true;
+      videoRef.current.muted = effectiveMuted;
+      videoRef.current.defaultMuted = effectiveMuted;
       (videoRef.current as any).playsInline = true;
     }
-  }, [videoSrc, isMuted]);
+  }, [videoSrc, effectiveMuted]);
 
   // Viewport IntersectionObserver: auto-play video when in view, pause when scrolled away
   useEffect(() => {
@@ -262,8 +334,8 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
         if (!video) return;
 
         if (entry.isIntersecting && entry.intersectionRatio >= 0.4) {
-          video.muted = isMuted;
-          video.defaultMuted = true;
+          video.muted = effectiveMuted;
+          video.defaultMuted = effectiveMuted;
           const playPromise = video.play();
           if (playPromise !== undefined) {
             playPromise.then(() => {
@@ -271,6 +343,7 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
             }).catch(() => {
               // Browser may require user interaction for unmuted, retry muted
               video.muted = true;
+              setIsMuted(true);
               video.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
             });
           }
@@ -283,7 +356,7 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
 
     observer.observe(container);
     return () => observer.disconnect();
-  }, [videoSrc, isMuted]);
+  }, [videoSrc, effectiveMuted]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -323,22 +396,24 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
   // Media transform style to guarantee 100% full coverage without black margins
   const mediaStyle: React.CSSProperties = isSwap && containerDim.w > 0 && containerDim.h > 0
     ? {
-        position: 'absolute',
-        top: '50%',
-        left: '50%',
-        width: `${containerDim.h}px`,
-        height: `${containerDim.w}px`,
-        transform: `translate(-50%, -50%) rotate(${normRot}deg)`,
-        objectFit: 'cover',
-        display: 'block'
-      }
+      position: 'absolute',
+      top: '50%',
+      left: '50%',
+      width: `${containerDim.h}px`,
+      height: `${containerDim.w}px`,
+      transform: `translate(-50%, -50%) rotate(${normRot}deg)`,
+      objectFit: 'cover',
+      objectPosition: normRot === 90 ? 'center right' : normRot === 270 ? 'center left' : 'center',
+      display: 'block'
+    }
     : {
-        width: '100%',
-        height: '100%',
-        objectFit: 'cover',
-        transform: normRot ? `rotate(${normRot}deg)` : undefined,
-        display: 'block'
-      };
+      width: '100%',
+      height: '100%',
+      objectFit: 'cover',
+      objectPosition: normRot === 180 ? 'bottom center' : 'top center',
+      transform: normRot ? `rotate(${normRot}deg)` : undefined,
+      display: 'block'
+    };
 
   const handleTogglePlay = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -346,7 +421,7 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
     if (!video) return;
 
     if (video.paused) {
-      video.muted = isMuted;
+      video.muted = effectiveMuted;
       video.play().then(() => {
         setIsPlaying(true);
         setShowPlayIcon(true);
@@ -389,14 +464,20 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
           poster={posterSrc || undefined}
           autoPlay
           loop
-          muted={isMuted}
+          muted={effectiveMuted}
           playsInline
           className="snaps-feed-media"
           style={mediaStyle}
           onLoadedMetadata={(e) => {
             const v = e.currentTarget;
+            if (isPostAudioMuted) v.muted = true;
             if (v.videoWidth && v.videoHeight) {
               setNaturalAspect(v.videoWidth / v.videoHeight);
+            }
+          }}
+          onVolumeChange={(e) => {
+            if (isPostAudioMuted && !e.currentTarget.muted) {
+              e.currentTarget.muted = true;
             }
           }}
           onPlay={() => setIsPlaying(true)}
@@ -424,9 +505,23 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
           type="button"
           onClick={(e) => {
             e.stopPropagation();
+            if (isPostAudioMuted) {
+              if (videoRef.current) {
+                videoRef.current.muted = true;
+                videoRef.current.defaultMuted = true;
+              }
+              setIsMuted(true);
+              return;
+            }
             const nextMuted = !isMuted;
             setIsMuted(nextMuted);
-            if (videoRef.current) videoRef.current.muted = nextMuted;
+            if (videoRef.current) {
+              videoRef.current.muted = nextMuted;
+              videoRef.current.defaultMuted = nextMuted;
+              if (!nextMuted && videoRef.current.paused) {
+                videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+              }
+            }
           }}
           style={{
             position: 'absolute',
@@ -444,11 +539,12 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
             color: '#fff',
             zIndex: 10,
             boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
-            cursor: 'pointer'
+            cursor: isPostAudioMuted ? 'default' : 'pointer',
+            opacity: isPostAudioMuted ? 0.55 : 1
           }}
-          title={isMuted ? '음소거 해제' : '음소거'}
+          title={isPostAudioMuted ? '소리 없는 영상' : (effectiveMuted ? '음소거 해제' : '음소거')}
         >
-          {isMuted ? <VolumeX size={17} /> : <Volume2 size={17} />}
+          {effectiveMuted ? <VolumeX size={17} /> : <Volume2 size={17} />}
         </button>
       )}
 
@@ -482,6 +578,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const commentImageInputRef = React.useRef<HTMLInputElement>(null);
   const [localFeedDraft, setLocalFeedDraft] = useState<any | null>(null);
+  const [isDraftVideoMuted, setIsDraftVideoMuted] = useState<boolean>(false);
   const feedDraft = propSnapsDraft || propFeedDraft || localFeedDraft;
 
   const handleCommentImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -584,31 +681,84 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
 
   const myDog = petOptions[0] || null;
 
-  // 게시물이 현재 사용자의 게시물인지 검증하는 오너십 판정 함수
+  // 내가 작성한 로컬 게시물 ID 집합 조회 (공용 피드 캐시는 절대 포함하지 않음)
+  const getMyPostIds = (): Set<string> => {
+    const ids = new Set<string>();
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.MY_POST_IDS);
+      if (saved) JSON.parse(saved).forEach((id: any) => ids.add(String(id)));
+    } catch (e) { }
+    return ids;
+  };
+
+  // 게시물이 현재 사용자의 게시물인지 검증하는 오너십 판정 함수 (반려견 이름 변경/다견 가정 완벽 지원)
   const checkIsMyPost = React.useCallback((post: any): boolean => {
     if (!post) return false;
-    const currentUserId = auth.currentUser?.uid || '';
+    const currentUserId = auth.currentUser?.uid || localStorage.getItem('walwal_user_id') || '';
     const currentUserEmail = (auth.currentUser?.email || localStorage.getItem('WALWAL_USER_EMAIL') || localStorage.getItem('walwal_user_email') || '').toLowerCase().trim();
 
-    // 1. 게시물 작성자의 email이나 uid가 일치하면 본인 게시물
-    const postEmail = (post.userEmail || post.authorEmail || '').toLowerCase().trim();
-    if (postEmail && currentUserEmail && postEmail === currentUserEmail) return true;
+    // 1. 내 브라우저에서 직접 작성하여 등록된 글 ID인 경우
+    const myIds = getMyPostIds();
+    if (post.id && myIds.has(String(post.id))) return true;
 
-    const postUid = post.userId || post.authorId || '';
-    if (postUid && currentUserId && postUid === currentUserId) return true;
-
-    // 2. 내 계정에 등록된 반려견이 0마리면 타인 게시물의 소유자가 될 수 없음
-    if (!petOptions || petOptions.length === 0) return false;
-
-    // 3. 내 등록 반려견과 이름 매칭 확인
-    const matchesPet = petOptions.some((p: any) => isSameDogName(p.name, post.name));
-    if (matchesPet) {
-      // 시스템 기본 강아지(보리, 딸기 등)는 daisynara 계정만 본인 글로 인정
-      if (isSameDogName(post.name, '보리') || isSameDogName(post.name, 'Bori') || isSameDogName(post.name, '딸기') || isSameDogName(post.name, 'Strawberry')) {
-        return currentUserEmail.includes('daisynara');
+    // 2. 작성자 계정(email/uid)과 현재 로그인 계정 일치 검증
+    const postEmail = (post.userEmail || post.ownerEmail || post.authorEmail || '').toLowerCase().trim();
+    if (postEmail && currentUserEmail && postEmail === currentUserEmail) {
+      // 내 이메일로 작성된 글이더라도 현재 등록된 내 반려견 또는 과거 이름과 매칭되는지 확인
+      if (petOptions && petOptions.length > 0) {
+        const matchesPet = petOptions.some((p: any) =>
+          (post.petId && p.id === post.petId) ||
+          (post.dogId && p.id === post.dogId) ||
+          isSameDogName(p.name, post.name) ||
+          isSameDogName(p.ownerName, post.ownerName)
+        );
+        if (matchesPet) return true;
+        try {
+          const historicNames = JSON.parse(localStorage.getItem('WALWAL_HISTORIC_PET_NAMES') || '[]');
+          if (historicNames.some((hn: string) => isSameDogName(hn, post.name))) return true;
+        } catch (e) { }
+        return false;
       }
       return true;
     }
+
+    const postUid = post.userId || post.ownerId || post.authorId || '';
+    if (postUid && currentUserId && postUid === currentUserId && currentUserId !== 'guest_user') {
+      if (petOptions && petOptions.length > 0) {
+        const matchesPet = petOptions.some((p: any) =>
+          (post.petId && p.id === post.petId) ||
+          (post.dogId && p.id === post.dogId) ||
+          isSameDogName(p.name, post.name)
+        );
+        if (matchesPet) return true;
+        try {
+          const historicNames = JSON.parse(localStorage.getItem('WALWAL_HISTORIC_PET_NAMES') || '[]');
+          if (historicNames.some((hn: string) => isSameDogName(hn, post.name))) return true;
+        } catch (e) { }
+        return false;
+      }
+      return true;
+    }
+
+    // 3. 타인의 소유자 정보가 명시되어 있다면 타인의 글임
+    if (postEmail && currentUserEmail && postEmail !== currentUserEmail) return false;
+    if (postUid && currentUserId && postUid !== currentUserId && postUid !== 'guest_user' && currentUserId !== 'guest_user') return false;
+
+    // 4. 반려견 매칭 (반려견 ID 일치 혹은 현재 등록된 내 반려견 이름 중 하나와 일치)
+    if (petOptions && petOptions.length > 0) {
+      const matchesPet = petOptions.some((p: any) =>
+        (post.petId && p.id === post.petId) ||
+        (post.dogId && p.id === post.dogId) ||
+        isSameDogName(p.name, post.name)
+      );
+      if (matchesPet) return true;
+    }
+
+    // 5. 사용자가 이름을 바꾸기 전 과거 이름 목록(WALWAL_HISTORIC_PET_NAMES)과 매칭
+    try {
+      const historicNames = JSON.parse(localStorage.getItem('WALWAL_HISTORIC_PET_NAMES') || '[]');
+      if (historicNames.some((hn: string) => isSameDogName(hn, post.name))) return true;
+    } catch (e) { }
 
     return false;
   }, [petOptions]);
@@ -644,16 +794,12 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
     if (id === 'test_post_1791081404195') return true;
     const name = (p.name || p.dog?.name || '').trim();
     if (name === 'Test Dog') return true;
-    // Stale dummy posts from early mock tests
-    if ((name === '보리' || name === 'Bori' || name === 'ボリ') && id !== 'post_1792315865476') {
-      return true;
-    }
     return false;
   };
 
   const getDeletedPostIds = (): Set<string> => {
     try {
-      const saved = localStorage.getItem('WALWAL_DELETED_POST_IDS');
+      const saved = localStorage.getItem(STORAGE_KEYS.DELETED_POST_IDS);
       const ids: any[] = saved ? JSON.parse(saved) : [];
       return new Set(['test_post_1791081404195', ...ids.map(String)]);
     } catch (e) {
@@ -667,7 +813,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
       const strId = String(id);
       if (!current.includes(strId)) {
         current.push(strId);
-        localStorage.setItem('WALWAL_DELETED_POST_IDS', JSON.stringify(current));
+        localStorage.setItem(STORAGE_KEYS.DELETED_POST_IDS, JSON.stringify(current));
       }
     } catch (e) { }
   };
@@ -691,9 +837,11 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
     window.addEventListener('walwal_feed_updated', handleFeedUpdate);
     window.addEventListener('storage', handleFeedUpdate);
 
+
+
     let unsubscribe: any = null;
     try {
-      unsubscribe = onSnapshot(collection(db, 'posts'), (querySnapshot) => {
+      unsubscribe = onSnapshot(collection(db, COLLECTIONS.POSTS), (querySnapshot) => {
         try {
           const deletedIds = getDeletedPostIds();
 
@@ -717,7 +865,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
           querySnapshot.forEach(docSnap => {
             if (deletedIds.has(String(docSnap.id))) return;
             const data = docSnap.data();
-            if (isMockDummyPost({ ...data, id: docSnap.id })) return;
+            if (data?.isDeleted || isMockDummyPost({ ...data, id: docSnap.id })) return;
 
             const isMine = checkIsMyPost({ ...data, id: docSnap.id });
             let createdAt = data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || data.clientCreatedAt);
@@ -735,67 +883,85 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
             });
           });
 
-          remotePosts.sort((a, b) => getPostTime(b) - getPostTime(a));
-
-          let localPosts: any[] = [];
+          // Preserve and auto-upload any unsynced local posts (e.g. created on PWA while Firestore auth was offline)
           try {
-            const saved = localStorage.getItem('WALWAL_USER_SNAPS_POSTS') || localStorage.getItem('WALWAL_USER_FEED_POSTS');
-            if (saved) localPosts = JSON.parse(saved);
-            localPosts = localPosts.filter((p: any) => p && !deletedIds.has(String(p.id)) && !isMockDummyPost(p));
-          } catch (lsErr) { }
+            const savedLocal = localStorage.getItem(STORAGE_KEYS.SNAPS_POSTS) || localStorage.getItem(STORAGE_KEYS.FEED_POSTS);
+            if (savedLocal) {
+              const localList = JSON.parse(savedLocal);
+              if (Array.isArray(localList)) {
+                localList.forEach((lp: any) => {
+                  if (!lp || !lp.id || deletedIds.has(String(lp.id)) || lp.isDeleted || isMockDummyPost(lp)) return;
+                  const existsRemote = remotePosts.some(rp => String(rp.id) === String(lp.id));
+                  if (!existsRemote) {
+                    remotePosts.push({
+                      ...lp,
+                      isMine: checkIsMyPost(lp),
+                      createdAt: lp.createdAt || lp.clientCreatedAt || new Date().toISOString()
+                    });
+                    // Upload missing local post & media to Cloud Firestore
+                    (async () => {
+                      try {
+                        let feedImageToSave = lp.isVideo ? `indexeddb:${lp.id}` : (lp.feedImage || lp.poster || '');
+                        let posterToSave = lp.poster || (!lp.isVideo ? lp.feedImage : '') || '';
+                        if ((!feedImageToSave || feedImageToSave.startsWith('blob:')) && !lp.isVideo) {
+                          const mediaBlob = await getMedia(String(lp.id)).catch(() => null);
+                          if (mediaBlob) {
+                            const dataUrl = await new Promise<string>((res) => {
+                              const reader = new FileReader();
+                              reader.onloadend = () => res(String(reader.result || ''));
+                              reader.onerror = () => res('');
+                              reader.readAsDataURL(mediaBlob);
+                            });
+                            if (dataUrl) {
+                              const compressed = await compressImageForFirestore(dataUrl).catch(() => dataUrl);
+                              feedImageToSave = compressed;
+                              posterToSave = compressed;
+                            }
+                          }
+                        }
+                        const cleanPost = cleanForFirestore({
+                          ...lp,
+                          feedImage: feedImageToSave,
+                          poster: posterToSave || lp.avatar || '',
+                          createdAt: null
+                        });
+                        delete cleanPost.createdAt;
+                        await setDoc(doc(db, COLLECTIONS.POSTS, String(lp.id)), {
+                          ...cleanPost,
+                          createdAt: lp.clientCreatedAt || lp.createdAt || serverTimestamp()
+                        }, { merge: true });
 
-          const remoteIds = new Set(remotePosts.map(p => String(p.id)));
-          const pendingLocalPosts = localPosts.filter((lp: any) =>
-            lp && lp.id && !remoteIds.has(String(lp.id)) && !deletedIds.has(String(lp.id)) && !isMockDummyPost(lp)
-          );
-
-          // Merge local posts with remote Firestore posts
-          const mergedPosts = [...pendingLocalPosts, ...remotePosts];
-          mergedPosts.sort((a, b) => getPostTime(b) - getPostTime(a));
-
-          // Automatically sync pending local posts to Firestore so other devices/PWAs can see them
-          if (pendingLocalPosts.length > 0) {
-            pendingLocalPosts.forEach(async (lp) => {
-              try {
-                const postId = String(lp.id);
-                const sanitized = cleanForFirestore({
-                  ...lp,
-                  createdAt: null
-                });
-                delete sanitized.createdAt;
-
-                await setDoc(doc(db, 'posts', postId), {
-                  ...sanitized,
-                  createdAt: lp.createdAt ? new Date(lp.createdAt) : serverTimestamp()
-                }, { merge: true });
-                console.log('Successfully synced pending local post to Firestore:', postId, lp.name);
-
-                if (lp.isVideo) {
-                  try {
-                    const blob = await getMedia(postId);
-                    if (blob) {
-                      uploadVideoToCloud(postId, blob).catch(console.warn);
-                    }
-                  } catch (vidErr) {
-                    console.warn('Failed to upload video for pending post:', vidErr);
+                        if (lp.isVideo) {
+                          const vBlob = blobCache.get(lp.id) || await getMedia(String(lp.id)).catch(() => null);
+                          if (vBlob) {
+                            await uploadVideoToCloud(String(lp.id), vBlob);
+                          }
+                        }
+                      } catch (syncErr) {
+                        console.warn('Auto-sync local post to Firestore error:', syncErr);
+                      }
+                    })();
                   }
-                }
-              } catch (syncErr) {
-                console.warn('Failed to sync pending local post to Firestore:', syncErr);
+                });
               }
-            });
+            }
+          } catch (mergeErr) {
+            console.warn('Local post merge check error:', mergeErr);
           }
 
+          remotePosts.sort((a, b) => getPostTime(b) - getPostTime(a));
+
+          // Update local cache with latest Firestore remotePosts (Single Source of Truth)
           try {
-            const lightPosts = mergedPosts.slice(0, 50).map(p => ({
+            const lightPosts = remotePosts.slice(0, 50).map(p => ({
               ...p,
               feedImage: (typeof p.feedImage === 'string' && p.feedImage.length > 50000 && p.poster) ? p.poster : p.feedImage
             }));
-            localStorage.setItem('WALWAL_USER_SNAPS_POSTS', JSON.stringify(lightPosts));
-            localStorage.setItem('WALWAL_USER_FEED_POSTS', JSON.stringify(lightPosts));
+            localStorage.setItem(STORAGE_KEYS.SNAPS_POSTS, JSON.stringify(lightPosts));
+            localStorage.setItem(STORAGE_KEYS.FEED_POSTS, JSON.stringify(lightPosts));
           } catch (lsErr) { }
 
-          loadPostsWithMedia(mergedPosts);
+          loadPostsWithMedia(remotePosts);
         } catch (snapErr) {
           console.error('Error handling Firestore onSnapshot:', snapErr);
           loadLocal();
@@ -844,13 +1010,15 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
       try {
         const savedLiked = localStorage.getItem('WALWAL_LIKED_POST_IDS');
         if (savedLiked) myLikedPostIds = new Set(JSON.parse(savedLiked).map(String));
-      } catch (e) {}
+      } catch (e) { }
 
       for (let i = 0; i < processedPosts.length; i++) {
         const post = processedPosts[i];
         // 1. Single source of truth: likes and comments come directly from Firestore
         post.likes = typeof post.likes === 'number' ? post.likes : (interactions[post.id]?.likes || 0);
-        post.comments = Array.isArray(post.comments) ? post.comments : (Array.isArray(interactions[post.id]?.comments) ? interactions[post.id].comments : []);
+        const remoteComms = Array.isArray(post.comments) ? post.comments : [];
+        const localComms = Array.isArray(interactions[post.id]?.comments) ? interactions[post.id].comments : [];
+        post.comments = deduplicateComments(remoteComms.length >= localComms.length ? remoteComms : localComms);
         post.liked = myLikedPostIds.has(String(post.id)) || Boolean(interactions[post.id]?.liked);
         if (interactions[post.id]?.shares !== undefined) post.shares = interactions[post.id].shares;
 
@@ -922,15 +1090,15 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
     const deletedIds = getDeletedPostIds();
     let localPosts: any[] = [];
     try {
-      const saved = localStorage.getItem('WALWAL_USER_SNAPS_POSTS') || localStorage.getItem('WALWAL_USER_FEED_POSTS');
+      const saved = localStorage.getItem(STORAGE_KEYS.SNAPS_POSTS) || localStorage.getItem(STORAGE_KEYS.FEED_POSTS);
       if (saved) localPosts = JSON.parse(saved);
       localPosts = localPosts.filter((p: any) => p && !deletedIds.has(String(p.id)) && !isMockDummyPost(p));
       try {
-        localStorage.setItem('WALWAL_USER_SNAPS_POSTS', JSON.stringify(localPosts));
-        localStorage.setItem('WALWAL_USER_FEED_POSTS', JSON.stringify(localPosts));
-      } catch (e) {}
+        localStorage.setItem(STORAGE_KEYS.SNAPS_POSTS, JSON.stringify(localPosts));
+        localStorage.setItem(STORAGE_KEYS.FEED_POSTS, JSON.stringify(localPosts));
+      } catch (e) { }
     } catch (e) {
-      console.error('Failed to load WALWAL_USER_SNAPS_POSTS:', e);
+      console.error('Failed to load local snaps posts:', e);
       localPosts = [];
     }
 
@@ -943,6 +1111,8 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
   const [modalCommentImage, setModalCommentImage] = useState<string | null>(null);
   const [replyingToComment, setReplyingToComment] = useState<{ id: number; author: string } | null>(null);
   const commentInputRef = useRef<HTMLInputElement>(null);
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const isSubmittingCommentRef = useRef(false);
   const activeCommentPost = feedPosts.find(p => String(p.id) === String(activeCommentPostId));
   const [draftText, setDraftText] = useState('');
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
@@ -978,6 +1148,16 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
 
   const handleToggleFollow = (authorKey: string) => {
     if (!authorKey) return;
+    try {
+      const myPetsStr = localStorage.getItem('WALWAL_PETS');
+      if (myPetsStr) {
+        const pets = JSON.parse(myPetsStr);
+        if (Array.isArray(pets) && pets.some((p: any) => p?.name && (p.name.trim() === authorKey.trim()))) {
+          showToast(language === 'ko' ? '내 반려견은 팔로우할 수 없습니다.' : 'You cannot follow your own dog.');
+          return;
+        }
+      }
+    } catch (e) { }
     setFollowedUsers(prev => {
       const isFollowed = prev.includes(authorKey);
       const updated = isFollowed
@@ -1017,17 +1197,18 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
       const updated = isBookmarked ? prev.map(String).filter(id => id !== targetId) : [...prev.map(String), targetId];
       try {
         localStorage.setItem('WALWAL_BOOKMARKED_POST_IDS', JSON.stringify(updated));
+        window.dispatchEvent(new CustomEvent('walwal_bookmarked_updated', { detail: updated.length }));
       } catch (e) { }
       showToast(
         isBookmarked
           ? (language === 'ko' ? '게시물 저장이 취소되었습니다.' : language === 'ja' ? '保存を取り消しました。' : 'Post unsaved.')
-          : (language === 'ko' ? '게시물이 저장되었습니다! 📌 (상단 북마크 아이콘에서 확인)' : language === 'ja' ? '投稿を保存しました！📌' : 'Post saved! 📌')
+          : (language === 'ko' ? '게시물이 저장되었습니다! (설정 및 활동 > 내 활동에서 확인)' : language === 'ja' ? '投稿を保存しました！(設定とアクティビティで確認)' : 'Post saved! (Check in Settings & Activity)')
       );
       return updated;
     });
   };
 
-  // 피드 탭 재클릭 시 최상단(최신 피드)으로 초기화
+  // 피드 탭 재클릭 시 최상단(최신 피드)으로 초기화 및 외부 저장된 게시물 보기 이벤트 수신
   useEffect(() => {
     const handleResetTop = () => {
       setSelectedFeedPostId(null);
@@ -1037,11 +1218,22 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
         scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
       }
     };
+    const handleViewSaved = () => {
+      setShowBookmarkedOnly(true);
+      setViewMode('feed');
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    };
     window.addEventListener('walwal_reset_snaps_top', handleResetTop);
-    return () => window.removeEventListener('walwal_reset_snaps_top', handleResetTop);
+    window.addEventListener('walwal_view_saved_snaps', handleViewSaved);
+    return () => {
+      window.removeEventListener('walwal_reset_snaps_top', handleResetTop);
+      window.removeEventListener('walwal_view_saved_snaps', handleViewSaved);
+    };
   }, []);
 
-  // 피드 드롭다운 메뉴 바깥 영역 클릭 및 스크롤/터치 이동 시 즉시 닫기 (스크롤 방해 원천 차단)
+  // 피드 바텀시트 메뉴 바깥 영역 클릭 시 닫기
   useEffect(() => {
     if (!activeFeedMenuId) return;
     const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
@@ -1050,20 +1242,11 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
         setActiveFeedMenuId(null);
       }
     };
-    const handleScrollOrMove = () => {
-      setActiveFeedMenuId(null);
-    };
     document.addEventListener('mousedown', handleOutsideClick);
     document.addEventListener('touchstart', handleOutsideClick, { passive: true });
-    window.addEventListener('scroll', handleScrollOrMove, true);
-    window.addEventListener('touchmove', handleScrollOrMove, { passive: true });
-    window.addEventListener('wheel', handleScrollOrMove, { passive: true });
     return () => {
       document.removeEventListener('mousedown', handleOutsideClick);
       document.removeEventListener('touchstart', handleOutsideClick);
-      window.removeEventListener('scroll', handleScrollOrMove, true);
-      window.removeEventListener('touchmove', handleScrollOrMove);
-      window.removeEventListener('wheel', handleScrollOrMove);
     };
   }, [activeFeedMenuId]);
 
@@ -1268,7 +1451,9 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
   const [activeMenuPostId, setActiveMenuPostId] = useState<string | null>(null);
   const [editingPost, setEditingPost] = useState<any | null>(null);
   const [editText, setEditText] = useState<string>('');
+  const [editSelectedPetId, setEditSelectedPetId] = useState<string>('');
   const [profileModalDog, setProfileModalDog] = useState<any | null>(null);
+  const [ownerNoteTarget, setOwnerNoteTarget] = useState<any | null>(null);
   const [reportTarget, setReportTarget] = useState<ReportModalTarget | null>(null);
   const [blockedVersion, setBlockedVersion] = useState(0);
 
@@ -1299,8 +1484,18 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
   }, [activeMenuPostId]);
 
   // 강아지 프로필 조회: 사용자가 저장한 WALWAL_PETS 데이터에서 직접 로드
-  const findDogProfile = (dogName: string, fallbackAvatar?: string) => {
-    const cleanName = dogName.trim();
+  const findDogProfile = (dogName: string, fallbackAvatar?: string, post?: any) => {
+    const cleanName = (dogName || '').trim();
+    const isMine = post ? checkIsMyPost(post) : (
+      petOptions.some(p => isSameDogName(p.name, cleanName)) ||
+      (() => {
+        try {
+          const saved = localStorage.getItem('WALWAL_PETS');
+          if (saved) return JSON.parse(saved).some((p: any) => isSameDogName(p.name, cleanName));
+        } catch (e) { }
+        return false;
+      })()
+    );
 
     // 1. 최우선: 사용자가 저장/수정한 실제 반려견 데이터 (localStorage 'WALWAL_PETS')
     try {
@@ -1312,12 +1507,17 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
           const mock = getMockDogs(language).find(m => isSameDogName(m.name, found.name));
           const dbAvatar = found.avatar || mock?.avatar || getDefaultDogAvatar(found.name || found.breed);
           return {
+            id: found.id || mock?.id,
             name: found.name,
-            breed: found.breed,
-            age: found.age ? String(found.age).replace(/[^0-9]/g, '') : '1',
+            breed: found.breed || mock?.breed || '반려견',
+            age: found.age ? String(found.age).replace(/[^0-9]/g, '') : (mock?.age || '2'),
             gender: found.gender || mock?.gender || 'male',
             avatar: dbAvatar,
-            personality: found.personality || found.tags || mock?.personality || ['#댕댕이']
+            personality: found.personality || found.tags || mock?.personality || ['#파워인싸', '#모든인간은내친구', '#간식감별사'],
+            greeting: found.greeting || (mock as any)?.greeting || found.recentThought || mock?.recentThought || '산책하고싶어요',
+            recentThought: post?.recentThought || found.recentThought || mock?.recentThought,
+            isMyDog: true,
+            ownerName: found.ownerName || mock?.ownerName || '견주'
           };
         }
       }
@@ -1326,43 +1526,85 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
     // 2. 현재 상태의 petOptions
     const foundInOptions = petOptions.find(p => isSameDogName(p.name, cleanName));
     if (foundInOptions) {
+      const mock = getMockDogs(language).find(m => isSameDogName(m.name, cleanName));
       return {
+        id: foundInOptions.id || mock?.id,
         name: foundInOptions.name,
-        breed: foundInOptions.breed,
-        age: foundInOptions.age,
-        gender: foundInOptions.gender || 'male',
+        breed: foundInOptions.breed || mock?.breed || '반려견',
+        age: foundInOptions.age || mock?.age || '2',
+        gender: foundInOptions.gender || mock?.gender || 'male',
         avatar: foundInOptions.avatar || getDefaultDogAvatar(foundInOptions.name || foundInOptions.breed),
-        personality: foundInOptions.personality || ['#댕댕이']
+        personality: foundInOptions.personality || mock?.personality || ['#파워인싸', '#모든인간은내친구', '#간식감별사'],
+        greeting: (foundInOptions as any)?.greeting || (mock as any)?.greeting || (foundInOptions as any)?.recentThought || mock?.recentThought || '산책하고싶어요',
+        recentThought: post?.recentThought || (foundInOptions as any)?.recentThought || mock?.recentThought,
+        isMyDog: true,
+        ownerName: foundInOptions.ownerName || mock?.ownerName || '견주'
       };
     }
 
-    // 3. 목 데이터 (mockDogs.ts)
+    // 3. 전체 등록 강아지 캐시 (WALWAL_ALL_DOGS)
+    try {
+      const savedAll = localStorage.getItem('WALWAL_ALL_DOGS');
+      if (savedAll) {
+        const allDogs = JSON.parse(savedAll);
+        if (Array.isArray(allDogs)) {
+          const found = allDogs.find((p: any) => isSameDogName(p.name, cleanName));
+          if (found) {
+            return {
+              id: found.id,
+              name: found.name,
+              breed: found.breed || '반려견',
+              age: found.age ? String(found.age).replace(/[^0-9]/g, '') : '1',
+              gender: found.gender || 'male',
+              avatar: found.avatar || fallbackAvatar || getDefaultDogAvatar(cleanName),
+              personality: Array.isArray(found.personality) && found.personality.length > 0 ? found.personality : ['#산책러버', '#댕댕이'],
+              greeting: found.greeting || '안녕하세요! 함께 신나게 산책해요 🐶',
+              recentThought: found.recentThought || post?.recentThought,
+              isMyDog: isMine,
+              ownerName: found.ownerName || '보호자'
+            };
+          }
+        }
+      }
+    } catch (e) { }
+
+    // 4. 목 데이터 (mockDogs.ts)
     const mockList = getMockDogs(language);
     const foundInMock = mockList.find(m => isSameDogName(m.name, cleanName));
     if (foundInMock) {
       return {
+        id: foundInMock.id,
         name: foundInMock.name,
         breed: foundInMock.breed,
         age: foundInMock.age,
         gender: foundInMock.gender || 'male',
         avatar: foundInMock.avatar || getDefaultDogAvatar(foundInMock.name || foundInMock.breed),
-        personality: foundInMock.personality || ['#댕댕이']
+        personality: foundInMock.personality || ['#파워인싸', '#모든인간은내친구', '#간식감별사'],
+        greeting: (foundInMock as any).greeting || '안녕하세요! 함께 신나게 산책해요 🐶',
+        recentThought: post?.recentThought || foundInMock.recentThought,
+        isMyDog: isMine,
+        ownerName: foundInMock.ownerName || post?.ownerName || '견주'
       };
     }
 
-    // 4. 미등록 일반 강아지 폴백 (견종/이름에 맞는 기본 아바타)
+    // 5. 일반 강아지 폴백 (피드 post 데이터 기반)
     return {
-      name: cleanName,
-      breed: '반려견',
-      age: '1',
-      gender: 'male',
-      avatar: fallbackAvatar || getDefaultDogAvatar(cleanName),
-      personality: ['#댕댕이']
+      id: post?.id || `dog_${cleanName}`,
+      name: cleanName || '반려견',
+      breed: post?.breed || '말티즈',
+      age: post?.age || '1',
+      gender: post?.gender || 'female',
+      avatar: fallbackAvatar || post?.avatar || getDefaultDogAvatar(cleanName),
+      personality: post?.personality || ['#산책러버', '#댕댕이'],
+      greeting: post?.greeting || '안녕하세요! 함께 신나게 산책해요 🐶',
+      recentThought: post?.recentThought || post?.caption,
+      isMyDog: isMine,
+      ownerName: post?.ownerName || '견주'
     };
   };
 
-  const handleOpenDogProfile = (dogName: string, fallbackAvatar?: string) => {
-    setProfileModalDog(findDogProfile(dogName, fallbackAvatar));
+  const handleOpenDogProfile = (dogName: string, fallbackAvatar?: string, post?: any) => {
+    setProfileModalDog(findDogProfile(dogName, fallbackAvatar, post));
   };
 
   const renderAuthorProfile = (post: any) => {
@@ -1374,7 +1616,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
           {parts.map((part: string, index: number) => {
             const cleanName = part.trim();
             // 각 강아지 아바타는 DB에서 1:1로 직접 로드 (첫 번째 강아지 아바타로 덮어쓰기 방지)
-            const dog = findDogProfile(cleanName);
+            const dog = findDogProfile(cleanName, undefined, post);
             return (
               <React.Fragment key={index}>
                 <div
@@ -1418,7 +1660,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
     }
 
     // 단독견
-    const singleDog = findDogProfile(postName, post.avatar);
+    const singleDog = findDogProfile(postName, post.avatar, post);
     return (
       <div
         onClick={(e) => {
@@ -1486,6 +1728,24 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
   const [editCropRatio, setEditCropRatio] = useState<'original' | '1:1' | '9:16' | '16:9'>('original');
   const [processedImage, setProcessedImage] = useState<string | null>(null);
   const baseOriginalImageRef = React.useRef<string | null>(null);
+  const draftCropContainerRef = React.useRef<HTMLDivElement>(null);
+  const [draftCropDim, setDraftCropDim] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+
+  useEffect(() => {
+    if (!draftCropContainerRef.current) return;
+    const updateDim = () => {
+      if (draftCropContainerRef.current) {
+        setDraftCropDim({
+          w: draftCropContainerRef.current.clientWidth,
+          h: draftCropContainerRef.current.clientHeight
+        });
+      }
+    };
+    updateDim();
+    const ro = new ResizeObserver(updateDim);
+    ro.observe(draftCropContainerRef.current);
+    return () => ro.disconnect();
+  }, [feedDraft?.image, editCropRatio, editRotation]);
 
   useEffect(() => {
     if (feedDraft?.image && feedDraft.image !== baseOriginalImageRef.current) {
@@ -1493,6 +1753,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
       setEditRotation(0);
       setEditCropRatio('original');
       setProcessedImage(null);
+      setIsDraftVideoMuted(localStorage.getItem('WALWAL_PERM_MIC') === 'false');
     }
   }, [feedDraft?.image]);
 
@@ -1594,13 +1855,14 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
     let targetSrc = displayImage || feedDraft?.image;
     if (!targetSrc) return '';
 
-    if (isVideo && (editRotation !== 0 || editCropRatio !== 'original') && feedDraft?.image) {
+    if (isVideo && (editRotation !== 0 || editCropRatio !== 'original' || isDraftVideoMuted) && feedDraft?.image) {
       try {
         const tr = await rotateAndCropVideoBlob(
           feedDraft.image,
           blobCache.get(feedDraft.image) || null,
           editRotation,
-          editCropRatio
+          editCropRatio,
+          isDraftVideoMuted
         );
         if (tr.videoBlob) {
           const rotatedUrl = URL.createObjectURL(tr.videoBlob);
@@ -1873,12 +2135,29 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
 
       const compressedPoster = await compressImageForFirestore(posterDataUrl).catch(() => posterDataUrl);
 
+      const shouldMuteVideo = isPostVideo && Boolean(isDraftVideoMuted);
+
       // Save media to IndexedDB & background upload (non-blocking)
       if (isPostVideo && videoBlob) {
         blobCache.set(postId, videoBlob);
         blobCache.set(`indexeddb:${postId}`, videoBlob);
-        saveMedia(postId, videoBlob).catch(console.warn);
-        uploadVideoToCloud(postId, videoBlob).catch(console.warn);
+        if (shouldMuteVideo && feedDraft.image) {
+          rotateAndCropVideoBlob(feedDraft.image, videoBlob, 0, 'original', true)
+            .then(tr => {
+              const finalBlob = tr.videoBlob || videoBlob!;
+              blobCache.set(postId, finalBlob);
+              blobCache.set(`indexeddb:${postId}`, finalBlob);
+              saveMedia(postId, finalBlob).catch(console.warn);
+              uploadVideoToCloud(postId, finalBlob).catch(console.warn);
+            })
+            .catch(() => {
+              saveMedia(postId, videoBlob!).catch(console.warn);
+              uploadVideoToCloud(postId, videoBlob!).catch(console.warn);
+            });
+        } else {
+          saveMedia(postId, videoBlob).catch(console.warn);
+          uploadVideoToCloud(postId, videoBlob).catch(console.warn);
+        }
       } else if (finalImage) {
         try {
           if (finalImage.startsWith('blob:') && blobCache.has(finalImage)) {
@@ -1925,8 +2204,9 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
         showComments: false,
         shares: 0,
         isVideo: isPostVideo,
+        isAudioMuted: shouldMuteVideo,
         hasCloudMedia: isPostVideo,
-        rotation: effectiveRotation,
+        rotation: isPostVideo ? effectiveRotation : 0,
         cropRatio: editCropRatio || 'original',
         isMine: true,
         createdAt: new Date().toISOString(),
@@ -1940,20 +2220,27 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
 
       // 4. Save to localStorage immediately!
       try {
-        const saved = localStorage.getItem('WALWAL_USER_SNAPS_POSTS') || localStorage.getItem('WALWAL_USER_FEED_POSTS');
+        const saved = localStorage.getItem(STORAGE_KEYS.SNAPS_POSTS) || localStorage.getItem(STORAGE_KEYS.FEED_POSTS);
         const posts = saved ? JSON.parse(saved) : [];
         posts.unshift(storagePost);
-        localStorage.setItem('WALWAL_USER_SNAPS_POSTS', JSON.stringify(posts));
-        localStorage.setItem('WALWAL_USER_FEED_POSTS', JSON.stringify(posts));
+        localStorage.setItem(STORAGE_KEYS.SNAPS_POSTS, JSON.stringify(posts));
+        localStorage.setItem(STORAGE_KEYS.FEED_POSTS, JSON.stringify(posts));
+
+        // 내 게시물 ID 목록에 등록
+        const savedMyIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.MY_POST_IDS) || '[]');
+        if (!savedMyIds.includes(postId)) {
+          savedMyIds.push(postId);
+          localStorage.setItem(STORAGE_KEYS.MY_POST_IDS, JSON.stringify(savedMyIds));
+        }
       } catch (e) {
         console.error('Failed to save to localStorage:', e);
       }
 
       try {
-        const savedDeleted = localStorage.getItem('WALWAL_DELETED_POST_IDS');
+        const savedDeleted = localStorage.getItem(STORAGE_KEYS.DELETED_POST_IDS);
         if (savedDeleted) {
           const ids = JSON.parse(savedDeleted).filter((id: string) => id !== postId);
-          localStorage.setItem('WALWAL_DELETED_POST_IDS', JSON.stringify(ids));
+          localStorage.setItem(STORAGE_KEYS.DELETED_POST_IDS, JSON.stringify(ids));
         }
       } catch (e) { }
 
@@ -1973,7 +2260,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
         });
         delete sanitizedPost.createdAt;
 
-        setDoc(doc(db, 'posts', postId), {
+        setDoc(doc(db, COLLECTIONS.POSTS, postId), {
           ...sanitizedPost,
           createdAt: serverTimestamp()
         }).catch(dbErr => {
@@ -1992,6 +2279,11 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
 
   const handleDeletePost = async (id: any) => {
     if (!id) return;
+    const targetPost = feedPosts.find(p => String(p.id) === String(id));
+    if (targetPost && !checkIsMyPost(targetPost)) {
+      alert(language === 'ko' ? '본인이 작성한 게시물만 삭제할 수 있습니다.' : 'You can only delete your own posts.');
+      return;
+    }
     const targetId = String(id);
 
     // 1. Blacklist ID so it can never be loaded from Firestore or mock data
@@ -2010,15 +2302,15 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
 
     // 3. Immediately remove from localStorage before any async operations
     try {
-      const savedSnaps = localStorage.getItem('WALWAL_USER_SNAPS_POSTS');
+      const savedSnaps = localStorage.getItem(STORAGE_KEYS.SNAPS_POSTS);
       if (savedSnaps) {
         const posts = JSON.parse(savedSnaps).filter((p: any) => p && String(p.id) !== targetId);
-        localStorage.setItem('WALWAL_USER_SNAPS_POSTS', JSON.stringify(posts));
+        localStorage.setItem(STORAGE_KEYS.SNAPS_POSTS, JSON.stringify(posts));
       }
-      const savedFeed = localStorage.getItem('WALWAL_USER_FEED_POSTS');
+      const savedFeed = localStorage.getItem(STORAGE_KEYS.FEED_POSTS);
       if (savedFeed) {
         const posts = JSON.parse(savedFeed).filter((p: any) => p && String(p.id) !== targetId);
-        localStorage.setItem('WALWAL_USER_FEED_POSTS', JSON.stringify(posts));
+        localStorage.setItem(STORAGE_KEYS.FEED_POSTS, JSON.stringify(posts));
       }
       const interactions = getStoredInteractions();
       if (interactions[targetId]) {
@@ -2034,6 +2326,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
       await deleteFeedPost(targetId);
     } catch (e) {
       console.error('Firestore delete error:', e);
+      alert(language === 'ko' ? '서버에서 게시물을 삭제하는 중 네트워크 오류가 발생했습니다.' : 'Failed to delete post from server.');
     }
 
     // 5. Delete from IndexedDB media cache
@@ -2058,12 +2351,25 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
       return;
     }
 
+    const selectedPet = petOptions.find(p => p.id === editSelectedPetId) || petOptions[0];
+    const updatedFields: any = {
+      recentThought: editText
+    };
+    if (selectedPet) {
+      updatedFields.name = selectedPet.name;
+      updatedFields.avatar = selectedPet.avatar;
+      updatedFields.breed = selectedPet.breed;
+      updatedFields.gender = selectedPet.gender || 'male';
+      updatedFields.ownerName = selectedPet.ownerName || selectedPet.name;
+      updatedFields.petId = selectedPet.id;
+    }
+
     setFeedPosts(prev => {
       const updated = prev.map(p => {
         if (p.id === editingPost.id) {
           return {
             ...p,
-            recentThought: editText
+            ...updatedFields
           };
         }
         return p;
@@ -2075,7 +2381,8 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
           originalFeedImage: undefined
         }));
         saveAndSyncUserPosts(userPosts);
-        updateFeedPost(editingPost.id, { recentThought: editText }).catch(console.error);
+        updateFeedPost(editingPost.id, updatedFields).catch(console.error);
+        setDoc(doc(db, COLLECTIONS.POSTS, String(editingPost.id)), cleanForFirestore(updatedFields), { merge: true }).catch(console.error);
       } catch (e) {
         console.error('Failed to update localStorage on edit:', e);
       }
@@ -2103,7 +2410,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
 
     // Sync shares to Firestore
     try {
-      await setDoc(doc(db, 'posts', targetId), {
+      await setDoc(doc(db, COLLECTIONS.POSTS, targetId), {
         shares: newShares
       }, { merge: true });
     } catch (e) {
@@ -2243,11 +2550,11 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
       const nextIds = newLiked ? [...new Set([...likedIds, targetId])] : likedIds.filter(x => x !== targetId);
       localStorage.setItem('WALWAL_LIKED_POST_IDS', JSON.stringify(nextIds));
       saveFeedInteraction(targetId, { liked: newLiked, likes: newLikes });
-    } catch (e) {}
+    } catch (e) { }
 
     // 3. Direct Cloud Firestore sync with the computed newLikes value
     try {
-      await setDoc(doc(db, 'posts', targetId), {
+      await setDoc(doc(db, COLLECTIONS.POSTS, targetId), {
         likes: newLikes
       }, { merge: true });
     } catch (err) {
@@ -2273,8 +2580,14 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
     if (!targetPost) return;
 
     const existing = Array.isArray(targetPost.comments) ? targetPost.comments : [];
-    const newComments = existing.filter((c: any) => 
-      String(c.id) !== String(commentId) && 
+    const targetComment = existing.find((c: any) => String(c.id) === String(commentId));
+    if (targetComment && !isMyComment(targetComment)) {
+      alert(language === 'ko' ? '본인이 작성한 댓글만 삭제할 수 있습니다.' : 'You can only delete your own comments.');
+      return;
+    }
+
+    const newComments = existing.filter((c: any) =>
+      String(c.id) !== String(commentId) &&
       String(c.parentId || '') !== String(commentId)
     );
 
@@ -2294,7 +2607,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
       const filtered = savedIds.filter(id => String(id) !== String(commentId));
       localStorage.setItem('WALWAL_MY_COMMENT_IDS', JSON.stringify(filtered));
 
-      await setDoc(doc(db, 'posts', targetPostId), {
+      await setDoc(doc(db, COLLECTIONS.POSTS, targetPostId), {
         comments: cleanForFirestore(newComments)
       }, { merge: true });
     } catch (err) {
@@ -2314,40 +2627,33 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
 
   const isMyComment = (c: any): boolean => {
     if (!c) return false;
-    if (c.isMine) return true;
+
+    // 1. Check local session storage (comments posted from this device)
     try {
       const myIds: any[] = JSON.parse(localStorage.getItem('WALWAL_MY_COMMENT_IDS') || '[]');
       if (myIds.some(id => String(id) === String(c.id))) return true;
-    } catch (e) {}
+    } catch (e) { }
 
-    const clean = (str: string = '') => str.replace(/\s*(엄마|맘|아빠|Mom|Dad|ママ|パパ)\s*$/gi, '').trim().toLowerCase();
-    const cAuthor = clean(c.author || '');
-    const currentPetName = clean(currentCommentPet?.name || '');
-    const currentUserName = (currentUserDisplayName || '').toLowerCase().trim();
+    const currentUid = auth.currentUser?.uid;
     const currentEmail = (auth.currentUser?.email || localStorage.getItem('WALWAL_USER_EMAIL') || '').toLowerCase().trim();
 
-    if (c.author === '나' || c.author === 'me') return true;
-    if (cAuthor && currentPetName && cAuthor === currentPetName) return true;
-    if (c.author && currentUserName && c.author.toLowerCase() === currentUserName) return true;
-    if (currentEmail && c.author && currentEmail.split('@')[0].toLowerCase() === cAuthor) return true;
-    if (c.userEmail && currentEmail && c.userEmail.toLowerCase() === currentEmail) return true;
-    if (c.userId && auth.currentUser?.uid && c.userId === auth.currentUser.uid) return true;
-
-    if (petOptions && petOptions.length > 0) {
-      if (petOptions.some((p: any) => {
-        const pName = clean(p.name || '');
-        const pOwner = clean(p.ownerName || '');
-        return isSameDogName(p.name, c.author) || (pName && pName === cAuthor) || (pOwner && pOwner === cAuthor);
-      })) {
-        return true;
-      }
+    // 2. Strict User ID check
+    if (c.userId) {
+      return Boolean(currentUid && c.userId === currentUid);
     }
 
+    // 3. Strict Email check
+    if (c.userEmail) {
+      return Boolean(currentEmail && c.userEmail.toLowerCase() === currentEmail);
+    }
+
+    // If neither userId nor userEmail matches and not on this device, it is strictly NOT mine
     return false;
   };
 
   const handleModalSubmitComment = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (isSubmittingCommentRef.current) return;
     if (!activeCommentPostId || (!modalCommentInput.trim() && !modalCommentImage)) return;
 
     const targetPostId = String(activeCommentPostId);
@@ -2362,7 +2668,17 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
         return;
       }
     }
+
     const commentImage = modalCommentImage;
+    const replyTarget = replyingToComment;
+
+    // Set lock and immediately clear inputs to prevent double submit on mobile PWA
+    isSubmittingCommentRef.current = true;
+    setIsSubmittingComment(true);
+    setModalCommentInput('');
+    setModalCommentImage(null);
+    setReplyingToComment(null);
+
     const newCommentId = Date.now();
     const authorName = currentCommentPet.name || currentUserDisplayName || '나';
     const authorAvatar = currentCommentPet.avatar || getDefaultDogAvatar();
@@ -2373,16 +2689,33 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
       avatar: authorAvatar,
       text: commentText,
       image: commentImage || undefined,
-      isMine: true,
       userEmail: auth.currentUser?.email || localStorage.getItem('WALWAL_USER_EMAIL') || undefined,
       userId: auth.currentUser?.uid || undefined,
-      parentId: replyingToComment ? replyingToComment.id : undefined,
-      replyToAuthor: replyingToComment ? replyingToComment.author : undefined,
+      parentId: replyTarget ? replyTarget.id : undefined,
+      replyToAuthor: replyTarget ? replyTarget.author : undefined,
       createdAt: language === 'ko' ? '방금 전' : (language === 'ja' ? '방금 전' : 'Just now')
     };
 
     const existingComments = Array.isArray(targetPost.comments) ? targetPost.comments : [];
-    const newCommentList = [...existingComments, newComment];
+
+    // Deduplication check: abort if identical comment was just submitted
+    const isDup = existingComments.some((c: any) => {
+      const sameAuthor = c.author === authorName;
+      const sameText = (c.text || '').trim() === commentText;
+      const sameParent = String(c.parentId || '') === String(replyTarget?.id || '');
+      const timeDiff = Math.abs(Number(c.id) - Number(newCommentId));
+      return sameAuthor && sameText && sameParent && !isNaN(timeDiff) && timeDiff < 4000;
+    });
+
+    if (isDup) {
+      setTimeout(() => {
+        isSubmittingCommentRef.current = false;
+        setIsSubmittingComment(false);
+      }, 500);
+      return;
+    }
+
+    const newCommentList = deduplicateComments([...existingComments, newComment]);
 
     // 1. Optimistic UI update
     setFeedPosts(prev => prev.map(p => {
@@ -2395,7 +2728,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
       return p;
     }));
 
-    // 2. Local interactions
+    // 2. Local interactions and immediate storage cache update
     try {
       const savedIds: any[] = JSON.parse(localStorage.getItem('WALWAL_MY_COMMENT_IDS') || '[]');
       if (!savedIds.some(id => String(id) === String(newCommentId))) {
@@ -2404,20 +2737,33 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
         localStorage.setItem('WALWAL_MY_COMMENT_IDS', JSON.stringify(savedIds));
       }
       saveFeedInteraction(targetPostId, { comments: newCommentList });
-    } catch (e) {}
+
+      // 즉시 캐시 업데이트하여 새로고침 시에도 댓글이 보존되도록 보장
+      [STORAGE_KEYS.SNAPS_POSTS, STORAGE_KEYS.FEED_POSTS].forEach(storageKey => {
+        try {
+          const raw = localStorage.getItem(storageKey);
+          if (raw) {
+            const list = JSON.parse(raw);
+            const updated = list.map((p: any) => String(p.id) === targetPostId ? { ...p, comments: newCommentList } : p);
+            localStorage.setItem(storageKey, JSON.stringify(updated));
+          }
+        } catch (e) { }
+      });
+    } catch (e) { }
 
     // 3. Direct Cloud Firestore sync
     try {
-      await setDoc(doc(db, 'posts', targetPostId), {
+      await setDoc(doc(db, COLLECTIONS.POSTS, targetPostId), {
         comments: cleanForFirestore(newCommentList)
       }, { merge: true });
     } catch (err) {
       console.warn('Failed to save comment to Firestore:', err);
+    } finally {
+      setTimeout(() => {
+        isSubmittingCommentRef.current = false;
+        setIsSubmittingComment(false);
+      }, 600);
     }
-
-    setModalCommentInput('');
-    setModalCommentImage(null);
-    setReplyingToComment(null);
   };
 
   const handleToggleComments = (id: string) => {
@@ -2429,6 +2775,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
 
   const handleSubmitComment = async (id: string, e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingCommentRef.current) return;
     const targetId = String(id);
     const commentText = newCommentText[targetId]?.trim();
     if (!commentText) return;
@@ -2442,17 +2789,23 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
     const targetPost = feedPosts.find(p => String(p.id) === targetId);
     if (!targetPost) return;
 
+    isSubmittingCommentRef.current = true;
+    setIsSubmittingComment(true);
+    setNewCommentText(prev => ({ ...prev, [targetId]: '' }));
+
+    const newCommentId = Date.now();
     const newComment = {
-      id: Date.now(),
+      id: newCommentId,
       author: myDog?.name || '나',
       avatar: myDog?.avatar || getDefaultDogAvatar(),
       text: commentText,
-      isMine: true,
+      userEmail: auth.currentUser?.email || localStorage.getItem('WALWAL_USER_EMAIL') || undefined,
+      userId: auth.currentUser?.uid || undefined,
       createdAt: language === 'ko' ? '방금 전' : 'Just now'
     };
 
     const existingComments = Array.isArray(targetPost.comments) ? targetPost.comments : [];
-    const newCommentList = [...existingComments, newComment];
+    const newCommentList = deduplicateComments([...existingComments, newComment]);
 
     setFeedPosts(prev => prev.map(p => {
       if (String(p.id) === targetId) {
@@ -2465,15 +2818,24 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
     }));
 
     try {
+      const savedIds: any[] = JSON.parse(localStorage.getItem('WALWAL_MY_COMMENT_IDS') || '[]');
+      if (!savedIds.some(sid => String(sid) === String(newCommentId))) {
+        savedIds.push(newCommentId);
+        savedIds.push(String(newCommentId));
+        localStorage.setItem('WALWAL_MY_COMMENT_IDS', JSON.stringify(savedIds));
+      }
       saveFeedInteraction(targetId, { comments: newCommentList });
-      await setDoc(doc(db, 'posts', targetId), {
+      await setDoc(doc(db, COLLECTIONS.POSTS, targetId), {
         comments: cleanForFirestore(newCommentList)
       }, { merge: true });
     } catch (err) {
       console.warn('Failed to save inline comment to Firestore:', err);
+    } finally {
+      setTimeout(() => {
+        isSubmittingCommentRef.current = false;
+        setIsSubmittingComment(false);
+      }, 600);
     }
-
-    setNewCommentText(prev => ({ ...prev, [targetId]: '' }));
   };
 
   return (
@@ -2510,32 +2872,37 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
               }
             }}
           >
-            <h2 className="title-lg">
+            <h2 className="title-lg" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {showBookmarkedOnly
-                ? (language === 'ko' ? '저장한 게시물 📌' : language === 'ja' ? '保存済みスナップ 📌' : 'Saved Posts 📌')
+                ? (language === 'ko' ? '저장한 게시물' : language === 'ja' ? '保存済みスナップ' : 'Saved Posts')
                 : viewMode === 'feed'
                   ? (language === 'ko' ? '피드' : language === 'ja' ? 'スナップフィード' : 'Snaps Feed')
                   : (language === 'ko' ? '피드 앨범' : language === 'ja' ? 'スナップアルバム' : 'Snaps Album')}
+              {showBookmarkedOnly && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowBookmarkedOnly(false);
+                  }}
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 500,
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    background: '#f3f4f6',
+                    color: '#4b5563',
+                    border: '1px solid #e5e7eb',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {language === 'ko' ? '전체 피드' : 'All Feeds'}
+                </button>
+              )}
             </h2>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {/* 저장한 게시물 모아보기 토글 버튼 */}
-          <button
-            type="button"
-            className={`snaps-view-toggle-btn ${showBookmarkedOnly ? 'active' : ''}`}
-            onClick={() => setShowBookmarkedOnly(prev => !prev)}
-            title={showBookmarkedOnly
-              ? (language === 'ko' ? '전체 피드 보기' : 'All Feeds')
-              : (language === 'ko' ? '저장한 게시물 모아보기' : 'Saved Posts')}
-            aria-label={showBookmarkedOnly
-              ? (language === 'ko' ? '전체 피드 보기' : 'All Feeds')
-              : (language === 'ko' ? '저장한 게시물 모아보기' : 'Saved Posts')}
-            style={showBookmarkedOnly ? { background: '#111827', color: '#fff', borderColor: '#111827' } : undefined}
-          >
-            <Bookmark size={19} fill={showBookmarkedOnly ? '#fff' : 'none'} color={showBookmarkedOnly ? '#fff' : 'currentColor'} />
-          </button>
-
           <button
             type="button"
             className="snaps-view-toggle-btn"
@@ -2549,14 +2916,6 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
             className="btn-ghost" onClick={() => fileInputRef.current?.click()}
           >
             <Plus size={24} strokeWidth={2} />
-          </button>
-          <button
-            className="all-services-header-btn"
-            onClick={() => window.dispatchEvent(new CustomEvent('walwal_open_all_services'))}
-            aria-label={language === 'ko' ? '전체서비스' : language === 'ja' ? '全サービス' : 'All Services'}
-            title={language === 'ko' ? '전체서비스' : language === 'ja' ? '全サービス' : 'All Services'}
-          >
-            <Menu size={24} />
           </button>
         </div>
         <input
@@ -2604,14 +2963,14 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
               </div>
               <div>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#000', marginBottom: '6px' }}>
-                  {language === 'ko' ? '등록된 내 피드샷이 없습니다' : language === 'ja' ? '登録されたマイスナップがありません' : 'No Snaps Yet'}
+                  {language === 'ko' ? '등록된 피드가 없습니다' : language === 'ja' ? '登録されたスナップがありません' : 'No Feeds Yet'}
                 </h3>
                 <p style={{ fontSize: '0.88rem', color: '#64748B', margin: 0, lineHeight: 1.5 }}>
                   {language === 'ko'
-                    ? 'AR 카메라로 강아지의 생각을 읽고\n첫 번째 피드샷을 저장해보세요!'
+                    ? '첫 번째 피드를 작성하거나 AR 톡으로\n반려견의 일상을 공유해보세요!'
                     : language === 'ja'
-                      ? 'ARカメラでわんちゃんの気持ちを読み取って\n最初のスナップを保存してみましょう！'
-                      : 'Capture your pet with AR camera\nand save your first Snap!'}
+                      ? '最初のスナップを投稿するかARカメラで\nわんちゃんの日常を共有してみましょう！'
+                      : 'Share your pet\'s moments with AR camera\nand save the first Snap!'}
                 </p>
               </div>
               <button
@@ -2619,11 +2978,9 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                 onClick={() => {
                   window.dispatchEvent(new CustomEvent('walwal_switch_tab', { detail: 'ar' }));
                 }}
-                className="btn btn-primary"
-                style={{ padding: '12px 24px', fontSize: '0.9rem', marginTop: '8px' }}
-              >
+                className="btn">
                 <Camera size={18} />
-                <span>{language === 'ko' ? 'AR 카메라로 촬영하기' : language === 'ja' ? 'ARカメラで撮影する' : 'Open AR Camera'}</span>
+                <span>{language === 'ko' ? 'AR 톡' : language === 'ja' ? 'ARカメラで撮影する' : 'Open AR Camera'}</span>
               </button>
             </div>
           ) : (
@@ -2848,7 +3205,15 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                   >
                     {/* 1. Header (User & 3-Dots Menu) */}
                     <div className="snaps-feed-card-header">
-                      <div className="snaps-feed-card-user">
+                      <div
+                        className="snaps-feed-card-user"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenDogProfile(post.name, post.avatar, post);
+                        }}
+                        style={{ cursor: 'pointer' }}
+                        title={language === 'ko' ? `${post.name || '강아지'} 프로필 보기` : 'View profile'}
+                      >
                         <img
                           src={post.avatar || getDefaultDogAvatar(post.name || post.breed)}
                           alt={post.name || 'Dog'}
@@ -2883,7 +3248,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                         </div>
                       )}
 
-                      {/* 본인 글: 상단 우측 점 세개 메뉴 버튼 & 드롭다운 (다운로드, SNS, 수정, 삭제) */}
+                      {/* 본인 글: 상단 우측 점 세개 메뉴 버튼 */}
                       {isMyPost && (
                         <div className="snaps-feed-header-actions">
                           <button
@@ -2893,197 +3258,11 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                               e.stopPropagation();
                               setActiveFeedMenuId(String(activeFeedMenuId) === String(post.id) ? null : String(post.id));
                             }}
-                            aria-label={language === 'ko' ? '더보기 메뉴' : language === 'ja' ? 'メニュー' : 'More menu'}
-                            title={language === 'ko' ? '메뉴' : language === 'ja' ? 'メニュー' : 'Menu'}
+                            aria-label={language === "ko" ? "더보기 메뉴" : language === "ja" ? "メニュー" : "More menu"}
+                            title={language === "ko" ? "메뉴" : language === "ja" ? "메뉴" : "Menu"}
                           >
                             <AlignRight size={20} color="#fff" />
                           </button>
-
-                          {/* 더보기 드롭다운: 다운로드, SNS 버튼들, 수정, 삭제 */}
-                          {String(activeFeedMenuId) === String(post.id) && (
-                            <div
-                              className="snaps-feed-dropdown-menu"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {/* 상단 닫기 바 버튼 */}
-                              <button
-                                type="button"
-                                className="snaps-feed-menu-close-bar-btn"
-                                onClick={() => setActiveFeedMenuId(null)}
-                                aria-label={language === 'ko' ? '닫기' : language === 'ja' ? '閉じる' : 'Close'}
-                                title={language === 'ko' ? '닫기' : language === 'ja' ? '閉じる' : 'Close'}
-                              >
-                                <span className="snaps-feed-menu-close-bar" />
-                              </button>
-
-                              {/* 다운로드 */}
-                              <div className="snaps-feed-menu-group" >
-                                <button
-                                  type="button"
-                                  className="snaps-feed-menu-item"
-                                  onClick={() => {
-                                    setActiveFeedMenuId(null);
-                                    handlePostDownload(post);
-                                  }}
-                                >
-                                  <div className="snaps-menu-icon-circle download">
-                                    <Download size={18} />
-                                  </div>
-                                  <span>{t.share?.download || (language === 'ko' ? '다운로드' : language === 'ja' ? 'ダウンロード' : 'Download')}</span>
-                                </button>
-                              </div>
-
-                              <div className="snaps-feed-menu-group" >
-
-                                {/* Instagram */}
-                                <button
-                                  type="button"
-                                  className="snaps-feed-menu-item"
-                                  onClick={() => {
-                                    setActiveFeedMenuId(null);
-                                    handlePostShareInstagram(post);
-                                  }}
-                                >
-                                  <div className="snaps-menu-icon-circle instagram">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                                      <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
-                                      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
-                                      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
-                                    </svg>
-                                  </div>
-                                  <span>Instagram</span>
-                                </button>
-
-                                {/* TikTok */}
-                                <button
-                                  type="button"
-                                  className="snaps-feed-menu-item"
-                                  onClick={() => {
-                                    setActiveFeedMenuId(null);
-                                    handlePostShareTikTok(post);
-                                  }}
-                                >
-                                  <div className="snaps-menu-icon-circle tiktok">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff">
-                                      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.29 0 .58.04.85.12V9.4a6.33 6.33 0 0 0-.85-.06A6.34 6.34 0 0 0 3.14 15.7a6.34 6.34 0 0 0 9.06 5.67V12.1a8.16 8.16 0 0 0 5.14 1.83v-3.47a4.85 4.85 0 0 1-2.25-.77 4.8 4.8 0 0 1-1.5-1.92z" />
-                                    </svg>
-                                  </div>
-                                  <span>TikTok</span>
-                                </button>
-
-                                {/* YouTube */}
-                                <button
-                                  type="button"
-                                  className="snaps-feed-menu-item"
-                                  onClick={() => {
-                                    setActiveFeedMenuId(null);
-                                    handlePostShareYouTube(post);
-                                  }}
-                                >
-                                  <div className="snaps-menu-icon-circle youtube">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff">
-                                      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.5 12 3.5 12 3.5s-7.505 0-9.377.55a3.016 3.016 0 0 0-2.122 2.136C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.55 9.376.55 9.376.55s7.505 0 9.377-.55a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
-                                    </svg>
-                                  </div>
-                                  <span>YouTube</span>
-                                </button>
-
-                                {/* 링크복사 */}
-                                <button
-                                  type="button"
-                                  className="snaps-feed-menu-item"
-                                  onClick={() => {
-                                    setActiveFeedMenuId(null);
-                                    handleCopyPostLink(post);
-                                  }}
-                                >
-                                  <div className="snaps-menu-icon-circle link">
-                                    <Link2 size={18} />
-                                  </div>
-                                  <span>{language === 'ko' ? '링크복사' : language === 'ja' ? 'リンクをコピー' : 'Copy Link'}</span>
-                                </button>
-
-                                {/* 왓츠앱 */}
-                                <button
-                                  type="button"
-                                  className="snaps-feed-menu-item"
-                                  onClick={() => {
-                                    setActiveFeedMenuId(null);
-                                    handlePostShareWhatsApp(post);
-                                  }}
-                                >
-                                  <div className="snaps-menu-icon-circle whatsapp">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff">
-                                      <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z" />
-                                    </svg>
-                                  </div>
-                                  <span>{language === 'ko' ? '왓츠앱' : 'WhatsApp'}</span>
-                                </button>
-
-                                {/* 메세지 */}
-                                <button
-                                  type="button"
-                                  className="snaps-feed-menu-item"
-                                  onClick={() => {
-                                    setActiveFeedMenuId(null);
-                                    handlePostShareMessage(post);
-                                  }}
-                                >
-                                  <div className="snaps-menu-icon-circle message">
-                                    <MessageSquare size={16} fill="#fff" strokeWidth={1} />
-                                  </div>
-                                  <span>{language === 'ko' ? '메세지' : language === 'ja' ? 'メッセージ' : 'Messages'}</span>
-                                </button>
-
-                                {/* 더 보기 */}
-                                <button
-                                  type="button"
-                                  className="snaps-feed-menu-item"
-                                  onClick={() => {
-                                    setActiveFeedMenuId(null);
-                                    handlePostShareMore(post);
-                                  }}
-                                >
-                                  <div className="snaps-menu-icon-circle more">
-                                    <Send size={18} />
-                                  </div>
-                                  <span>{t.share?.more || (language === 'ko' ? '더 보기' : language === 'ja' ? 'その他' : 'More')}</span>
-                                </button>
-                              </div>
-                              {/* 수정 / 삭제 */}
-                              <div className="snaps-feed-menu-group" >
-                                <button
-                                  type="button"
-                                  className="snaps-feed-menu-item"
-                                  onClick={() => {
-                                    setActiveFeedMenuId(null);
-                                    setEditingPost({ ...post });
-                                    setEditText(post.recentThought || '');
-                                  }}
-                                >
-                                  <div className="snaps-menu-icon-circle edit">
-                                    <Edit3 size={18} />
-                                  </div>
-                                  <span>{t.snaps?.editPost || (language === 'ko' ? '수정' : language === 'ja' ? '編集' : 'Edit')}</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  className="snaps-feed-menu-item delete"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    e.preventDefault();
-                                    setActiveFeedMenuId(null);
-                                    handleDeletePost(post.id);
-                                  }}
-                                >
-                                  <div className="snaps-menu-icon-circle delete">
-                                    <Trash2 size={18} />
-                                  </div>
-                                  <span>{t.snaps?.deletePost || (language === 'ko' ? '삭제' : language === 'ja' ? '削除' : 'Delete')}</span>
-                                </button>
-                              </div>
-                            </div>
-                          )}
                         </div>
                       )}
                     </div>
@@ -3116,8 +3295,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                             width: '100%',
                             height: '100%',
                             objectFit: 'cover',
-                            display: 'block',
-                            transform: post.rotation ? `rotate(${post.rotation}deg)` : undefined
+                            display: 'block'
                           }}
                           onError={(e) => {
                             (e.currentTarget as HTMLImageElement).src = post.avatar || getDefaultDogAvatar();
@@ -3321,16 +3499,41 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
           <div className="snaps-modal-overlay">
             <div className="snaps-modal-container">
               {/* Header (Clean Style) */}
-              <div className="snaps-modal-header">
-                <button onClick={handleClearFeedDraft} className="btn-ghost snaps-modal-close-btn">
-                  <ArrowLeft size={24} />
-                </button>
-                <div className="snaps-modal-header-title ">
-                  <h2 className="title-lg">
-                    {language === 'ko' ? '피드샷' : language === 'ja' ? 'スナップ' : language === 'es' ? 'Foto / Video' : 'Pet Studio'}
-                  </h2>
+              <div className="snaps-modal-header" style={{ justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <button onClick={handleClearFeedDraft} className="btn-ghost snaps-modal-close-btn">
+                    <ArrowLeft size={24} />
+                  </button>
+                  <div className="snaps-modal-header-title ">
+                    <h2 className="title-lg">
+                      {language === 'ko' ? '피드샷' : language === 'ja' ? 'スナップ' : language === 'es' ? 'Foto / Video' : 'Pet Studio'}
+                    </h2>
+                  </div>
                 </div>
-
+                <button
+                  type="button"
+                  onClick={handleRetake}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 12px',
+                    borderRadius: '999px',
+                    border: '1.5px solid #FF9E58',
+                    background: '#FFF8F1',
+                    color: '#EA580C',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <RotateCcw size={14} strokeWidth={2.5} />
+                  <span>
+                    {feedDraft.isVideo
+                      ? (language === 'ko' ? '재녹화' : language === 'ja' ? '再録画' : 'Re-record')
+                      : (language === 'ko' ? '재촬영' : language === 'ja' ? '再撮影' : 'Retake')}
+                  </span>
+                </button>
               </div>
 
 
@@ -3396,67 +3599,122 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                   </div>
                 )}
                 <div className="snaps-modal-media-wrapper">
-                  {/*Header : Retake Button */}
-                  <button
-                    type="button"
-                    onClick={handleRetake}
-                    className="snaps-modal-retake-btn"
-                    title={language === 'ko' ? '재촬영' : language === 'ja' ? '再撮影' : 'Retake'}
-                  >
-                    <Circle size={22} />
-                  </button>
-
                   {feedDraft.image ? (
                     (typeof feedDraft.image === 'string' && (feedDraft.image.startsWith('blob:') || feedDraft.image.endsWith('.webm') || feedDraft.image.endsWith('.mp4'))) ? (
+                      (() => {
+                        const isRotated90 = editRotation === 90 || editRotation === 270;
+                        const containerAspect = editCropRatio === '1:1' ? '1 / 1' : editCropRatio === '9:16' ? '9 / 16' : editCropRatio === '16:9' ? '16 / 9' : (isRotated90 ? '16 / 9' : '9 / 16');
+
+                        // When rotated 90 or 270 deg: DOM width is container height, DOM height is container width
+                        // This guarantees exact 1:1 pixel mapping with the container without any scaling or zoom!
+                        const videoW = isRotated90
+                          ? (draftCropDim.h > 0 ? `${draftCropDim.h}px` : (editCropRatio === '1:1' ? '100%' : '56.25%'))
+                          : '100%';
+                        const videoH = isRotated90
+                          ? (draftCropDim.w > 0 ? `${draftCropDim.w}px` : (editCropRatio === '1:1' ? '100%' : '177.78%'))
+                          : '100%';
+
+                        return (
+                          <div
+                            ref={draftCropContainerRef}
+                            className="snaps-video-crop-container"
+                            style={{
+                              aspectRatio: containerAspect,
+                              width: '100%',
+                              alignSelf: 'stretch',
+                              maxHeight: '65vh',
+                              overflow: 'hidden',
+                              borderRadius: '16px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              position: 'relative',
+                              background: '#0f172a'
+                            }}
+                          >
+                            <video
+                              src={feedDraft.image}
+                              poster={displayImage || feedDraft.poster}
+                              autoPlay
+                              loop
+                              muted={isDraftVideoMuted}
+                              playsInline
+                              style={isRotated90 ? {
+                                position: 'absolute',
+                                top: '50%',
+                                left: '50%',
+                                width: videoW,
+                                height: videoH,
+                                transform: `translate(-50%, -50%) rotate(${editRotation}deg)`,
+                                objectFit: 'contain',
+                                transition: 'transform 0.25s ease'
+                              } : {
+                                transform: editRotation ? `rotate(${editRotation}deg)` : undefined,
+                                objectFit: 'cover',
+                                objectPosition: editRotation === 180 ? 'bottom center' : 'top center',
+                                width: '100%',
+                                height: '100%',
+                                transition: 'transform 0.25s ease'
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setIsDraftVideoMuted(prev => !prev);
+                              }}
+                              style={{
+                                position: 'absolute',
+                                bottom: '14px',
+                                right: '14px',
+                                zIndex: 25,
+                                background: 'rgba(0,0,0,0.65)',
+                                backdropFilter: 'blur(6px)',
+                                border: 'none',
+                                borderRadius: '50%',
+                                width: '36px',
+                                height: '36px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#fff',
+                                cursor: 'pointer',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.35)'
+                              }}
+                              title={isDraftVideoMuted ? '소리 켜기' : '소리 끄기'}
+                            >
+                              {isDraftVideoMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+                            </button>
+                          </div>
+                        );
+                      })()
+                    ) : (
                       <div
-                        className="snaps-video-crop-container"
                         style={{
-                          aspectRatio: editCropRatio === '1:1' ? '1 / 1' : editCropRatio === '9:16' ? '9 / 16' : editCropRatio === '16:9' ? '16 / 9' : ((editRotation === 90 || editRotation === 270) ? '16 / 9' : '9 / 16'),
                           width: '100%',
-                          maxHeight: '65vh',
-                          overflow: 'hidden',
-                          borderRadius: '16px',
+                          alignSelf: 'stretch',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          position: 'relative',
+                          borderRadius: '16px',
+                          overflow: 'hidden',
                           background: '#0f172a'
                         }}
                       >
-                        <video
-                          src={feedDraft.image}
-                          poster={displayImage || feedDraft.poster}
-                          autoPlay
-                          loop
-                          muted
-                          playsInline
-                          style={(editRotation === 90 || editRotation === 270) ? {
-                            position: 'absolute',
-                            top: '50%',
-                            left: '50%',
-                            width: editCropRatio === '1:1' ? '100%' : '56.25%',
-                            height: editCropRatio === '1:1' ? '100%' : '177.78%',
-                            transform: `translate(-50%, -50%) rotate(${editRotation}deg)`,
-                            objectFit: 'cover',
-                            transition: 'transform 0.25s ease'
-                          } : {
-                            transform: editRotation ? `rotate(${editRotation}deg)` : undefined,
-                            objectFit: 'cover',
+                        <img
+                          src={displayImage}
+                          alt="Preview"
+                          style={{
                             width: '100%',
-                            height: '100%',
-                            transition: 'transform 0.25s ease'
+                            height: 'auto',
+                            maxHeight: '65vh',
+                            display: 'block',
+                            objectFit: 'contain',
+                            borderRadius: '16px',
+                            transition: 'all 0.2s ease'
                           }}
                         />
                       </div>
-                    ) : (
-                      <img
-                        src={displayImage}
-                        alt="Preview"
-                        style={{
-                          transition: 'all 0.2s ease',
-                          maxHeight: '65vh'
-                        }}
-                      />
                     )
                   ) : (
                     <div className="snaps-empty-media">
@@ -3480,6 +3738,34 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                       </div>
                     </div>
                   )}
+
+                  {/* Floating Retake / Re-record Button on top of media wrapper */}
+                  <button
+                    type="button"
+                    onClick={handleRetake}
+                    className="snaps-modal-retake-btn"
+                    style={{
+                      zIndex: 30,
+                      width: 'auto',
+                      height: '38px',
+                      padding: '0 16px',
+                      background: 'rgba(255, 255, 255, 0.95)',
+                      color: '#1E293B',
+                      boxShadow: '0 4px 14px rgba(0, 0, 0, 0.28)',
+                      opacity: 1,
+                      border: '1.5px solid #FF9E58'
+                    }}
+                    title={feedDraft.isVideo
+                      ? (language === 'ko' ? '재녹화' : language === 'ja' ? '再録画' : 'Re-record')
+                      : (language === 'ko' ? '재촬영' : language === 'ja' ? '再撮影' : 'Retake')}
+                  >
+                    <RotateCcw size={18} strokeWidth={2.5} color="#1E293B" />
+                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E293B' }}>
+                      {feedDraft.isVideo
+                        ? (language === 'ko' ? '재녹화' : language === 'ja' ? '再録画' : 'Re-record')
+                        : (language === 'ko' ? '재촬영' : language === 'ja' ? '再撮影' : 'Retake')}
+                    </span>
+                  </button>
                 </div>
               </div>
 
@@ -3556,32 +3842,36 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                   </h2>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingPost({ ...selectedDetailPost });
-                      setEditText(selectedDetailPost.recentThought || '');
-                      setSelectedDetailPost(null);
-                    }}
-                    className="btn-ghost"
-                    style={{ padding: '4px' }}
-                    title={t.snaps?.editPost || (language === 'ko' ? '수정' : language === 'ja' ? '編集' : 'Edit')}
-                  >
-                    <Edit3 size={20} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const idToDelete = selectedDetailPost.id;
-                      setSelectedDetailPost(null);
-                      handleDeletePost(idToDelete);
-                    }}
-                    className="btn-ghost"
-                    style={{ padding: '4px' }}
-                    title={t.snaps?.deletePost || (language === 'ko' ? '삭제' : language === 'ja' ? '削除' : 'Delete')}
-                  >
-                    <Trash2 size={20} />
-                  </button>
+                  {checkIsMyPost(selectedDetailPost) && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingPost({ ...selectedDetailPost });
+                          setEditText(selectedDetailPost.recentThought || '');
+                          setSelectedDetailPost(null);
+                        }}
+                        className="btn-ghost"
+                        style={{ padding: '4px' }}
+                        title={t.snaps?.editPost || (language === 'ko' ? '수정' : language === 'ja' ? '編集' : 'Edit')}
+                      >
+                        <Edit3 size={20} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const idToDelete = selectedDetailPost.id;
+                          setSelectedDetailPost(null);
+                          handleDeletePost(idToDelete);
+                        }}
+                        className="btn-ghost"
+                        style={{ padding: '4px' }}
+                        title={t.snaps?.deletePost || (language === 'ko' ? '삭제' : language === 'ja' ? '削除' : 'Delete')}
+                      >
+                        <Trash2 size={20} />
+                      </button>
+                    </>
+                  )}
                   <button onClick={() => setSelectedDetailPost(null)} className="btn-ghost snaps-modal-close-btn">
                     <X size={24} />
                   </button>
@@ -3595,6 +3885,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                   style={{
                     aspectRatio: selectedDetailPost.cropRatio === '1:1' ? '1 / 1' : selectedDetailPost.cropRatio === '9:16' ? '9 / 16' : selectedDetailPost.cropRatio === '16:9' ? '16 / 9' : ((selectedDetailPost.rotation === 90 || selectedDetailPost.rotation === 270) ? '16 / 9' : '4 / 5'),
                     width: '100%',
+                    alignSelf: 'stretch',
                     maxHeight: '75vh',
                     overflow: 'hidden',
                     position: 'relative',
@@ -3605,29 +3896,43 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                   }}
                 >
                   {selectedDetailPost.isVideo ? (
-                    <video
-                      src={selectedDetailPost.feedImage}
-                      poster={selectedDetailPost.poster}
-                      autoPlay
-                      loop
-                      muted
-                      playsInline
-                      controls
-                      style={(selectedDetailPost.rotation === 90 || selectedDetailPost.rotation === 270) ? {
-                        position: 'absolute',
-                        top: '50%',
-                        left: '50%',
-                        width: selectedDetailPost.cropRatio === '1:1' ? '100%' : '56.25%',
-                        height: selectedDetailPost.cropRatio === '1:1' ? '100%' : '177.78%',
-                        transform: `translate(-50%, -50%) rotate(${selectedDetailPost.rotation}deg)`,
-                        objectFit: 'cover'
-                      } : {
-                        transform: selectedDetailPost.rotation ? `rotate(${selectedDetailPost.rotation}deg)` : undefined,
-                        objectFit: 'cover',
-                        width: '100%',
-                        height: '100%'
-                      }}
-                    />
+                    (() => {
+                      const isRotated90 = selectedDetailPost.rotation === 90 || selectedDetailPost.rotation === 270;
+                      const aspectVal = selectedDetailPost.cropRatio === '1:1' ? 1 : selectedDetailPost.cropRatio === '9:16' ? (9 / 16) : selectedDetailPost.cropRatio === '16:9' ? (16 / 9) : (isRotated90 ? (16 / 9) : (4 / 5));
+                      const videoW = isRotated90 ? `${(1 / aspectVal) * 100}%` : '100%';
+                      const videoH = isRotated90 ? `${aspectVal * 100}%` : '100%';
+
+                      return (
+                        <video
+                          src={selectedDetailPost.feedImage}
+                          poster={selectedDetailPost.poster}
+                          autoPlay
+                          loop
+                          muted={Boolean(selectedDetailPost.isAudioMuted)}
+                          playsInline
+                          controls
+                          onVolumeChange={(e) => {
+                            if (selectedDetailPost.isAudioMuted && !e.currentTarget.muted) {
+                              e.currentTarget.muted = true;
+                            }
+                          }}
+                          style={isRotated90 ? {
+                            position: 'absolute',
+                            top: '50%',
+                            left: '50%',
+                            width: videoW,
+                            height: videoH,
+                            transform: `translate(-50%, -50%) rotate(${selectedDetailPost.rotation}deg)`,
+                            objectFit: 'cover'
+                          } : {
+                            // image is already transformed,
+                            objectFit: 'cover',
+                            width: '100%',
+                            height: '100%'
+                          }}
+                        />
+                      );
+                    })()
                   ) : (
                     <img
                       src={selectedDetailPost.feedImage}
@@ -3728,6 +4033,49 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
               </div>
 
               <div className="edit-post-body">
+                {/* 반려견 변경 (견주 권한) */}
+                {petOptions.length > 0 && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <label className="edit-post-label" style={{ marginBottom: '8px', display: 'block' }}>
+                      {language === 'ko' ? '반려견 변경' : language === 'ja' ? 'わんちゃん変更' : 'Select Pet'}
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+                      {petOptions.map(pet => {
+                        const isSelected = editSelectedPetId === pet.id;
+                        return (
+                          <button
+                            key={pet.id}
+                            type="button"
+                            onClick={() => setEditSelectedPetId(pet.id)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              padding: '6px 14px',
+                              borderRadius: '20px',
+                              border: isSelected ? '2px solid #FF9E58' : '1px solid #E2E8F0',
+                              background: isSelected ? '#FFF7ED' : '#FFFFFF',
+                              cursor: 'pointer',
+                              fontWeight: isSelected ? 700 : 500,
+                              fontSize: '0.85rem',
+                              color: isSelected ? '#EA580C' : '#475569',
+                              whiteSpace: 'nowrap',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <img
+                              src={pet.avatar || getDefaultDogAvatar(pet.name)}
+                              alt={pet.name}
+                              style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover' }}
+                            />
+                            <span>{pet.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <label className="edit-post-label">
                   {t.feed?.editThoughtLabel || (language === 'ko' ? '속마음 텍스트 수정' : language === 'ja' ? '本音テキストの編集' : 'Edit Thought')}
                 </label>
@@ -3763,6 +4111,14 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
       <DogProfileModal
         dog={profileModalDog}
         onClose={() => setProfileModalDog(null)}
+        onSendNote={(targetDog) => setOwnerNoteTarget(targetDog)}
+      />
+
+      {/* Owner Note Modal */}
+      <OwnerNoteModal
+        isOpen={!!ownerNoteTarget}
+        targetDog={ownerNoteTarget}
+        onClose={() => setOwnerNoteTarget(null)}
       />
 
       {/* Instagram/TikTok Style Comment Bottom Sheet Modal */}
@@ -3882,9 +4238,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                     <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
                       {rootComments.map((c: any) => {
                         const myComment = isMyComment(c);
-                        const authorAvatar = myComment
-                          ? (currentCommentPet?.avatar || myDog?.avatar || c.avatar || getDefaultDogAvatar())
-                          : (c.avatar || getDefaultDogAvatar());
+                        const authorAvatar = c.avatar || petOptions?.find((p: any) => isSameDogName(p.name, c.author))?.avatar || getDefaultDogAvatar(c.author);
 
                         const cleanAuthor = (c.author || '')
                           .replace(/\s*(엄마|맘|아빠|Mom|Dad|ママ|パパ)\s*$/gi, '')
@@ -4060,9 +4414,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                               }}>
                                 {replies.map((reply: any) => {
                                   const myReply = isMyComment(reply);
-                                  const replyAvatar = myReply
-                                    ? (currentCommentPet?.avatar || myDog?.avatar || reply.avatar || getDefaultDogAvatar())
-                                    : (reply.avatar || getDefaultDogAvatar());
+                                  const replyAvatar = reply.avatar || petOptions?.find((p: any) => isSameDogName(p.name, reply.author))?.avatar || getDefaultDogAvatar(reply.author);
 
                                   return (
                                     <div key={reply.id} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
@@ -4360,6 +4712,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                       placeholder={replyingToComment ? `@${replyingToComment.author} 님에게 답글 달기...` : (t.feed?.commentPlaceholder || (language === 'ko' ? '댓글 달기...' : language === 'ja' ? 'コメントを追加...' : 'Add a comment...'))}
                       value={modalCommentInput}
                       onChange={(e) => setModalCommentInput(e.target.value)}
+                      disabled={isSubmittingComment}
                       style={{
                         flex: 1,
                         border: 'none',
@@ -4367,21 +4720,24 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                         outline: 'none',
                         fontSize: '0.92rem',
                         color: '#111',
-                        padding: '6px 0'
+                        padding: '6px 0',
+                        opacity: isSubmittingComment ? 0.6 : 1
                       }}
                     />
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '6px' }}>
                       <button
                         type="button"
                         onClick={() => commentImageInputRef.current?.click()}
+                        disabled={isSubmittingComment}
                         style={{
                           background: 'none',
                           border: 'none',
                           color: '#111',
-                          cursor: 'pointer',
+                          cursor: isSubmittingComment ? 'not-allowed' : 'pointer',
                           padding: '2px',
                           display: 'flex',
-                          alignItems: 'center'
+                          alignItems: 'center',
+                          opacity: isSubmittingComment ? 0.5 : 1
                         }}
                         title={language === 'ko' ? '갤러리에서 사진 첨부' : language === 'ja' ? '写真を追加' : 'Attach photo'}
                       >
@@ -4390,6 +4746,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                       {(modalCommentInput.trim() || modalCommentImage) && (
                         <button
                           type="submit"
+                          disabled={isSubmittingComment}
                           style={{
                             background: '#38c5b7',
                             color: '#FFFFFF',
@@ -4400,7 +4757,8 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            cursor: 'pointer',
+                            cursor: isSubmittingComment ? 'not-allowed' : 'pointer',
+                            opacity: isSubmittingComment ? 0.6 : 1,
                             marginLeft: '2px',
                             boxShadow: '0 2px 8px rgba(56, 197, 183, 0.4)'
                           }}
@@ -4432,6 +4790,229 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
           </div>
         )
       }
+
+      {/* Root-Level Feed Post Bottom Sheet Menu (다운로드, SNS, 수정, 삭제) */}
+      {activeFeedMenuId && (() => {
+        const post = feedPosts.find(p => String(p.id) === String(activeFeedMenuId));
+        if (!post) return null;
+        return (
+          <>
+            <div
+              className="snaps-feed-dropdown-backdrop"
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveFeedMenuId(null);
+              }}
+            />
+            <div
+              className="snaps-feed-dropdown-menu"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* 상단 닫기 바 버튼 */}
+              <button
+                type="button"
+                className="snaps-feed-menu-close-bar-btn"
+                onClick={() => setActiveFeedMenuId(null)}
+                aria-label={language === 'ko' ? '닫기' : language === 'ja' ? '閉じる' : 'Close'}
+                title={language === 'ko' ? '닫기' : language === 'ja' ? '閉じる' : 'Close'}
+              >
+                <span className="snaps-feed-menu-close-bar" />
+              </button>
+
+              {/* 다운로드 */}
+              <div className="snaps-feed-menu-group">
+                <button
+                  type="button"
+                  className="snaps-feed-menu-item"
+                  onClick={() => {
+                    setActiveFeedMenuId(null);
+                    handlePostDownload(post);
+                  }}
+                >
+                  <div className="snaps-menu-icon-circle download">
+                    <Download size={18} />
+                  </div>
+                  <span>{t.share?.download || (language === 'ko' ? '다운로드' : language === 'ja' ? 'ダウンロード' : 'Download')}</span>
+                </button>
+              </div>
+
+              {/* SNS 공유 */}
+              <div className="snaps-feed-menu-group">
+                {/* Instagram */}
+                <button
+                  type="button"
+                  className="snaps-feed-menu-item"
+                  onClick={() => {
+                    setActiveFeedMenuId(null);
+                    handlePostShareInstagram(post);
+                  }}
+                >
+                  <div className="snaps-menu-icon-circle instagram">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+                      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+                      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+                    </svg>
+                  </div>
+                  <span>Instagram</span>
+                </button>
+
+                {/* TikTok */}
+                <button
+                  type="button"
+                  className="snaps-feed-menu-item"
+                  onClick={() => {
+                    setActiveFeedMenuId(null);
+                    handlePostShareTikTok(post);
+                  }}
+                >
+                  <div className="snaps-menu-icon-circle tiktok">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff">
+                      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.29 0 .58.04.85.12V9.4a6.33 6.33 0 0 0-.85-.06A6.34 6.34 0 0 0 3.14 15.7a6.34 6.34 0 0 0 9.06 5.67V12.1a8.16 8.16 0 0 0 5.14 1.83v-3.47a4.85 4.85 0 0 1-2.25-.77 4.8 4.8 0 0 1-1.5-1.92z" />
+                    </svg>
+                  </div>
+                  <span>TikTok</span>
+                </button>
+
+                {/* YouTube */}
+                <button
+                  type="button"
+                  className="snaps-feed-menu-item"
+                  onClick={() => {
+                    setActiveFeedMenuId(null);
+                    handlePostShareYouTube(post);
+                  }}
+                >
+                  <div className="snaps-menu-icon-circle youtube">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff">
+                      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.5 12 3.5 12 3.5s-7.505 0-9.377.55a3.016 3.016 0 0 0-2.122 2.136C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.55 9.376.55 9.376.55s7.505 0 9.377-.55a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+                    </svg>
+                  </div>
+                  <span>YouTube</span>
+                </button>
+
+                {/* 링크복사 */}
+                <button
+                  type="button"
+                  className="snaps-feed-menu-item"
+                  onClick={() => {
+                    setActiveFeedMenuId(null);
+                    handleCopyPostLink(post);
+                  }}
+                >
+                  <div className="snaps-menu-icon-circle link">
+                    <Link2 size={18} />
+                  </div>
+                  <span>{language === 'ko' ? '링크복사' : language === 'ja' ? 'リンクをコピー' : 'Copy Link'}</span>
+                </button>
+
+                {/* 왓츠앱 */}
+                <button
+                  type="button"
+                  className="snaps-feed-menu-item"
+                  onClick={() => {
+                    setActiveFeedMenuId(null);
+                    handlePostShareWhatsApp(post);
+                  }}
+                >
+                  <div className="snaps-menu-icon-circle whatsapp">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff">
+                      <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z" />
+                    </svg>
+                  </div>
+                  <span>{language === 'ko' ? '왓츠앱' : 'WhatsApp'}</span>
+                </button>
+
+                {/* 메세지 */}
+                <button
+                  type="button"
+                  className="snaps-feed-menu-item"
+                  onClick={() => {
+                    setActiveFeedMenuId(null);
+                    handlePostShareMessage(post);
+                  }}
+                >
+                  <div className="snaps-menu-icon-circle message">
+                    <MessageSquare size={16} fill="#fff" strokeWidth={1} />
+                  </div>
+                  <span>{language === 'ko' ? '메세지' : language === 'ja' ? 'メッセージ' : 'Messages'}</span>
+                </button>
+
+                {/* 더 보기 */}
+                <button
+                  type="button"
+                  className="snaps-feed-menu-item"
+                  onClick={() => {
+                    setActiveFeedMenuId(null);
+                    handlePostShareMore(post);
+                  }}
+                >
+                  <div className="snaps-menu-icon-circle more">
+                    <Send size={18} />
+                  </div>
+                  <span>{t.share?.more || (language === 'ko' ? '더 보기' : language === 'ja' ? 'その他' : 'More')}</span>
+                </button>
+              </div>
+
+              {/* 수정 / 삭제 혹은 신고 (내 글일 때만 수정/삭제) */}
+              {checkIsMyPost(post) ? (
+                <div className="snaps-feed-menu-group">
+                  <button
+                    type="button"
+                    className="snaps-feed-menu-item"
+                    onClick={() => {
+                      setActiveFeedMenuId(null);
+                      setEditingPost({ ...post });
+                      setEditText(post.recentThought || '');
+                    }}
+                  >
+                    <div className="snaps-menu-icon-circle edit">
+                      <Edit3 size={18} />
+                    </div>
+                    <span>{t.snaps?.editPost || (language === 'ko' ? '수정' : language === 'ja' ? '編集' : 'Edit')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="snaps-feed-menu-item delete"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      setActiveFeedMenuId(null);
+                      handleDeletePost(post.id);
+                    }}
+                  >
+                    <div className="snaps-menu-icon-circle delete">
+                      <Trash2 size={18} />
+                    </div>
+                    <span>{t.snaps?.deletePost || (language === 'ko' ? '삭제' : language === 'ja' ? '削除' : 'Delete')}</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="snaps-feed-menu-group">
+                  <button
+                    type="button"
+                    className="snaps-feed-menu-item"
+                    onClick={() => {
+                      setActiveFeedMenuId(null);
+                      setReportTarget({
+                        type: 'post',
+                        id: String(post.id),
+                        author: post.name || post.ownerName || 'unknown',
+                        content: post.recentThought || ''
+                      });
+                    }}
+                  >
+                    <div className="snaps-menu-icon-circle" style={{ background: '#FEE2E2', color: '#EF4444' }}>
+                      <Flag size={18} color="#EF4444" />
+                    </div>
+                    <span style={{ color: '#EF4444' }}>{language === 'ko' ? '게시글 신고' : language === 'ja' ? '投稿を通報' : 'Report Post'}</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
+        );
+      })()}
 
       {/* Report Modal */}
       <ReportModal

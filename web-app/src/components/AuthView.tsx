@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from '../i18n/LanguageContext';
-import { auth } from '../firebase';
+import { auth, db, COLLECTIONS } from '../firebase';
 import {
   signInWithPopup,
   signInWithRedirect,
@@ -9,8 +9,9 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword
 } from 'firebase/auth';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { Mail, Lock, CheckCircle2, Shield, User, AlertCircle, ArrowRight } from 'lucide-react';
-import { registerAppUser, verifyAppUser } from '../services/db';
+import { registerAppUser, verifyAppUser, syncUserToFirestore } from '../services/db';
 import walwalWalking from '../assets/walwal-walking.gif';
 import '../styles/AuthView.css';
 
@@ -57,7 +58,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  const finalizeLogin = (targetEmail: string) => {
+  const finalizeLogin = async (targetEmail: string) => {
     localStorage.setItem('walwal_logged_in', 'true');
     localStorage.setItem('walwal_user_email', targetEmail);
     localStorage.setItem('WALWAL_USER_EMAIL', targetEmail);
@@ -67,21 +68,49 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
     } else {
       localStorage.removeItem('WALWAL_ADMIN_AUTH');
     }
+
+    // 1. Sync User to Firestore 'users' collection
     try {
-      const saved = localStorage.getItem('WALWAL_PETS');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          const owned = parsed.filter((p: any) => {
-            if (!targetEmail) return false;
-            if (targetEmail.toLowerCase().includes('daisynara')) return true;
-            return (p.ownerEmail || '').toLowerCase().trim() === targetEmail.toLowerCase().trim();
-          });
-          localStorage.setItem('WALWAL_PETS', JSON.stringify(owned));
+      await syncUserToFirestore({
+        email: targetEmail,
+        ownerName: targetEmail.split('@')[0],
+        role: targetEmail.toLowerCase().includes('daisynara') ? 'admin' : 'user',
+        lastLoginAt: new Date().toISOString()
+      });
+    } catch (e) { }
+
+    // 2. Fetch and restore user's registered pets directly from Cloud Firestore 'dogs'
+    try {
+      const cleanEmail = targetEmail.toLowerCase().trim();
+      const q = query(collection(db, COLLECTIONS.DOGS), where('ownerEmail', '==', cleanEmail));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        const cloudPets: any[] = [];
+        snap.forEach(d => {
+          cloudPets.push({ id: d.id, ...d.data() });
+        });
+        if (cloudPets.length > 0) {
+          localStorage.setItem('WALWAL_PETS', JSON.stringify(cloudPets));
           window.dispatchEvent(new Event('walwal_pets_updated'));
         }
+      } else {
+        const saved = localStorage.getItem('WALWAL_PETS');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            const owned = parsed.filter((p: any) => {
+              if (targetEmail.toLowerCase().includes('daisynara')) return true;
+              return (p.ownerEmail || '').toLowerCase().trim() === cleanEmail;
+            });
+            localStorage.setItem('WALWAL_PETS', JSON.stringify(owned));
+            window.dispatchEvent(new Event('walwal_pets_updated'));
+          }
+        }
       }
-    } catch (e) { }
+    } catch (e) {
+      console.warn('Failed to fetch user pets from cloud on login:', e);
+    }
+
     onLoginSuccess();
   };
 

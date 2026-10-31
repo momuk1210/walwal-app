@@ -1,4 +1,4 @@
-import { db, auth } from '../firebase';
+import { db, auth, COLLECTIONS } from '../firebase';
 import {
   collection,
   doc,
@@ -132,7 +132,7 @@ export const reportContent = async (params: {
 
   // 2) Firestore reports 컬렉션 저장
   try {
-    await setDoc(doc(db, 'reports', reportId), {
+    await setDoc(doc(db, COLLECTIONS.REPORTS, reportId), {
       ...reportData,
       createdAt: serverTimestamp()
     });
@@ -151,7 +151,7 @@ export const reportContent = async (params: {
  */
 export const getAdminReports = async (): Promise<ContentReport[]> => {
   try {
-    const q = query(collection(db, 'reports'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db, COLLECTIONS.REPORTS), orderBy('createdAt', 'desc'));
     const snap = await getDocs(q);
     if (!snap.empty) {
       return snap.docs.map(d => ({ id: d.id, ...d.data() } as ContentReport));
@@ -177,7 +177,7 @@ export const updateReportStatus = async (
   newStatus: 'resolved' | 'dismissed'
 ): Promise<void> => {
   try {
-    await updateDoc(doc(db, 'reports', reportId), {
+    await updateDoc(doc(db, COLLECTIONS.REPORTS, reportId), {
       status: newStatus,
       updatedAt: serverTimestamp()
     });

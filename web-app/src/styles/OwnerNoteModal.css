@@ -3,7 +3,7 @@
   inset: 0;
   background: rgba(10, 14, 20, 0.88);
   backdrop-filter: blur(16px);
-  z-index: 2600;
+  z-index: 12000;
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -37,6 +37,7 @@
 }
 
 .own-message-modal-header .badge-hashtag {
+  background-color: transparent;
   border-color: #fff;
   color: #fff;
 }

@@ -17,8 +17,8 @@ import {
   AlertTriangle,
   ChevronDown
 } from 'lucide-react';
-import { db, auth } from '../firebase';
-import { syncMeetupToFirestore, saveDogProfile } from '../services/db';
+import { db, auth, COLLECTIONS } from '../firebase';
+import { syncMeetupToFirestore, saveDogProfile, syncUserToFirestore } from '../services/db';
 import {
   collection,
   onSnapshot,
@@ -53,6 +53,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
   const [selectedDogPerSub, setSelectedDogPerSub] = useState<Record<string, string>>({});
 
   // Firestore & Local Data Collections
+  const [users, setUsers] = useState<any[]>([]);
   const [dogs, setDogs] = useState<any[]>(() => {
     try {
       const saved = localStorage.getItem('WALWAL_PETS');
@@ -119,15 +120,34 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
       console.warn('Initial admin sync error:', e);
     }
 
-    const unsubDogs = onSnapshot(collection(db, 'dogs'), (snapshot) => {
+    const unsubUsers = onSnapshot(collection(db, COLLECTIONS.USERS), (snapshot) => {
+      const list: any[] = [];
+      snapshot.forEach(docSnap => {
+        list.push({ id: docSnap.id, ...docSnap.data() });
+      });
+      setUsers(list);
+    });
+
+    const unsubDogs = onSnapshot(collection(db, COLLECTIONS.DOGS), (snapshot) => {
       const list: any[] = [];
       snapshot.forEach(docSnap => {
         list.push({ id: docSnap.id, ...docSnap.data() });
       });
       setDogs(list);
+
+      // Auto-populate 'users' collection for registered dog owners
+      list.forEach(dog => {
+        if (dog.ownerEmail) {
+          syncUserToFirestore({
+            email: dog.ownerEmail,
+            ownerName: dog.ownerName,
+            role: dog.ownerEmail.toLowerCase().includes('daisynara') ? 'admin' : 'user'
+          });
+        }
+      });
     });
 
-    const unsubPosts = onSnapshot(collection(db, 'posts'), (snapshot) => {
+    const unsubPosts = onSnapshot(collection(db, COLLECTIONS.POSTS), (snapshot) => {
       const list: any[] = [];
       snapshot.forEach(docSnap => {
         list.push({ id: docSnap.id, ...docSnap.data() });
@@ -135,7 +155,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
       setPosts(list);
     });
 
-    const unsubMeetups = onSnapshot(collection(db, 'meetups'), (snapshot) => {
+    const unsubMeetups = onSnapshot(collection(db, COLLECTIONS.MEETUPS), (snapshot) => {
       const list: any[] = [];
       snapshot.forEach(docSnap => {
         list.push({ id: docSnap.id, ...docSnap.data() });
@@ -158,7 +178,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
       setMeetups(list);
     });
 
-    const unsubNotices = onSnapshot(collection(db, 'notices'), (snapshot) => {
+    const unsubNotices = onSnapshot(collection(db, COLLECTIONS.NOTICES), (snapshot) => {
       const list: any[] = [];
       snapshot.forEach(docSnap => {
         list.push({ id: docSnap.id, ...docSnap.data() });
@@ -167,7 +187,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
       setIsLoading(false);
     });
 
-    const unsubReports = onSnapshot(collection(db, 'reports'), async (snapshot) => {
+    const unsubReports = onSnapshot(collection(db, COLLECTIONS.REPORTS), async (snapshot) => {
       const list: ContentReport[] = [];
       snapshot.forEach(docSnap => {
         list.push({ id: docSnap.id, ...docSnap.data() } as ContentReport);
@@ -184,6 +204,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
     });
 
     return () => {
+      unsubUsers();
       unsubDogs();
       unsubPosts();
       unsubMeetups();
@@ -192,37 +213,76 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
     };
   }, []);
 
-  // 2. Group Dogs by Subscriber & Filtered Collections
+  // 2. Group Dogs by Subscriber & Filtered Collections (Integrated from users, dogs, posts)
   const subscribers: SubscriberGroup[] = useMemo(() => {
     const map = new Map<string, SubscriberGroup>();
 
+    // 1) Registered users from 'users' collection
+    users.forEach(u => {
+      if (!u.email) return;
+      const key = u.email.toLowerCase().trim();
+      map.set(key, {
+        id: key,
+        email: u.email,
+        ownerName: u.ownerName || u.displayName || key.split('@')[0],
+        joinedAt: u.joinedAt || (u.createdAt?.toDate ? u.createdAt.toDate().toLocaleDateString('ko-KR') : '2026.09.15'),
+        dogs: []
+      });
+    });
+
+    // 2) Dog owners from 'dogs' collection
     dogs.forEach(dog => {
-      const email = dog.ownerEmail ||
+      const email = (dog.ownerEmail ||
         (dog.id?.startsWith('pet-')
           ? (auth.currentUser?.email || localStorage.getItem('WALWAL_USER_EMAIL') || 'daisynara@gmail.com')
-          : `${(dog.ownerName || 'user').replace(/[^a-zA-Z0-9가-힣]/g, '').toLowerCase()}@walwal.pet`);
+          : `${(dog.ownerName || 'user').replace(/[^a-zA-Z0-9가-힣]/g, '').toLowerCase()}@walwal.pet`)).toLowerCase().trim();
 
-      const key = email.toLowerCase().trim();
-      const existing = map.get(key);
+      const existing = map.get(email);
       const joinedAt = dog.joinedAt || (dog.adoptionDate ? dog.adoptionDate.replace(/-/g, '.') : '2026.09.15');
 
       if (!existing) {
-        map.set(key, {
-          id: key,
+        map.set(email, {
+          id: email,
           email,
           ownerName: dog.ownerName || '보호자',
           joinedAt,
           dogs: [dog]
         });
       } else {
-        if (!existing.dogs.some(d => d.id === dog.id)) {
+        if (!existing.dogs.some(d => d.id === dog.id || (d.name && d.name === dog.name))) {
           existing.dogs.push(dog);
         }
       }
     });
 
+    // 3) Post creators from 'posts' collection
+    posts.forEach(post => {
+      const email = (post.ownerEmail || (post.isMine ? (auth.currentUser?.email || localStorage.getItem('WALWAL_USER_EMAIL')) : ''))?.toLowerCase().trim();
+      if (email && !map.has(email)) {
+        map.set(email, {
+          id: email,
+          email,
+          ownerName: post.ownerName || post.name || email.split('@')[0],
+          joinedAt: '2026.09.15',
+          dogs: []
+        });
+      }
+    });
+
+    // 4) Ensure current active user exists
+    const curEmail = (auth.currentUser?.email || localStorage.getItem('WALWAL_USER_EMAIL') || '').toLowerCase().trim();
+    if (curEmail && !map.has(curEmail)) {
+      map.set(curEmail, {
+        id: curEmail,
+        email: curEmail,
+        ownerName: curEmail.split('@')[0],
+        joinedAt: '2026.09.15',
+        dogs: []
+      });
+    }
+
     return Array.from(map.values());
-  }, [dogs]);
+  }, [users, dogs, posts]);
 
   const filteredSubscribers = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
@@ -268,13 +328,19 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
     );
   }, [meetups, searchQuery]);
 
-  // Actions: Delete Subscriber (all dogs)
+  // Actions: Delete Subscriber (all dogs & user doc)
   const handleDeleteSubscriber = async (sub: SubscriberGroup) => {
     if (!window.confirm(`'${sub.email}' 가입자와 등록된 보호견 ${sub.dogs.length}마리를 모두 영구 삭제하시겠습니까?`)) return;
     try {
       for (const dog of sub.dogs) {
-        await deleteDoc(doc(db, 'dogs', dog.id));
+        await deleteDoc(doc(db, COLLECTIONS.DOGS, dog.id));
       }
+      // Delete user document from users collection
+      const userDocId = sub.email.toLowerCase().trim().replace(/[^a-z0-9@._-]/g, '_');
+      try {
+        await deleteDoc(doc(db, COLLECTIONS.USERS, userDocId));
+      } catch (e) { }
+
       try {
         const saved = localStorage.getItem('WALWAL_PETS');
         if (saved) {
@@ -305,7 +371,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
   const handleDeleteDog = async (dog: any) => {
     if (!window.confirm(`'${dog.name}' 반려견을 데이터베이스에서 영구 삭제하시겠습니까?`)) return;
     try {
-      await deleteDoc(doc(db, 'dogs', dog.id));
+      await deleteDoc(doc(db, COLLECTIONS.DOGS, dog.id));
       try {
         const saved = localStorage.getItem('WALWAL_PETS');
         if (saved) {
@@ -334,7 +400,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
   const handleSaveEditDog = async () => {
     if (!editingDog) return;
     try {
-      await updateDoc(doc(db, 'dogs', editingDog.id), {
+      await updateDoc(doc(db, COLLECTIONS.DOGS, editingDog.id), {
         name: editName.trim(),
         breed: editBreed.trim(),
         greeting: editGreeting.trim(),
@@ -352,7 +418,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
   const handleDeletePost = async (post: any) => {
     if (!window.confirm(`이 게시물(작성자: ${post.name || '알 수 없음'})을 영구 삭제하시겠습니까?`)) return;
     try {
-      await deleteDoc(doc(db, 'posts', post.id));
+      await deleteDoc(doc(db, COLLECTIONS.POSTS, post.id));
       alert('게시물이 삭제되었습니다.');
     } catch (err) {
       console.error(err);
@@ -364,7 +430,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
   const handleDeleteMeetup = async (meetup: any) => {
     if (!window.confirm(`'${meetup.title}' 모임을 취소/삭제하시겠습니까?`)) return;
     try {
-      await deleteDoc(doc(db, 'meetups', meetup.id));
+      await deleteDoc(doc(db, COLLECTIONS.MEETUPS, meetup.id));
       const local = localStorage.getItem('WALWAL_MEETUPS');
       if (local) {
         try {
@@ -391,7 +457,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
     }
     try {
       const noticeId = 'notice-' + Date.now();
-      await setDoc(doc(db, 'notices', noticeId), {
+      await setDoc(doc(db, COLLECTIONS.NOTICES, noticeId), {
         id: noticeId,
         title: newNoticeTitle.trim(),
         body: newNoticeBody.trim(),
@@ -411,7 +477,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
   const handleDeleteNotice = async (noticeId: string) => {
     if (!window.confirm('이 공지사항을 삭제하시겠습니까?')) return;
     try {
-      await deleteDoc(doc(db, 'notices', noticeId));
+      await deleteDoc(doc(db, COLLECTIONS.NOTICES, noticeId));
     } catch (err) {
       console.error(err);
     }
@@ -440,10 +506,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
     if (!window.confirm(`신고된 콘텐츠(${report.targetContent || report.targetId})를 즉시 삭제하시겠습니까?`)) return;
     try {
       if (report.targetType === 'meetup') {
-        await deleteDoc(doc(db, 'meetups', report.targetId));
+        await deleteDoc(doc(db, COLLECTIONS.MEETUPS, report.targetId));
         setMeetups(prev => prev.filter(m => m.id !== report.targetId));
       } else if (report.targetType === 'post') {
-        await deleteDoc(doc(db, 'posts', report.targetId));
+        await deleteDoc(doc(db, COLLECTIONS.POSTS, report.targetId));
         setPosts(prev => prev.filter(p => p.id !== report.targetId));
       }
       await updateReportStatus(report.id, 'resolved');

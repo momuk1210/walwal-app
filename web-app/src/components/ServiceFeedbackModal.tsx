@@ -13,7 +13,7 @@ import {
   MessageSquare
 } from 'lucide-react';
 import { useTranslation, Language } from '../i18n/LanguageContext';
-import { db, auth } from '../firebase';
+import { db, auth, COLLECTIONS } from '../firebase';
 import {
   collection,
   onSnapshot,
@@ -111,7 +111,7 @@ export const ServiceFeedbackModal: React.FC<ServiceFeedbackModalProps> = ({
     if (!isOpen) return;
 
     try {
-      const q = query(collection(db, 'feedback'), orderBy('createdAt', 'desc'));
+      const q = query(collection(db, COLLECTIONS.FEEDBACK), orderBy('createdAt', 'desc'));
       const unsub = onSnapshot(q, (snapshot) => {
         if (!snapshot.empty) {
           const list: FeedbackItem[] = [];
@@ -191,7 +191,7 @@ export const ServiceFeedbackModal: React.FC<ServiceFeedbackModalProps> = ({
 
     // Save to Firestore
     try {
-      await addDoc(collection(db, 'feedback'), {
+      await addDoc(collection(db, COLLECTIONS.FEEDBACK), {
         content: newItem.content,
         photoUrl: newItem.photoUrl || null,
         authorName: newItem.authorName,

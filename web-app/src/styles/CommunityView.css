@@ -130,12 +130,14 @@
 .meetup-card-left {
   align-items: flex-start;
   flex: 1;
+  min-width: 0;
 }
 
 .meetup-host-avatar {
   cursor: pointer;
   border: 2px solid transparent;
   transition: border-color 0.2s ease;
+  flex-shrink: 0;
 }
 
 .meetup-host-avatar:hover {
@@ -144,17 +146,25 @@
 
 .meetup-host-info-wrap {
   cursor: pointer;
+  flex: 1;
+  min-width: 0;
 }
 
 .meetup-tag-row {
+  display: flex !important;
+  flex-direction: row-reverse;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-start;
   width: 100%;
+  row-gap: 2px;
 }
 
 .meetup-badge-group {
   display: flex;
   gap: 6px;
   align-items: center;
+  margin-top: 4px;
 }
 
 .meetup-closed-badge {
@@ -169,7 +179,9 @@
 .meetup-host-row {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .meetup-host-text {
@@ -177,6 +189,9 @@
   align-items: center;
   gap: 4px;
   margin: 0;
+  white-space: nowrap;
+  word-break: keep-all;
+  flex-shrink: 0;
 }
 
 .meetup-crown-icon {
@@ -209,6 +224,11 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  margin: 0;
+  margin-right: auto;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  line-height: 1.35;
 }
 
 .meetup-card-title:hover {
@@ -998,7 +1018,7 @@
 
 .hero-metric-value {
   font-size: 2.6rem;
-  font-weight: 900;
+  font-weight: 700;
   line-height: 1;
   color: #111;
   letter-spacing: -0.04em;
@@ -1006,8 +1026,8 @@
 }
 
 .hero-metric-unit {
-  font-size: 1rem;
-  font-weight: 800;
+  font-size: .8rem;
+  font-weight: 400;
   color: #64748B;
   letter-spacing: -0.01em;
 }
@@ -1021,7 +1041,6 @@
   border-radius: 999px;
   padding: 4px 12px;
   font-size: 0.68rem;
-  font-weight: 800;
   letter-spacing: 0.04em;
 }
 

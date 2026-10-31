@@ -12,10 +12,10 @@ tsxContent = tsxContent.replace(/style=\{\{ flex: 1, display: 'flex', justifyCon
 tsxContent = tsxContent.replace(/style=\{\{ flex: 1, display: 'flex', justifyContent: 'flex-end \}\}/g, "style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}");
 
 // Fix fontSize missing closing quote
-tsxContent = tsxContent.replace(/style=\{\{ fontSize: '0.65rem', color: '#2D3748', fontWeight: 800 \}\}/g, "style={{ fontSize: '0.65rem', color: '#2D3748', fontWeight: 800 }}"); // Wait, this one didn't have a missing quote?
+tsxContent = tsxContent.replace(/style=\{\{ fontSize: '0.65rem', color: '#333', fontWeight: 800 \}\}/g, "style={{ fontSize: '0.65rem', color: '#333', fontWeight: 800 }}"); // Wait, this one didn't have a missing quote?
 // Wait, my regex was /style=\{\{ fontSize: ''([^}]+)' \}\}/g -> style={{ fontSize: '${p1} }}
-// For line 1047, original before fix-syntax was: style={{ fontSize: ''0.65rem', color: '#2D3748', fontWeight: 800' }}
-// After fix-syntax: style={{ fontSize: '0.65rem', color: '#2D3748', fontWeight: 800 }}
+// For line 1047, original before fix-syntax was: style={{ fontSize: ''0.65rem', color: '#333', fontWeight: 800' }}
+// After fix-syntax: style={{ fontSize: '0.65rem', color: '#333', fontWeight: 800 }}
 // Wait! If it's `fontWeight: 800 }}`, there is NO missing quote! It's correct!
 // Why did the build fail on line 1047 then?
 // Let's check line 1047 again.

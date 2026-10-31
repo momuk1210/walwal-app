@@ -5,6 +5,7 @@ import './styles/common.css'
 import App from './App.tsx'
 import { registerSW } from 'virtual:pwa-register'
 import { sanitizePetList } from './data/mockDogs'
+import { ensureDbAuth } from './firebase'
 
 // Global MediaDevices getUserMedia Interceptor:
 // 중복 호출 및 React 렌더링/이벤트 경쟁 상태로 인한 iOS WebKit 연속 권한 팝업(3회 이상)을 브라우저 API 레벨에서 원천 차단
@@ -14,9 +15,16 @@ if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.medi
   let inFlightMediaPromise: Promise<MediaStream> | null = null;
 
   navigator.mediaDevices.getUserMedia = async function (constraints?: MediaStreamConstraints) {
+    // 0. 오디오 전용 요청(마이크 단독 스트림)은 비디오 싱글톤과 분리하여 직접 처리
+    if (constraints?.audio && !constraints?.video) {
+      return nativeGUM(constraints);
+    }
+
     // 1. 이미 활성 비디오 트랙이 살아있다면 브라우저 하드웨어에 절대 재요청하지 않고 기존 스트림 즉시 반환
     if (globalMediaStream) {
-      if (globalMediaStream.getVideoTracks().some(t => t.readyState === 'live')) {
+      const hasLiveVideo = globalMediaStream.getVideoTracks().some(t => t.readyState === 'live');
+      const hasLiveAudio = globalMediaStream.getAudioTracks().some(t => t.readyState === 'live');
+      if (hasLiveVideo && (!constraints?.audio || hasLiveAudio)) {
         return globalMediaStream;
       }
       globalMediaStream = null;
@@ -109,13 +117,21 @@ registerSW({
 });
 
 if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshing) return;
+    refreshing = true;
+    window.location.reload();
+  });
   navigator.serviceWorker.getRegistration().then(reg => {
     if (reg) reg.update();
   }).catch(() => {});
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+ensureDbAuth().finally(() => {
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  )
+})

@@ -81,8 +81,8 @@ const ALL_SERVICES_I18N = {
       },
       settings_system: {
         title: '설정 & 지원',
-        settingsTitle: '환경 설정',
-        settingsDesc: '언어 설정, 알림, 캐시 관리',
+        settingsTitle: '설정 및 활동',
+        settingsDesc: '내 활동(저장됨·팔로우), 언어, 알림 및 권한',
         adminTitle: '관리자 모드',
         adminDesc: '반려견, 피드, 모임, 공지사항 관리',
         faqTitle: '자주 묻는 질문',
@@ -131,8 +131,8 @@ const ALL_SERVICES_I18N = {
       },
       settings_system: {
         title: 'Settings & Support',
-        settingsTitle: 'Settings',
-        settingsDesc: 'Language, notifications, cache',
+        settingsTitle: 'Settings & Activity',
+        settingsDesc: 'My activity (saved & follow), language, notifications',
         adminTitle: 'Admin Dashboard',
         adminDesc: 'Manage dogs, posts, meetups & notices',
         faqTitle: 'FAQ',
@@ -181,8 +181,8 @@ const ALL_SERVICES_I18N = {
       },
       settings_system: {
         title: '設定＆サポート',
-        settingsTitle: '環境設定',
-        settingsDesc: '言語設定・通知・キャッシュ管理',
+        settingsTitle: '設定とアクティビティ',
+        settingsDesc: 'マイアクティビティ(保存・フォロー)、言語、通知',
         adminTitle: '管理者モード',
         adminDesc: '愛犬・投稿・オフ会・お知らせ管理',
         faqTitle: 'よくある質問',
@@ -231,8 +231,8 @@ const ALL_SERVICES_I18N = {
       },
       settings_system: {
         title: 'Ajustes y Soporte',
-        settingsTitle: 'Ajustes',
-        settingsDesc: 'Idioma, notificaciones y caché',
+        settingsTitle: 'Configuración y actividad',
+        settingsDesc: 'Mi actividad (guardado y seguidos), idioma, notificaciones',
         adminTitle: 'Modo Administrador',
         adminDesc: 'Gestión de perros, posts y grupos',
         faqTitle: 'Preguntas Frecuentes',
@@ -281,8 +281,8 @@ const ALL_SERVICES_I18N = {
       },
       settings_system: {
         title: 'Paramètres & Support',
-        settingsTitle: 'Paramètres',
-        settingsDesc: 'Langue, notifications et cache',
+        settingsTitle: 'Paramètres et activité',
+        settingsDesc: 'Mon activité (enregistrés & abonnements), langue, notifications',
         adminTitle: 'Mode Administrateur',
         adminDesc: 'Gestion des chiens, posts et groupes',
         faqTitle: 'FAQ',
@@ -331,8 +331,8 @@ const ALL_SERVICES_I18N = {
       },
       settings_system: {
         title: '设置与客户支持',
-        settingsTitle: '应用设置',
-        settingsDesc: '语言、消息通知与缓存管理',
+        settingsTitle: '设置与活动',
+        settingsDesc: '我的活动（收藏与关注）、语言、通知与权限',
         adminTitle: '管理中心',
         adminDesc: '管理狗狗档案、帖子与约行活动',
         faqTitle: '常见问题',
@@ -442,6 +442,18 @@ export const AllServicesModal: React.FC<AllServicesModalProps> = ({
             action: () => {
               onNavigate('community');
               onClose();
+            }
+          },
+          {
+            id: 'messages_inbox',
+            title: (c.feed_snaps as any).inboxTitle || (language === 'ko' ? '메세지함' : language === 'ja' ? 'メッセージ一覧' : 'Messages'),
+            desc: (c.feed_snaps as any).inboxDesc || (language === 'ko' ? '이웃과 주고받은 1:1 쪽지 목록' : language === 'ja' ? '1対1のダイレクトメッセージ履歴' : 'Direct messages & notes'),
+            icon: <MessageSquare size={ICON_SIZE} color={UNIFIED_ICON_COLOR} />,
+            action: () => {
+              onClose();
+              setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('walwal_open_messages_inbox'));
+              }, 60);
             }
           }
         ]

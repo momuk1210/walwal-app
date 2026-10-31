@@ -14,6 +14,8 @@ import { AdminView } from './components/AdminView';
 import { AllServicesModal } from './components/AllServicesModal';
 import { ServiceFeedbackModal } from './components/ServiceFeedbackModal';
 import { LegalView, LegalViewType } from './components/LegalView';
+import { DirectMessagesInboxModal } from './components/DirectMessagesInboxModal';
+import { OwnerNoteModal } from './components/OwnerNoteModal';
 // VirtualChatModal replaced by AR Camera 2-Dog Interaction Mode
 import { DogProfile, MOCK_DOGS, getMockDogs, sanitizePetList } from './data/mockDogs';
 import { auth } from './firebase';
@@ -22,10 +24,25 @@ import { Bell } from 'lucide-react';
 import { PWAInstallBanner } from './components/PWAInstallBanner';
 import { GlobalWalkFloatingBar } from './components/GlobalWalkFloatingBar';
 import { AppPermissionModal } from './components/AppPermissionModal';
+import { MobileAppGatekeeper } from './components/MobileAppGatekeeper';
 
 export type AppViewTab = NavTab | 'studio' | 'admin';
 
 function WalWalMain() {
+  // 모바일 앱 전용 안내 게이트키퍼 바이패스 상태 (관리자/개발자/테스터 인증)
+  const [isBypassed, setIsBypassed] = useState<boolean>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('admin') === 'true' || params.get('dev') === 'true' || params.get('preview') === 'true') {
+        localStorage.setItem('WALWAL_DEV_BYPASS', 'true');
+        return true;
+      }
+      return localStorage.getItem('WALWAL_DEV_BYPASS') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
   const [appState, setAppState] = useState<'loading' | 'auth' | 'paywall' | 'main'>(() => {
     const savedLoggedIn = localStorage.getItem('walwal_logged_in');
     const savedState = localStorage.getItem('walwal_app_state');
@@ -43,6 +60,10 @@ function WalWalMain() {
         setAppState('main');
         localStorage.setItem('walwal_logged_in', 'true');
         localStorage.setItem('walwal_app_state', 'main');
+        if (currentUser.email?.includes('daisynara') || currentUser.email?.includes('admin')) {
+          localStorage.setItem('WALWAL_DEV_BYPASS', 'true');
+          setIsBypassed(true);
+        }
       } else {
         const savedLoggedIn = localStorage.getItem('walwal_logged_in');
         const savedState = localStorage.getItem('walwal_app_state');
@@ -89,6 +110,8 @@ function WalWalMain() {
   }, []);
 
   const [isAllServicesOpen, setIsAllServicesOpen] = useState(false);
+  const [isMessagesInboxOpen, setIsMessagesInboxOpen] = useState(false);
+  const [activeDirectChatDog, setActiveDirectChatDog] = useState<any | null>(null);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [activeLegalModal, setActiveLegalModal] = useState<LegalViewType | null>(null);
 
@@ -96,6 +119,12 @@ function WalWalMain() {
     const handleOpenServices = () => setIsAllServicesOpen(true);
     window.addEventListener('walwal_open_all_services', handleOpenServices);
     return () => window.removeEventListener('walwal_open_all_services', handleOpenServices);
+  }, []);
+
+  useEffect(() => {
+    const handleOpenInbox = () => setIsMessagesInboxOpen(true);
+    window.addEventListener('walwal_open_messages_inbox', handleOpenInbox);
+    return () => window.removeEventListener('walwal_open_messages_inbox', handleOpenInbox);
   }, []);
 
   useEffect(() => {
@@ -201,6 +230,11 @@ function WalWalMain() {
         <LegalView type="terms" onClose={() => { window.location.href = '/'; }} />
       </div>
     );
+  }
+
+  // 모바일 앱 전용 게이트키퍼: 일반 웹 브라우저 접속 차단 (관리자/개발자/테스터 인증 시 통과)
+  if (!isBypassed) {
+    return <MobileAppGatekeeper onBypass={() => setIsBypassed(true)} />;
   }
 
   if (appState === 'loading') {
@@ -356,6 +390,23 @@ function WalWalMain() {
         isOpen={isAllServicesOpen}
         onClose={() => setIsAllServicesOpen(false)}
         onNavigate={(tabId) => handleTabChange(tabId as any)}
+      />
+
+      {/* Direct Messages Inbox Modal (쪽지함/메세지함) */}
+      <DirectMessagesInboxModal
+        isOpen={isMessagesInboxOpen}
+        onClose={() => setIsMessagesInboxOpen(false)}
+        onOpenChat={(targetDog) => {
+          setIsMessagesInboxOpen(false);
+          setActiveDirectChatDog(targetDog);
+        }}
+      />
+
+      {/* 1:1 Note/Chat Modal from Inbox */}
+      <OwnerNoteModal
+        isOpen={!!activeDirectChatDog}
+        targetDog={activeDirectChatDog}
+        onClose={() => setActiveDirectChatDog(null)}
       />
 
       {/* Service Improvement & Feedback Modal */}

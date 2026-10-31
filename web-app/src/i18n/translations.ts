@@ -119,7 +119,14 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "privacyContent": "1. 수집하는 개인정보 항목\n이메일, 닉네임, 기기 정보(마이크, 카메라 접근 권한 등).\n\n2. 개인정보의 이용 목적\n- 반려견 AR 짖음 분석 서비스 제공\n- 위치기반 반려견 커뮤니티 모임 매칭 기능 제공"
     },
     "settings": {
-      "title": "설정",
+      "title": "설정 및 활동",
+      "myActivity": "내 활동",
+      "saved": "저장됨",
+      "savedDesc": "내가 저장한 게시물",
+      "followers": "팔로우",
+      "followersDesc": "나를 팔로우하는 친구들",
+      "following": "팔로잉",
+      "followingDesc": "내가 소식을 받아보는 친구들",
       "proTitle": "WalWal Pro 구독",
       "proStatus": "무료 체험 진행 중",
       "restorePurchase": "구매 항목 복원",
@@ -475,7 +482,14 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "privacyContent": "1. Information Collected\nEmail, nickname, device permissions (mic, camera, etc.).\n\n2. Purpose of Use\n- Providing AR bark analysis services\n- Offering location-based pet community matching"
     },
     "settings": {
-      "title": "Settings",
+      "title": "Settings & Activity",
+      "myActivity": "My Activity",
+      "saved": "Saved",
+      "savedDesc": "Posts you've saved",
+      "followers": "Followers",
+      "followersDesc": "Friends who follow you",
+      "following": "Following",
+      "followingDesc": "Friends you follow",
       "proTitle": "WalWal Pro Subscription",
       "proStatus": "Free trial active",
       "restorePurchase": "Restore Purchases",
@@ -829,7 +843,14 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "privacyContent": "1. 収集する個人情報\nメール、ニックネーム、デバイス権限（マイク、カメラなど）。\n\n2. 利用目的\n- 犬のAR吠え声分析サービスの提供\n- 位置情報ベースのペットコミュニティマッチングの提供"
     },
     "settings": {
-      "title": "設定",
+      "title": "設定とアクティビティ",
+      "myActivity": "マイアクティビティ",
+      "saved": "保存済み",
+      "savedDesc": "保存した投稿",
+      "followers": "フォロワー",
+      "followersDesc": "あなたをフォローしている友達",
+      "following": "フォロー中",
+      "followingDesc": "あなたがフォローしている友達",
       "proTitle": "WalWal Pro サブスクリプション",
       "proStatus": "無料トライアル中",
       "restorePurchase": "購入の復元",
@@ -1184,7 +1205,14 @@ export const TRANSLATIONS: Record<Language, TranslationSchema> = {
       "privacyContent": "1. Información recopilada\nCorreo electrónico, apodo, permisos del dispositivo (micrófono, cámara, etc.).\n\n2. Propósito de uso\n- Proporcionar servicios de análisis de ladridos AR\n- Ofrecer emparejamiento comunitario de mascotas basado en la ubicación"
     },
     "settings": {
-      "title": "Ajustes",
+      "title": "Configuración y actividad",
+      "myActivity": "Mi actividad",
+      "saved": "Guardado",
+      "savedDesc": "Publicaciones guardadas",
+      "followers": "Seguidores",
+      "followersDesc": "Amigos que te siguen",
+      "following": "Siguiendo",
+      "followingDesc": "Amigos que sigues",
       "proTitle": "Suscripción WalWal Pro",
       "proStatus": "Prueba gratuita activa",
       "restorePurchase": "Restaurar compras",

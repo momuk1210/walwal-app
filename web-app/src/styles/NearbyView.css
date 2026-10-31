@@ -1,0 +1,220 @@
+/* ==========================================================================
+   NearbyView.css - 동네친구 (레이더/지도) 및 강아지 마커 스타일
+   ========================================================================== */
+
+/* Leaflet 마커 컨테이너 기본값 리셋 및 레이어링 */
+.dog-marker-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+.dog-marker-icon.is-my-pet {
+  z-index: 1000 !important;
+}
+
+.dog-marker-icon.is-selected {
+  z-index: 3000 !important;
+}
+
+.dog-marker-icon.is-my-pet.is-selected {
+  z-index: 3100 !important;
+}
+
+/* 강아지 마커 래퍼 */
+.dog-marker-wrap {
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  user-select: none;
+}
+
+/* 강아지 원형 아바타 프레임 */
+.dog-marker-avatar {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid #FFFFFF;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  background: #FFFFFF;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dog-marker-avatar.is-my-pet {
+  border: 3px solid #FF9E58;
+}
+
+.dog-marker-avatar.is-selected {
+  width: 52px;
+  height: 52px;
+  border: 3px solid #2EC4B6;
+  box-shadow: 0 0 20px rgba(46, 196, 182, 0.6);
+  transform: scale(1.08);
+}
+
+.dog-marker-avatar.is-my-pet.is-selected {
+  border: 3px solid #FF9E58;
+  box-shadow: 0 0 20px rgba(255, 126, 54, 0.6);
+  transform: scale(1.08);
+}
+
+/* 아바타 이미지 */
+.dog-marker-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* 내 반려견 펄스 애니메이션 */
+.dog-marker-pulse {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 126, 54, 0.25);
+  animation: dogMarkerPulse 2s infinite;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+@keyframes dogMarkerPulse {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.9;
+  }
+
+  50% {
+    transform: scale(1.2);
+    opacity: 0.2;
+  }
+
+  100% {
+    transform: scale(0.95);
+    opacity: 0.9;
+  }
+}
+
+/* 강아지 이름 및 거리 배지 */
+.dog-marker-badge {
+  background: #FFFFFF;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #333333;
+  margin-top: 3px;
+  white-space: nowrap;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dog-marker-badge.is-my-pet {
+  background: #FF9E58;
+  color: #FFFFFF;
+}
+
+.dog-marker-badge.is-selected {
+  background: #2EC4B6;
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(46, 196, 182, 0.4);
+}
+
+.dog-marker-badge.is-my-pet.is-selected {
+  background: #FF9E58;
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(255, 126, 54, 0.4);
+}
+
+.dog-marker-name {
+  line-height: 1.2;
+}
+
+.dog-marker-tag-me {
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.25);
+  padding: 1px 4px;
+  border-radius: 6px;
+  font-weight: 700;
+}
+
+.dog-marker-tag-dist {
+  font-size: 10px;
+  opacity: 0.85;
+}
+
+/* --------------------------------------------------------------------------
+   내 위치 마커 (user-my-loc-marker)
+   -------------------------------------------------------------------------- */
+.user-my-loc-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+.my-loc-marker-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: default;
+}
+
+.my-loc-marker-dot {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  background: #2EC4B6;
+  border: 3px solid #FFFFFF;
+  border-radius: 50%;
+  box-shadow: 0 0 12px rgba(46, 196, 182, 0.8);
+}
+
+.my-loc-marker-pulse {
+  position: absolute;
+  inset: 0;
+  background: rgba(46, 196, 182, 0.4);
+  border-radius: 50%;
+  animation: dogMarkerPulse 2s infinite;
+}
+
+.my-loc-marker-badge {
+  background: #2EC4B6;
+  color: #FFFFFF;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 8px;
+  margin-top: 3px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------------
+   안내 배너 스타일
+   -------------------------------------------------------------------------- */
+.nearby-guide-banner {
+  padding: 22px 16px;
+  margin-top: 16px;
+  border-radius: 16px;
+  background: #FFFFFF;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+.nearby-guide-icon {
+  font-size: 28px;
+  opacity: 0.5;
+}
+
+.nearby-guide-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 10px 0;
+}
+
+.nearby-guide-desc {
+  font-size: 12px;
+  color: #121212;
+}

@@ -64,7 +64,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({ onCaptureToStory, on
         particleCount: 30,
         spread: 50,
         origin: { y: 0.4 },
-        colors: breed.id === 'shiba' ? ['#FF7E36', '#334155'] : ['#FF7E36', '#FFBF00', '#2EC4B6']
+        colors: breed.id === 'shiba' ? ['#FF9E58', '#334155'] : ['#FF9E58', '#FFBF00', '#2EC4B6']
       });
     }, 350);
   };
@@ -116,10 +116,10 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({ onCaptureToStory, on
         <div className="glass-panel" style={{ padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '1.2rem' }}>??</span>
           <div>
-            <div style={{ fontWeight: 800, fontSize: '0.85rem', background: 'linear-gradient(90deg, #FF7E36, #FFBF00)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            <div style={{ fontWeight: 800, fontSize: '0.85rem', background: 'linear-gradient(90deg, #FF9E58, #FFBF00)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
               {t.appTitle}
             </div>
-            <div style={{ fontSize: '0.62rem', color: '#94A3B8' }}>{selectedBreed.breedKr} �� AI Active</div>
+            <div style={{ fontSize: '0.62rem', color: '#c8c8c8' }}>{selectedBreed.breedKr} �� AI Active</div>
           </div>
         </div>
       </div>
@@ -199,7 +199,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({ onCaptureToStory, on
           <button
             onClick={onOpenPro}
             className="glow-btn"
-            style={{ background: 'linear-gradient(135deg, #FF7E36, #8338EC)', border: 'none', borderRadius: '9999px', padding: '5px 12px', color: '#fff', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
+            style={{ background: 'linear-gradient(135deg, #FF9E58, #8338EC)', border: 'none', borderRadius: '9999px', padding: '5px 12px', color: '#fff', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
           >
             <Zap size={13} /> WalWal Pro
           </button>
@@ -223,7 +223,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({ onCaptureToStory, on
               <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#2EC4B6' }}>
                 ?? {selectedBreed.breedKr} {t.ar.ethologyModalTitle}
               </span>
-              <button onClick={() => setShowEthologyInfo(false)} style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer' }}>?</button>
+              <button onClick={() => setShowEthologyInfo(false)} style={{ background: 'none', border: 'none', color: '#c8c8c8', cursor: 'pointer' }}>?</button>
             </div>
             <div style={{ fontSize: '0.75rem', color: '#E2E8F0', lineHeight: 1.4, display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <div><strong>?? {t.ar.tailInterpretation}:</strong> {selectedBreed.tailWaggingInterpretation}</div>
@@ -252,7 +252,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({ onCaptureToStory, on
             <div style={{
               background: 'linear-gradient(135deg, rgba(26, 31, 41, 0.95), rgba(40, 48, 64, 0.92))',
               backdropFilter: 'blur(20px)',
-              border: selectedBreed.id === 'shiba' ? '2px solid #94A3B8' : selectedBreed.id === 'maltese' ? '2px solid #F43F5E' : '2px solid #FF7E36',
+              border: selectedBreed.id === 'shiba' ? '2px solid #c8c8c8' : selectedBreed.id === 'maltese' ? '2px solid #F43F5E' : '2px solid #FF9E58',
               borderRadius: '24px',
               padding: '16px 20px',
               boxShadow: '0 12px 30px rgba(0, 0, 0, 0.7), 0 0 25px rgba(255, 126, 54, 0.35)',
@@ -261,7 +261,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({ onCaptureToStory, on
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <span style={{ fontSize: '1rem' }}>??</span>
-                  <span style={{ fontWeight: 800, fontSize: '0.85rem', color: '#FF7E36' }}>{selectedBreed.name}{t.ar.speechSuffix}</span>
+                  <span style={{ fontWeight: 800, fontSize: '0.85rem', color: '#FF9E58' }}>{selectedBreed.name}{t.ar.speechSuffix}</span>
                   <span style={{ fontSize: '0.68rem', color: '#CBD5E1', background: 'rgba(255,255,255,0.1)', padding: '1px 6px', borderRadius: '6px' }}>
                     {selectedBreed.breedKr}
                   </span>
@@ -269,7 +269,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({ onCaptureToStory, on
 
                 <button
                   onClick={(e) => { e.stopPropagation(); handleRethink(); }}
-                  style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.7rem' }}
+                  style={{ background: 'none', border: 'none', color: '#c8c8c8', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.7rem' }}
                 >
                   <RefreshCw size={12} className={aiAnalyzing ? 'spin' : ''} />
                   {t.ar.retranslate}
@@ -312,12 +312,12 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({ onCaptureToStory, on
           width: '140px'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '0.62rem', color: '#94A3B8', fontWeight: 600 }}>{t.ar.audioFreq}</span>
-            <Volume2 size={12} color="#FF7E36" />
+            <span style={{ fontSize: '0.62rem', color: '#c8c8c8', fontWeight: 600 }}>{t.ar.audioFreq}</span>
+            <Volume2 size={12} color="#FF9E58" />
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '18px' }}>
             {[40, 75, 25, 90, 50, 80, audioLevel].map((val, idx) => (
-              <div key={idx} style={{ flex: 1, background: val > 65 ? '#FF7E36' : '#2EC4B6', height: Math.min(100, Math.max(15, val)) + '%', borderRadius: '2px', transition: 'height 0.3s ease' }} />
+              <div key={idx} style={{ flex: 1, background: val > 65 ? '#FF9E58' : '#2EC4B6', height: Math.min(100, Math.max(15, val)) + '%', borderRadius: '2px', transition: 'height 0.3s ease' }} />
             ))}
           </div>
           <div style={{ fontSize: '0.62rem', color: '#FFBF00', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -365,7 +365,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({ onCaptureToStory, on
                 />
                 <div style={{ textAlign: 'left' }}>
                   <div style={{ color: '#fff', fontWeight: 700, fontSize: '0.7rem' }}>{breed.name}</div>
-                  <div style={{ color: isSelected ? '#FFE8D6' : '#94A3B8', fontSize: '0.65rem' }}>{breed.breedKr}</div>
+                  <div style={{ color: isSelected ? '#FFE8D6' : '#c8c8c8', fontSize: '0.65rem' }}>{breed.breedKr}</div>
                 </div>
               </button>
             );
@@ -398,7 +398,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({ onCaptureToStory, on
               width: '64px',
               height: '64px',
               borderRadius: '50%',
-              background: 'linear-gradient(135deg, #FF7E36, #FFBF00)',
+              background: 'linear-gradient(135deg, #FF9E58, #FFBF00)',
               border: '3px solid #FFFFFF',
               display: 'flex',
               flexDirection: 'column',

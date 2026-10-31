@@ -267,39 +267,78 @@ export const localizeDogName = (name: string, _targetLang: string = 'ko'): strin
 export const getLiveDogProfile = (dogNameOrId: string, targetLang: string = 'ko'): DogProfile | null => {
   if (!dogNameOrId) return null;
   const clean = dogNameOrId.trim();
-  try {
-    const saved = localStorage.getItem('WALWAL_PETS');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed)) {
-        const found = parsed.find((p: any) => p.id === clean || isSameDogName(p.name, clean));
-        if (found) {
-          return normalizeDogProfile(found, targetLang);
+  const storageSources = ['WALWAL_PETS', 'WALWAL_ALL_DOGS', 'WALWAL_SNAPS_POSTS', 'WALWAL_FEED_POSTS'];
+  for (const key of storageSources) {
+    try {
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const found = parsed.find((p: any) => p && (p.id === clean || isSameDogName(p.name, clean)));
+          if (found) {
+            return normalizeDogProfile({
+              ...found,
+              name: found.name || clean,
+              breed: found.breed || (isSameDogName(clean, '딸기') ? '말티즈' : '반려견'),
+              age: found.age ? String(found.age) : (isSameDogName(clean, '딸기') ? '2' : '1'),
+              gender: found.gender || (isSameDogName(clean, '딸기') ? 'female' : 'male'),
+              ownerName: found.ownerName || `${found.name || clean} 보호자`,
+              personality: Array.isArray(found.personality) && found.personality.length > 0 ? found.personality : ['#산책러버', '#댕댕이'],
+              distance: found.distance || '120m'
+            }, targetLang);
+          }
         }
       }
-    }
-  } catch (e) { }
+    } catch (e) { }
+  }
 
   const mock = getMockDogs(targetLang).find(m => m.id === clean || isSameDogName(m.name, clean));
-  return mock || null;
+  if (mock) return mock;
+
+  if (isSameDogName(clean, '딸기')) {
+    return normalizeDogProfile({
+      id: 'dog-strawberry',
+      name: '딸기',
+      breed: '말티즈',
+      age: '2',
+      gender: 'female',
+      ownerName: '딸기 엄마',
+      avatar: 'https://images.dog.ceo/breeds/maltese/n02085936_2927.jpg',
+      personality: ['#애교쟁이', '#산책러버'],
+      greeting: '신나게 산책하고 있어요 🐶',
+      distance: '120m',
+      lat: 37.5446,
+      lng: 127.044,
+      recentThought: '신나게 산책하고 있어요 🐶',
+      detectedEmotion: 'happy',
+      soundPattern: '멍멍!',
+      posePattern: '꼬리 살랑',
+      conversationLog: []
+    }, targetLang);
+  }
+
+  return null;
 };
 
 export const getLiveDogAvatar = (dogNameOrId?: string, fallbackAvatar?: string): string => {
   if (!dogNameOrId && !fallbackAvatar) return getDefaultDogAvatar('');
 
   if (dogNameOrId) {
-    try {
-      const saved = localStorage.getItem('WALWAL_PETS');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          const found = parsed.find((p: any) => p.id === dogNameOrId || isSameDogName(p.name, dogNameOrId));
-          if (found?.avatar && !found.avatar.includes('photo-1517849845537-4d257902454a')) {
-            return found.avatar;
+    const storageSources = ['WALWAL_PETS', 'WALWAL_ALL_DOGS', 'WALWAL_SNAPS_POSTS', 'WALWAL_FEED_POSTS'];
+    for (const key of storageSources) {
+      try {
+        const saved = localStorage.getItem(key);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            const found = parsed.find((p: any) => p && (p.id === dogNameOrId || isSameDogName(p.name, dogNameOrId)));
+            if (found?.avatar && !found.avatar.includes('photo-1517849845537-4d257902454a')) {
+              return found.avatar;
+            }
           }
         }
-      }
-    } catch (e) { }
+      } catch (e) { }
+    }
 
     const mock = getMockDogs('ko').find(m => m.id === dogNameOrId || isSameDogName(m.name, dogNameOrId));
     if (mock?.avatar) {

@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { X, Send, Sparkles } from 'lucide-react';
-import { DogProfile, getDefaultDogAvatar, getMockDogs, normalizeDogProfile } from '../data/mockDogs';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, Send, Trash2 } from 'lucide-react';
+import { DogProfile, getDefaultDogAvatar, getLiveDogProfile, isSameDogName } from '../data/mockDogs';
 import confetti from 'canvas-confetti';
 import { useTranslation } from '../i18n/LanguageContext';
 import { formatChatTime } from '../utils/timeUtils';
+import { getConversation, saveDirectMessage, deleteConversation, DirectMessageItem } from '../services/directMessageService';
+import { db, COLLECTIONS } from '../firebase';
+import { collection, getDocs } from 'firebase/firestore';
 import '../styles/OwnerNoteModal.css';
 
 interface OwnerNoteModalProps {
@@ -17,7 +20,6 @@ export const OwnerNoteModal: React.FC<OwnerNoteModalProps> = ({
   isOpen,
   targetDog,
   onClose,
-  onStartVirtualChat
 }) => {
   const { t, language } = useTranslation();
 
@@ -30,7 +32,8 @@ export const OwnerNoteModal: React.FC<OwnerNoteModalProps> = ({
 
   const [messageText, setMessageText] = useState<string>('');
   const [, setTimeTick] = useState<number>(0);
-  const [messages, setMessages] = useState<Array<{ sender: 'me' | 'target'; text: string; time?: string; timestamp?: number }>>([]);
+  const [messages, setMessages] = useState<DirectMessageItem[]>([]);
+  const [cloudDogData, setCloudDogData] = useState<Partial<DogProfile> | null>(null);
 
   // Live timer to update relative time
   useEffect(() => {
@@ -40,28 +43,88 @@ export const OwnerNoteModal: React.FC<OwnerNoteModalProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  // 모달 열릴 때 초기 메세지 세팅 + body 스크롤 잠금
+  // Firestore 'dogs' 컬렉션에서 상대견의 최신 상세 프로필(이름, 견종, 나이, 성별, 보호자명 등) 조회 및 캐시
+  useEffect(() => {
+    if (!isOpen || !targetDog) {
+      setCloudDogData(null);
+      return;
+    }
+    let cancelled = false;
+    getDocs(collection(db, COLLECTIONS.DOGS))
+      .then((snap) => {
+        if (cancelled) return;
+        const allDogs: any[] = [];
+        let matched: any = null;
+        snap.forEach((docSnap) => {
+          const d = docSnap.data();
+          if (d && d.name) {
+            const item = { id: docSnap.id, ...d };
+            allDogs.push(item);
+            if (docSnap.id === targetDog.id || isSameDogName(d.name, targetDog.name)) {
+              matched = item;
+            }
+          }
+        });
+        if (allDogs.length > 0) {
+          try {
+            localStorage.setItem('WALWAL_ALL_DOGS', JSON.stringify(allDogs));
+          } catch (e) { }
+        }
+        if (matched) {
+          setCloudDogData(matched);
+        }
+      })
+      .catch(() => { });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, targetDog]);
+
+  const resolvedDog = useMemo(() => {
+    if (!targetDog) return null;
+    const live = getLiveDogProfile(targetDog.name || targetDog.id, language);
+    const merged: any = {
+      ...(live || {}),
+      ...targetDog,
+      ...(cloudDogData || {}),
+    };
+    const name = merged.name || targetDog.name || '반려견';
+    const isStrawberry = isSameDogName(name, '딸기');
+    const breed = (merged.breed && merged.breed !== '반려견')
+      ? merged.breed
+      : (live?.breed && live.breed !== '반려견' ? live.breed : (isStrawberry ? '말티즈' : (merged.breed || '믹스견')));
+    const age = merged.age ? String(merged.age) : (live?.age ? String(live.age) : (isStrawberry ? '2' : '1'));
+    const gender = merged.gender || live?.gender || (isStrawberry ? 'female' : 'male');
+    const rawOwner = merged.ownerName || live?.ownerName || '';
+    const ownerName = rawOwner && rawOwner !== 'undefined' ? rawOwner : `${name} 보호자`;
+    const personality = Array.isArray(merged.personality) && merged.personality.length > 0
+      ? merged.personality
+      : (Array.isArray(live?.personality) && live.personality.length > 0 ? live.personality : ['#산책러버', '#댕댕이']);
+    const distance = merged.distance || live?.distance || '120m';
+    const avatar = merged.avatar || live?.avatar || getDefaultDogAvatar(name);
+
+    return {
+      ...merged,
+      name,
+      breed,
+      age,
+      gender,
+      ownerName,
+      personality,
+      distance,
+      avatar
+    } as DogProfile;
+  }, [targetDog, cloudDogData, language]);
+
+  // 모달 열릴 때 기존 대화 복원 + body 스크롤 잠금
   useEffect(() => {
     if (isOpen && targetDog) {
-      let myDog: any = null;
-      try {
-        const saved = localStorage.getItem('WALWAL_PETS');
-        if (saved) {
-          const pets = JSON.parse(saved);
-          if (pets.length > 0) myDog = normalizeDogProfile(pets[0], language);
-        }
-      } catch (e) { }
-      if (!myDog) {
-        myDog = getMockDogs(language)[0];
+      const existingConv = getConversation(targetDog);
+      if (existingConv && Array.isArray(existingConv.messages)) {
+        setMessages(existingConv.messages);
+      } else {
+        setMessages([]);
       }
-
-      const defaultIntro = '안녕하세요! 저는 {ownerName} 보호자(엄마/아빠)예요. 저희 {dogName}이는 {breed}랍니다. 친하게 지내요!';
-      const introText = (t.profile?.noteIntro || defaultIntro)
-        .replace('{ownerName}', myDog.ownerName || myDog.name + ' 엄마')
-        .replace('{dogName}', myDog.name || '')
-        .replace('{breed}', myDog.breed || '');
-      const now = Date.now();
-      setMessages([{ sender: 'me', text: introText, timestamp: now, time: formatChatTime(now, language) }]);
       setMessageText('');
       // body 스크롤 잠금 → 뒷 화면 레이아웃 틀어짐 방지
       document.body.style.overflow = 'hidden';
@@ -71,25 +134,48 @@ export const OwnerNoteModal: React.FC<OwnerNoteModalProps> = ({
     return () => {
       document.body.style.overflow = '';
     };
-  }, [isOpen, targetDog, language]);
+  }, [isOpen, targetDog]);
 
-  if (!isOpen || !targetDog) return null;
+  if (!isOpen || !targetDog || !resolvedDog) return null;
 
   // avatar 유효성 검사
   const safeAvatar = (url?: string) => {
     if (!url || url.length < 10 || (!url.startsWith('http') && !url.startsWith('blob') && !url.startsWith('data'))) {
-      return getDefaultDogAvatar(targetDog.name + ' ' + targetDog.breed);
+      return getDefaultDogAvatar(resolvedDog.name + ' ' + resolvedDog.breed);
     }
     return url;
   };
-  const displayAvatar = safeAvatar(targetDog.avatar);
+  const displayAvatar = safeAvatar(resolvedDog.avatar);
 
   const handleSend = () => {
-    if (!messageText.trim()) return;
+    if (!messageText.trim() || !resolvedDog) return;
     const now = Date.now();
-    setMessages(prev => [...prev, { sender: 'me', text: messageText.trim(), timestamp: now, time: formatChatTime(now, language) }]);
+    const formattedTime = formatChatTime(now, language);
+    const savedMsg = saveDirectMessage(resolvedDog, {
+      text: messageText.trim(),
+      sender: 'me',
+      time: formattedTime
+    });
+    setMessages(prev => [...prev, savedMsg]);
     setMessageText('');
     confetti({ particleCount: 25, spread: 45, origin: { y: 0.6 } });
+  };
+
+  const cleanDogName = (resolvedDog.name || '')
+    .replace(/\s*(엄마|아빠|보호자|집사|맘|Mom|Dad|ママ|パパ)\s*$/gi, '')
+    .trim() || resolvedDog.name || '반려견';
+
+  const handleDeleteChat = () => {
+    const confirmMsg = language === 'ko'
+      ? `${cleanDogName}와의 대화 내용을 모두 삭제하고 나가시겠습니까?`
+      : 'Delete all messages with this user and leave?';
+    if (window.confirm(confirmMsg)) {
+      if (resolvedDog) {
+        deleteConversation(resolvedDog);
+      }
+      setMessages([]);
+      onClose();
+    }
   };
 
   return (
@@ -101,35 +187,56 @@ export const OwnerNoteModal: React.FC<OwnerNoteModalProps> = ({
             <div className="own-message-modal-avatar-container">
               <img
                 src={displayAvatar}
-                alt={targetDog.name}
+                alt={cleanDogName}
                 className="own-message-modal-avatar"
               />
               <div className="own-message-modal-status-dot" />
             </div>
             <div>
               <div className="row gap-6">
-                <span className="own-message-modal-owner-name">{targetDog.ownerName}</span>
-                <span className="own-message-modal-distance">
-                  {targetDog.distance}{t.common?.nearby || ' 인근'}
-                </span>
+                <span className="own-message-modal-owner-name">{cleanDogName}</span>
+                {resolvedDog.distance && (
+                  <span className="own-message-modal-distance">
+                    {resolvedDog.distance}
+                  </span>
+                )}
               </div>
 
               <div className="own-message-modal-dog-info">
-                <div className='text-sm'>{targetDog.breed} {targetDog.age}{t.profile?.dogAgeSuffix || '살'} &middot; {targetDog.gender === 'female' ? (t.common?.genderShortFemale || '여') : (t.common?.genderShortMale || '남')}</div>
+                <div className='text-sm'>
+                  {resolvedDog.breed} · {resolvedDog.age}{t.profile?.dogAgeSuffix || '살'} &middot; {resolvedDog.gender === 'female' ? (t.common?.genderShortFemale || '여') : (t.common?.genderShortMale || '남')}
+                </div>
                 <div className="row gap-4" style={{ flexWrap: 'wrap', marginTop: 4 }}>
-                  {targetDog.personality?.map((p, i) => (
+                  {resolvedDog.personality?.map((p, i) => (
                     <span key={i} className="badge-hashtag">{p}</span>
                   ))}
                 </div>
               </div>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="btn-ghost own-message-modal-close-btn"
-          >
-            <X size={24} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            {messages.length > 0 && (
+              <button
+                type="button"
+                onClick={handleDeleteChat}
+                className="btn-ghost own-message-modal-close-btn"
+                title={language === 'ko' ? '대화 삭제 및 나가기' : 'Delete conversation'}
+                aria-label={language === 'ko' ? '대화 삭제 및 나가기' : 'Delete conversation'}
+                style={{ color: 'rgba(255, 255, 255, 0.9)' }}
+              >
+                <Trash2 size={20} />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="btn-ghost own-message-modal-close-btn"
+              title={language === 'ko' ? '닫기' : 'Close'}
+              aria-label={language === 'ko' ? '닫기' : 'Close'}
+            >
+              <X size={24} />
+            </button>
+          </div>
         </div>
 
         {/* Message Stream */}
@@ -176,7 +283,13 @@ export const OwnerNoteModal: React.FC<OwnerNoteModalProps> = ({
             value={messageText}
             onChange={(e) => setMessageText(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleSend(); }}
-            placeholder={t.profile?.notePlaceholder ? t.profile.notePlaceholder.replace('{ownerName}', targetDog.ownerName) : `${targetDog.ownerName} 보호자님께 메세지 보내기...`}
+            placeholder={
+              language === 'ko'
+                ? `${cleanDogName}에게 메세지 보내기...`
+                : t.profile?.notePlaceholder
+                  ? t.profile.notePlaceholder.replace('{ownerName}', cleanDogName)
+                  : `Send a message to ${cleanDogName}...`
+            }
             className="own-message-input"
           />
           <button

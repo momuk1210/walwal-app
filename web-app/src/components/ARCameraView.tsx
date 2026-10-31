@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, RefreshCw, Volume2, Share2, ShieldCheck, Zap, Activity, MessageCircle, Send, Video, Play, Pause, Disc, Layers, PlusSquare, Bone, Scan, ScanFace, Menu } from 'lucide-react';
+import { Camera, RefreshCw, Volume2, VolumeX, Mic, MicOff, Share2, ShieldCheck, Zap, Activity, MessageCircle, Send, Video, Play, Pause, Disc, Layers, PlusSquare, Bone, Scan, ScanFace } from 'lucide-react';
 import { BREED_DEFINITIONS, BreedDefinition } from '../data/breedProfiles';
 import { DogProfile, MOCK_DOGS, getMockDogs, sanitizePetList } from '../data/mockDogs';
 import { useTranslation } from '../i18n/LanguageContext';
@@ -70,7 +70,12 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
   const [hasLiveStream, setHasLiveStream] = useState<boolean>(false);
   const [cameraFacingMode, setCameraFacingMode] = useState<'environment' | 'user'>('environment');
   const [zoomLevel, setZoomLevel] = useState<'0.5x' | '1x' | '2x'>('1x');
-  const [audioLevel, setAudioLevel] = useState<number>(52);
+  const [isMicEnabled, setIsMicEnabled] = useState<boolean>(() => localStorage.getItem('WALWAL_PERM_MIC') !== 'false');
+  const isMicEnabledRef = useRef<boolean>(localStorage.getItem('WALWAL_PERM_MIC') !== 'false');
+  useEffect(() => {
+    isMicEnabledRef.current = isMicEnabled;
+  }, [isMicEnabled]);
+  const [audioLevel, setAudioLevel] = useState<number>(() => localStorage.getItem('WALWAL_PERM_MIC') !== 'false' ? 52 : 0);
   const [focusTarget, setFocusTarget] = useState<{ x: number; y: number; active: boolean; dogName: string }>({ x: 50, y: 50, active: false, dogName: '' });
   const orientationStateRef = useRef<{ isLandscape: boolean; rotation: number }>({ isLandscape: false, rotation: 0 });
   const [isLandscapeMode, setIsLandscapeMode] = useState<boolean>(false);
@@ -152,17 +157,26 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
   const audioStreamRef = useRef<MediaStream | null>(null);
   const lastBehaviorChangeRef = useRef<number>(0);
 
-  // 레코딩 타이머 효과 (실제 동영상 촬영 느낌)
+  // 레코딩 타이머 효과 (실제 동영상 촬영 느낌 + 마이크 실시간 데시벨 반영)
   useEffect(() => {
     let timer: any;
     if (isRecording) {
       timer = setInterval(() => {
         setRecordTime(prev => prev + 1);
-        setAudioLevel(Math.floor(35 + Math.random() * 50));
-      }, 1000);
+        if (!isMicEnabled) {
+          setAudioLevel(0);
+        } else if (analyserRef.current) {
+          const data = new Uint8Array(analyserRef.current.frequencyBinCount);
+          analyserRef.current.getByteFrequencyData(data);
+          const avg = data.reduce((a, b) => a + b, 0) / (data.length || 1);
+          setAudioLevel(Math.min(99, Math.max(25, Math.round(25 + avg * 0.8))));
+        } else {
+          setAudioLevel(Math.floor(35 + Math.random() * 50));
+        }
+      }, 600);
     }
     return () => clearInterval(timer);
-  }, [isRecording]);
+  }, [isRecording, isMicEnabled]);
 
   // 대화 턴 자동 전환 시뮬레이션 (동영상처럼 대화가 살아 움직임)
   useEffect(() => {
@@ -658,6 +672,68 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
   };
 
 
+  const stopMicStream = () => {
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach(t => {
+        try { t.stop(); } catch (e) { }
+      });
+      audioStreamRef.current = null;
+    }
+    analyserRef.current = null;
+    setAudioLevel(0);
+  };
+
+  const startMicStream = async (): Promise<MediaStream | null> => {
+    if (localStorage.getItem('WALWAL_PERM_MIC') === 'false') {
+      stopMicStream();
+      return null;
+    }
+    if (audioStreamRef.current && audioStreamRef.current.getAudioTracks().some(t => t.readyState === 'live')) {
+      return audioStreamRef.current;
+    }
+    try {
+      const micStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true },
+        video: false
+      });
+      audioStreamRef.current = micStream;
+      try {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtx) {
+          if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+            audioCtxRef.current = new AudioCtx();
+          }
+          if (audioCtxRef.current.state === 'suspended') {
+            audioCtxRef.current.resume().catch(() => { });
+          }
+          const source = audioCtxRef.current.createMediaStreamSource(micStream);
+          const analyser = audioCtxRef.current.createAnalyser();
+          analyser.fftSize = 256;
+          source.connect(analyser);
+          analyserRef.current = analyser;
+        }
+      } catch (ctxErr) { }
+      return micStream;
+    } catch (err) {
+      console.warn('Microphone stream unavailable:', err);
+      return null;
+    }
+  };
+
+  const toggleMic = async () => {
+    const next = !isMicEnabled;
+    setIsMicEnabled(next);
+    isMicEnabledRef.current = next;
+    localStorage.setItem('WALWAL_PERM_MIC', String(next));
+    window.dispatchEvent(new CustomEvent('walwal_permissions_updated', { detail: { type: 'mic', value: next } }));
+    if (next) {
+      setAudioLevel(48);
+      await startMicStream();
+    } else {
+      stopMicStream();
+    }
+  };
+
   const stopLiveCamera = (forceKillHardware: boolean = true) => {
     if (forceKillHardware) {
       if (globalCameraStream) {
@@ -763,7 +839,12 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
 
         setHasLiveStream(true);
         setIsCameraLive(true);
-        setAudioLevel(48);
+        if (isMicEnabledRef.current) {
+          setAudioLevel(48);
+          startMicStream().catch(() => { });
+        } else {
+          setAudioLevel(0);
+        }
         return stream;
       } catch (err: any) {
         console.log('Camera initialization error:', err);
@@ -805,8 +886,15 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
           startLiveCamera();
         }
       } else if (permType === 'mic') {
-        const micOn = permValue !== undefined ? Boolean(permValue) : localStorage.getItem('WALWAL_PERM_MIC') === 'true';
-        setAudioLevel(micOn ? 48 : 0);
+        const micOn = permValue !== undefined ? Boolean(permValue) : localStorage.getItem('WALWAL_PERM_MIC') !== 'false';
+        setIsMicEnabled(micOn);
+        isMicEnabledRef.current = micOn;
+        if (micOn) {
+          setAudioLevel(48);
+          startMicStream().catch(() => { });
+        } else {
+          stopMicStream();
+        }
       } else {
         // 일반 storage 이벤트
         const cameraOn = localStorage.getItem('WALWAL_PERM_CAMERA') === 'true';
@@ -1188,18 +1276,11 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
             />
           </div>
 
-          {/* 우측: Pet Translator & Companion 타이틀 & 전체서비스 햄버거 버튼 */}
+          {/* 우측: Pet Translator & Companion 타이틀 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div className="walwal-info">
               {t.ar.petTranslator}
             </div>
-            <button
-              className="all-services-header-btn"
-              onClick={() => window.dispatchEvent(new CustomEvent('walwal_open_all_services'))}
-              aria-label="전체서비스"
-              title="전체서비스" >
-              <Menu size={24} color="#000" />
-            </button>
           </div>
         </div>
       </div>
@@ -1447,23 +1528,34 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
         )}
 
 
-        {/* ================= 4. 비디오 오디오 파형 & 실시간 마이크 레벨 ================= */}
-        <div className={`ar-audio-level-container ${!isCameraLive ? 'offline' : ''}`}>
-          <Volume2 size={13} color="#2EC4B6" />
+        {/* ================= 4. 비디오 오디오 파형 & 실시간 마이크 레벨 (클릭하여 소리 녹화 켬/끄기) ================= */}
+        <div
+          className={`ar-audio-level-container ${!isCameraLive ? 'offline' : ''}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleMic();
+          }}
+          style={{ cursor: 'pointer', userSelect: 'none' }}
+          title={isMicEnabled ? (language === 'ko' ? '클릭하여 소리 녹화 끄기' : 'Mute audio recording') : (language === 'ko' ? '클릭하여 소리 녹화 켜기' : 'Unmute audio recording')}
+        >
+          {isMicEnabled ? <Volume2 size={14} color="#2EC4B6" /> : <VolumeX size={14} color="#EF4444" />}
           <div className="ar-audio-level-bars">
             {[30, 60, 45, 80, 50, 90, 40].map((h, i) => (
               <div
                 key={i}
                 className="ar-audio-level-bar"
                 style={{
-                  height: Math.min(14, (audioLevel / 100) * h) + 'px',
+                  height: isMicEnabled ? Math.min(14, (audioLevel / 100) * h) + 'px' : '2px',
+                  opacity: isMicEnabled ? 1 : 0.35
                 }}
               />
             ))}
           </div>
-          <span className="ar-audio-level-text">{audioLevel}dB</span>
-          <span className="ar-audio-level-freq">
-            {t.ar.freqAnalyzing}
+          <span className="ar-audio-level-text">{isMicEnabled ? `${audioLevel}dB` : 'OFF'}</span>
+          <span className="ar-audio-level-freq" style={{ color: isMicEnabled ? '#2EC4B6' : '#FCA5A5', fontWeight: 700 }}>
+            {isMicEnabled
+              ? (language === 'ko' ? '소리 녹화 켬' : language === 'ja' ? '音声録音 ON' : 'Sound ON')
+              : (language === 'ko' ? '소리 녹화 끔' : language === 'ja' ? '音声録音 OFF' : 'Sound OFF')}
           </span>
         </div>
 
@@ -1473,7 +1565,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
           {/* 중앙 공유/캡처 버튼 */}
           <div className="ar-capture-btn-group">
             <button className={`bottom-bar-btn ${!isCapturingVideo ? 'shot' : ''}`}
-              onClick={() => {
+              onClick={async () => {
                 if (isCapturingVideo) return;
 
                 confetti({
@@ -1534,15 +1626,36 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
                     throw new Error('captureStream or MediaRecorder not supported');
                   }
 
+                  // 소리 녹화 켜짐(isMicEnabled) 상태면 실제 마이크 오디오 트랙을 캔버스 비디오 스트림에 결합
+                  if (isMicEnabledRef.current) {
+                    try {
+                      let micStream = audioStreamRef.current;
+                      if (!micStream || !micStream.getAudioTracks().some(t => t.readyState === 'live')) {
+                        micStream = await startMicStream();
+                      }
+                      if (micStream) {
+                        micStream.getAudioTracks().forEach(track => {
+                          if (track.readyState === 'live') {
+                            track.enabled = true;
+                            stream!.addTrack(track);
+                          }
+                        });
+                      }
+                    } catch (micErr) {
+                      console.warn('Could not attach mic track to recording:', micErr);
+                    }
+                  }
+
                   let options: any = undefined;
                   const MR = (window as any).MediaRecorder;
+                  const hasAudioTracks = stream.getAudioTracks().length > 0;
                   if (typeof MR.isTypeSupported === 'function') {
-                    if (MR.isTypeSupported('video/mp4;codecs=avc1')) {
-                      options = { mimeType: 'video/mp4;codecs=avc1', videoBitsPerSecond: 1_200_000 };
+                    if (hasAudioTracks && MR.isTypeSupported('video/webm;codecs=vp8,opus')) {
+                      options = { mimeType: 'video/webm;codecs=vp8,opus', videoBitsPerSecond: 1_200_000 };
+                    } else if (hasAudioTracks && MR.isTypeSupported('video/webm;codecs=vp9,opus')) {
+                      options = { mimeType: 'video/webm;codecs=vp9,opus', videoBitsPerSecond: 1_200_000 };
                     } else if (MR.isTypeSupported('video/mp4')) {
                       options = { mimeType: 'video/mp4', videoBitsPerSecond: 1_200_000 };
-                    } else if (MR.isTypeSupported('video/webm;codecs=vp9')) {
-                      options = { mimeType: 'video/webm;codecs=vp9', videoBitsPerSecond: 1_200_000 };
                     } else if (MR.isTypeSupported('video/webm')) {
                       options = { mimeType: 'video/webm', videoBitsPerSecond: 1_200_000 };
                     }
@@ -1664,6 +1777,20 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
                 </button>
               ))}
 
+
+              {/* 소리 녹화 켬/끄기 버튼 */}
+              <button
+                type="button"
+                className={`button ${isMicEnabled ? 'active' : ''}`}
+                title={isMicEnabled ? (language === 'ko' ? '소리 녹화 끄기' : 'Mute Mic') : (language === 'ko' ? '소리 녹화 켜기' : 'Unmute Mic')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleMic();
+                }}
+                style={{ color: isMicEnabled ? '#2EC4B6' : '#EF4444' }}
+              >
+                {isMicEnabled ? <Mic size={18} /> : <MicOff size={18} />}
+              </button>
 
               {/* 카메라 전환 버튼 */}
               <button className="button" title={t.ar.switchCamera || "카메라 전환"} onClick={() => setCameraFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}>

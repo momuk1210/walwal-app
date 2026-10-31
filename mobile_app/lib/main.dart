@@ -7,7 +7,7 @@ import 'package:walwal_app/screens/ar_camera_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // For Android, it uses google-services.json automatically.
   await Firebase.initializeApp();
 
@@ -34,13 +34,15 @@ class WalWalApp extends StatelessWidget {
           backgroundColor: Colors.white,
           elevation: 0,
           iconTheme: IconThemeData(color: Colors.black87),
-          titleTextStyle: TextStyle(color: Colors.black87, fontSize: 18, fontWeight: FontWeight.bold),
+          titleTextStyle: TextStyle(
+              color: Colors.black87, fontSize: 18, fontWeight: FontWeight.bold),
         ),
         cardTheme: const CardThemeData(
           color: Colors.white,
           elevation: 2,
           shadowColor: Color(0x19000000),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(24))),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(24))),
         ),
       ),
       home: const MainNavigationScreen(),
@@ -61,9 +63,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   final List<Widget> _screens = const [
     ARCameraScreen(),
     RadarScreen(),
-    Center(child: Text('📸 숏폼 & 피드 스튜디오', style: TextStyle(fontSize: 16, color: Colors.black87))),
-    Center(child: Text('🐶 산책 커뮤니티 & 매칭', style: TextStyle(fontSize: 16, color: Colors.black87))),
-    Center(child: Text('⚙️ 설정 & 마이 프로필', style: TextStyle(fontSize: 16, color: Colors.black87))),
+    Center(
+        child: Text('숏폼 & 피드 스튜디오',
+            style: TextStyle(fontSize: 16, color: Colors.black87))),
+    Center(
+        child: Text('산책 커뮤니티 & 매칭',
+            style: TextStyle(fontSize: 16, color: Colors.black87))),
+    Center(
+        child: Text('설정 & 마이 프로필',
+            style: TextStyle(fontSize: 16, color: Colors.black87))),
   ];
 
   @override

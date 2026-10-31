@@ -95,10 +95,10 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
       <div style={{ padding: '14px 16px 8px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 10 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Compass size={20} color="#FF7E36" />
+            <Compass size={20} color="#FF9E58" />
             <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#fff' }}>{t.radar.title}</h2>
           </div>
-          <p style={{ fontSize: '0.7rem', color: '#94A3B8', marginTop: '2px' }}>
+          <p style={{ fontSize: '0.7rem', color: '#c8c8c8', marginTop: '2px' }}>
             {t.radar.dogsNearby} ({radarZoom})
           </p>
         </div>
@@ -109,7 +109,7 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
             className="glass-pill"
             style={{ padding: '5px 8px', color: '#CBD5E1', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.65rem', fontWeight: 700 }}
           >
-            <Layers size={11} /> {mapType === 'dark' ? 'À§¼ºÁöµµ' : '·Îµå¸Ê'}
+            <Layers size={11} /> {mapType === 'dark' ? 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½' : 'ï¿½Îµï¿½ï¿½'}
           </button>
 
           <button
@@ -128,7 +128,7 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
             }}
           >
             <Key size={11} />
-            {apiKey ? 'Google Maps ON' : 'APIÅ° µî·Ï'}
+            {apiKey ? 'Google Maps ON' : 'APIÅ° ï¿½ï¿½ï¿½'}
           </button>
 
           <div className="glass-panel" style={{ display: 'flex', padding: '2px', gap: '2px', borderRadius: '8px' }}>
@@ -137,7 +137,7 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
                 key={range}
                 onClick={() => setRadarZoom(range)}
                 style={{
-                  background: radarZoom === range ? '#FF7E36' : 'transparent',
+                  background: radarZoom === range ? '#FF9E58' : 'transparent',
                   border: 'none',
                   color: '#fff',
                   fontSize: '0.65rem',
@@ -199,16 +199,16 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
               <rect width="500" height="700" fill={mapType === 'dark' ? '#141824' : '#1A2218'} />
               <rect width="500" height="700" fill="url(#grid)" />
 
-              {/* Han River (ÇÑ°­) */}
+              {/* Han River (ï¿½Ñ°ï¿½) */}
               <path
                 d="M -50 560 C 120 530, 280 590, 550 540 L 550 750 L -50 750 Z"
                 fill={mapType === 'dark' ? '#0E1D2D' : '#0B2B3D'}
                 stroke="#1B3A57"
                 strokeWidth="2"
               />
-              <text x="320" y="630" fill="#3D6A8E" fontSize="13" fontWeight="bold">ÇÑ°­ (Han River)</text>
+              <text x="320" y="630" fill="#3D6A8E" fontSize="13" fontWeight="bold">ï¿½Ñ°ï¿½ (Han River)</text>
 
-              {/* Jungnang Stream (Áß¶ûÃµ) */}
+              {/* Jungnang Stream (ï¿½ß¶ï¿½Ãµ) */}
               <path
                 d="M 120 -50 C 140 180, 160 320, 100 550"
                 fill="none"
@@ -216,36 +216,36 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
                 strokeWidth="28"
                 strokeLinecap="round"
               />
-              <text x="50" y="240" fill="#3D6A8E" fontSize="11" fontWeight="bold" transform="rotate(-70 50 240)">Áß¶ûÃµ »êÃ¥·Î</text>
+              <text x="50" y="240" fill="#3D6A8E" fontSize="11" fontWeight="bold" transform="rotate(-70 50 240)">ï¿½ß¶ï¿½Ãµ ï¿½ï¿½Ã¥ï¿½ï¿½</text>
 
-              {/* Seoul Forest Green Zone (¼­¿ï½£ °ø¿ø) */}
+              {/* Seoul Forest Green Zone (ï¿½ï¿½ï¿½ï½£ ï¿½ï¿½ï¿½ï¿½) */}
               <path
                 d="M 170 180 C 260 160, 420 180, 430 350 C 440 450, 360 490, 240 480 C 160 470, 150 320, 170 180 Z"
                 fill={mapType === 'dark' ? '#162C24' : '#1F4228'}
                 stroke="#2A5C43"
                 strokeWidth="2"
               />
-              <text x="240" y="320" fill="#3AA876" fontSize="15" fontWeight="bold" textAnchor="middle">?? ¼­¿ï½£ (Seoul Forest)</text>
-              <text x="240" y="340" fill="#2E7E58" fontSize="10" textAnchor="middle">¹Ý·Á°ß µ¿¹Ý »êÃ¥·Î</text>
+              <text x="240" y="320" fill="#3AA876" fontSize="15" fontWeight="bold" textAnchor="middle">?? ï¿½ï¿½ï¿½ï½£ (Seoul Forest)</text>
+              <text x="240" y="340" fill="#2E7E58" fontSize="10" textAnchor="middle">ï¿½Ý·ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Ã¥ï¿½ï¿½</text>
 
-              {/* Major Roads & Bridges (°­º¯ºÏ·Î, ¼º¼ö´ë±³, ¶Ò¼¶·Î) */}
+              {/* Major Roads & Bridges (ï¿½ï¿½ï¿½ï¿½ï¿½Ï·ï¿½, ï¿½ï¿½ï¿½ï¿½ï¿½ë±³, ï¿½Ò¼ï¿½ï¿½ï¿½) */}
               <path d="M -50 515 L 550 505" stroke="#2C3545" strokeWidth="12" fill="none" />
-              <text x="380" y="500" fill="#64748B" fontSize="9">°­º¯ºÏ·Î</text>
+              <text x="380" y="500" fill="#64748B" fontSize="9">ï¿½ï¿½ï¿½ï¿½ï¿½Ï·ï¿½</text>
 
               <path d="M 160 520 L 140 700" stroke="#374151" strokeWidth="14" fill="none" />
-              <text x="175" y="600" fill="#94A3B8" fontSize="9">¼º¼ö´ë±³</text>
+              <text x="175" y="600" fill="#c8c8c8" fontSize="9">ï¿½ï¿½ï¿½ï¿½ï¿½ë±³</text>
 
               <path d="M -20 160 C 200 170, 350 150, 520 170" stroke="#252D3D" strokeWidth="8" fill="none" />
-              <text x="30" y="150" fill="#64748B" fontSize="9">¶Ò¼¶·Î »êÃ¥±æ</text>
+              <text x="30" y="150" fill="#64748B" fontSize="9">ï¿½Ò¼ï¿½ï¿½ï¿½ ï¿½ï¿½Ã¥ï¿½ï¿½</text>
 
-              {/* Subway Stations (¼­¿ï½£¿ª, ¶Ò¼¶¿ª) */}
+              {/* Subway Stations (ï¿½ï¿½ï¿½ï½£ï¿½ï¿½, ï¿½Ò¼ï¿½ï¿½ï¿½) */}
               <g transform="translate(360, 165)">
                 <rect x="-8" y="-8" width="16" height="16" rx="4" fill="#FFB703" />
-                <text x="14" y="4" fill="#FFB703" fontSize="10" fontWeight="bold">¼­¿ï½£¿ª (¼öÀÎºÐ´ç¼±)</text>
+                <text x="14" y="4" fill="#FFB703" fontSize="10" fontWeight="bold">ï¿½ï¿½ï¿½ï½£ï¿½ï¿½ (ï¿½ï¿½ï¿½ÎºÐ´ç¼±)</text>
               </g>
               <g transform="translate(320, 70)">
                 <rect x="-8" y="-8" width="16" height="16" rx="4" fill="#2EC4B6" />
-                <text x="14" y="4" fill="#2EC4B6" fontSize="10" fontWeight="bold">¶Ò¼¶¿ª (2È£¼±)</text>
+                <text x="14" y="4" fill="#2EC4B6" fontSize="10" fontWeight="bold">ï¿½Ò¼ï¿½ï¿½ï¿½ (2È£ï¿½ï¿½)</text>
               </g>
             </svg>
 
@@ -314,16 +314,16 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
                 width: '24px',
                 height: '24px',
                 borderRadius: '50%',
-                background: '#FF7E36',
+                background: '#FF9E58',
                 border: '3px solid #fff',
-                boxShadow: '0 0 15px #FF7E36',
+                boxShadow: '0 0 15px #FF9E58',
                 display: 'flex',
                 justifyContent: 'center',
                 alignItems: 'center'
               }}>
                 <Navigation size={12} color="#fff" style={{ transform: 'rotate(45deg)' }} />
               </div>
-              <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#FF7E36', background: 'rgba(0,0,0,0.85)', padding: '2px 6px', borderRadius: '6px', marginTop: '3px', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#FF9E58', background: 'rgba(0,0,0,0.85)', padding: '2px 6px', borderRadius: '6px', marginTop: '3px', whiteSpace: 'nowrap' }}>
                 {t.radar.myLocation}
               </span>
             </div>
@@ -355,9 +355,9 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
                     width: isSelected ? '54px' : '44px',
                     height: isSelected ? '54px' : '44px',
                     borderRadius: '50%',
-                    border: isSelected ? '3px solid #FF7E36' : '2px solid rgba(255,255,255,0.8)',
+                    border: isSelected ? '3px solid #FF9E58' : '2px solid rgba(255,255,255,0.8)',
                     overflow: 'hidden',
-                    boxShadow: isSelected ? '0 0 22px #FF7E36' : '0 4px 12px rgba(0,0,0,0.6)',
+                    boxShadow: isSelected ? '0 0 22px #FF9E58' : '0 4px 12px rgba(0,0,0,0.6)',
                     background: '#1F2937',
                     transition: 'all 0.2s ease'
                   }}>
@@ -365,7 +365,7 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
                   </div>
                   <div style={{
                     marginTop: '3px',
-                    background: isSelected ? '#FF7E36' : 'rgba(26, 31, 41, 0.9)',
+                    background: isSelected ? '#FF9E58' : 'rgba(26, 31, 41, 0.9)',
                     border: '1px solid rgba(255,255,255,0.15)',
                     borderRadius: '6px',
                     padding: '2px 6px',
@@ -388,8 +388,8 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
           <button
             onClick={() => { setMapOffset({ x: 0, y: 0 }); }}
             className="glass-panel"
-            style={{ width: '32px', height: '32px', borderRadius: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#FF7E36', cursor: 'pointer' }}
-            title="³» À§Ä¡·Î Áß½É ÀÌµ¿"
+            style={{ width: '32px', height: '32px', borderRadius: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#FF9E58', cursor: 'pointer' }}
+            title="ï¿½ï¿½ ï¿½ï¿½Ä¡ï¿½ï¿½ ï¿½ß½ï¿½ ï¿½Ìµï¿½"
           >
             <Navigation size={15} />
           </button>
@@ -413,7 +413,7 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
         }}>
           <button
             onClick={() => setSelectedPin(null)}
-            style={{ position: 'absolute', top: '14px', right: '14px', background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer' }}
+            style={{ position: 'absolute', top: '14px', right: '14px', background: 'none', border: 'none', color: '#c8c8c8', cursor: 'pointer' }}
           >
             <X size={18} />
           </button>
@@ -422,17 +422,17 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
             <img
               src={selectedPin.avatar}
               alt={selectedPin.name}
-              style={{ width: '56px', height: '56px', borderRadius: '18px', objectFit: 'cover', border: '2px solid #FF7E36' }}
+              style={{ width: '56px', height: '56px', borderRadius: '18px', objectFit: 'cover', border: '2px solid #FF9E58' }}
             />
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fff' }}>{selectedPin.name}</h3>
-                <span style={{ fontSize: '0.68rem', color: '#FF7E36', background: 'rgba(255,126,54,0.15)', padding: '2px 8px', borderRadius: '8px', fontWeight: 700 }}>
-                  {selectedPin.distance} ÀÎ±Ù
+                <span style={{ fontSize: '0.68rem', color: '#FF9E58', background: 'rgba(255,126,54,0.15)', padding: '2px 8px', borderRadius: '8px', fontWeight: 700 }}>
+                  {selectedPin.distance} ï¿½Î±ï¿½
                 </span>
               </div>
-              <p style={{ fontSize: '0.72rem', color: '#94A3B8', marginTop: '2px' }}>
-                {selectedPin.breed} ¡¤ {selectedPin.age} ¡¤ °ßÁÖ: {selectedPin.ownerName}
+              <p style={{ fontSize: '0.72rem', color: '#c8c8c8', marginTop: '2px' }}>
+                {selectedPin.breed} ï¿½ï¿½ {selectedPin.age} ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½: {selectedPin.ownerName}
               </p>
             </div>
           </div>
@@ -445,7 +445,7 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
             border: '1px solid rgba(255,255,255,0.06)'
           }}>
             <div style={{ fontSize: '0.68rem', color: '#2EC4B6', fontWeight: 700, marginBottom: '3px' }}>
-              ?? Google Maps GPS °¨Áö ¼Ó¸¶À½
+              ?? Google Maps GPS ï¿½ï¿½ï¿½ï¿½ ï¿½Ó¸ï¿½ï¿½ï¿½
             </div>
             <div style={{ fontSize: '0.85rem', color: '#F1F5F9', fontWeight: 500, lineHeight: 1.4 }}>
               "{selectedPin.recentThought}"
@@ -458,7 +458,7 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
               className="glow-btn"
               style={{
                 flex: 1,
-                background: 'linear-gradient(135deg, #FF7E36, #FFBF00)',
+                background: 'linear-gradient(135deg, #FF9E58, #FFBF00)',
                 border: 'none',
                 borderRadius: '14px',
                 padding: '12px',
@@ -522,7 +522,7 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
             <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fff', marginBottom: '8px' }}>
               ?? {t.radar.apiKeyModalTitle}
             </h3>
-            <p style={{ fontSize: '0.75rem', color: '#94A3B8', marginBottom: '14px', lineHeight: 1.4 }}>
+            <p style={{ fontSize: '0.75rem', color: '#c8c8c8', marginBottom: '14px', lineHeight: 1.4 }}>
               {t.radar.apiKeyModalDesc}
             </p>
 
@@ -548,13 +548,13 @@ export const RadarView: React.FC<RadarViewProps> = ({ onStartVirtualChat }) => {
                 onClick={() => setShowKeyModal(false)}
                 style={{ flex: 1, padding: '10px', background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '12px', color: '#fff', cursor: 'pointer', fontSize: '0.8rem' }}
               >
-                Ãë¼Ò
+                ï¿½ï¿½ï¿½
               </button>
               <button
                 onClick={saveApiKey}
                 style={{ flex: 1, padding: '10px', background: '#2EC4B6', border: 'none', borderRadius: '12px', color: '#fff', fontWeight: 800, cursor: 'pointer', fontSize: '0.8rem' }}
               >
-                ÀúÀå ¹× Áöµµ ·Îµå
+                ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½Îµï¿½
               </button>
             </div>
           </div>
