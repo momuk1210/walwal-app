@@ -157,10 +157,12 @@ jobs:
             
             KEYS_DIR="$HOME/.appstoreconnect/private_keys"
             mkdir -p "$KEYS_DIR"
+            mkdir -p "$HOME/.private_keys"
             KEY_PATH="$KEYS_DIR/AuthKey_${CLEAN_KEY_ID}.p8"
             
             printf '%s\n' "${{ secrets.APP_STORE_PRIVATE_KEY }}" > "$KEY_PATH"
             chmod 600 "$KEY_PATH"
+            cp "$KEY_PATH" "$HOME/.private_keys/AuthKey_${CLEAN_KEY_ID}.p8"
 
             xcrun altool --upload-app \
               -f "$IPA_FILE" \
