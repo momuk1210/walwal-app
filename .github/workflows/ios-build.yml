@@ -7,7 +7,7 @@ on:
         description: 'Upload directly to App Store Connect / TestFlight'
         required: false
         type: boolean
-        default: false
+        default: true
 
 jobs:
   build-ios:
@@ -19,6 +19,9 @@ jobs:
       P12_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
       BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.APPLE_PROVISIONING_PROFILE_BASE64 }}
       KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD || 'walwal-temp-password-123' }}
+      APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
+      APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}
+      APP_STORE_PRIVATE_KEY: ${{ secrets.APP_STORE_PRIVATE_KEY }}
 
     steps:
       - name: Checkout repository
@@ -46,7 +49,7 @@ jobs:
           cd web-app
           npx cap sync ios
 
-      - name: Setup Certificate & Profile (if secrets exist)
+      - name: Setup Certificate & Profile
         if: ${{ env.BUILD_CERTIFICATE_BASE64 != '' }}
         run: |
           # Create temporary keychain
@@ -55,7 +58,7 @@ jobs:
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
-          # Import distribution certificate
+          # Import distribution certificate (.p12)
           CERT_PATH=$RUNNER_TEMP/build_cert.p12
           echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERT_PATH
           security import $CERT_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
@@ -66,25 +69,9 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           PROFILE_PATH=$RUNNER_TEMP/profile.mobileprovision
           echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o $PROFILE_PATH
-          cp $PROFILE_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
+          cp $PROFILE_PATH ~/Library/MobileDevice/Provisioning\ Profiles/b78ad7f2-42b3-4ad4-8314-067f79d15ed3.mobileprovision
 
-      - name: Build iOS Archive (Unsigned fallback if no cert)
-        if: ${{ env.BUILD_CERTIFICATE_BASE64 == '' }}
-        run: |
-          if [ -d "web-app/ios/App/App.xcworkspace" ]; then
-            TARGET_ARG="-workspace web-app/ios/App/App.xcworkspace"
-          else
-            TARGET_ARG="-project web-app/ios/App/App.xcodeproj"
-          fi
-          xcodebuild archive \
-            $TARGET_ARG \
-            -scheme App \
-            -destination 'generic/platform=iOS' \
-            -archivePath $RUNNER_TEMP/App.xcarchive \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO
-
-      - name: Build & Export iOS .ipa (Signed)
+      - name: Build iOS Archive (Signed)
         if: ${{ env.BUILD_CERTIFICATE_BASE64 != '' }}
         run: |
           if [ -d "web-app/ios/App/App.xcworkspace" ]; then
@@ -110,21 +97,61 @@ jobs:
             <key>teamID</key>
             <string>CR4JWDTG4K</string>
             <key>signingStyle</key>
-            <string>automatic</string>
+            <string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.walwal.app</key>
+              <string>WalWal AppStore Profile</string>
+            </dict>
           </dict>
           </plist>
           EOF
 
+          mkdir -p $RUNNER_TEMP/ipa
           xcodebuild -exportArchive \
             -archivePath $RUNNER_TEMP/App.xcarchive \
             -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist \
             -exportPath $RUNNER_TEMP/ipa
+
+      - name: Build iOS Archive (Unsigned Fallback)
+        if: ${{ env.BUILD_CERTIFICATE_BASE64 == '' }}
+        run: |
+          if [ -d "web-app/ios/App/App.xcworkspace" ]; then
+            TARGET_ARG="-workspace web-app/ios/App/App.xcworkspace"
+          else
+            TARGET_ARG="-project web-app/ios/App/App.xcodeproj"
+          fi
+          xcodebuild archive \
+            $TARGET_ARG \
+            -scheme App \
+            -destination 'generic/platform=iOS' \
+            -archivePath $RUNNER_TEMP/App.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
 
       - name: Zip Archive for Download
         run: |
           cd $RUNNER_TEMP
           if [ -d "App.xcarchive" ]; then
             zip -r App.xcarchive.zip App.xcarchive
+          fi
+
+      - name: Upload to App Store Connect
+        if: ${{ inputs.upload_to_testflight && env.APP_STORE_KEY_ID != '' && env.APP_STORE_PRIVATE_KEY != '' }}
+        run: |
+          IPA_FILE=$(find $RUNNER_TEMP/ipa -name "*.ipa" | head -n 1)
+          if [ -f "$IPA_FILE" ]; then
+            echo "Uploading $IPA_FILE to App Store Connect..."
+            mkdir -p ~/.appstoreconnect/private_keys
+            echo "$APP_STORE_PRIVATE_KEY" > ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_KEY_ID}.p8
+            xcrun altool --upload-app \
+              -f "$IPA_FILE" \
+              -t ios \
+              --apiKey "$APP_STORE_KEY_ID" \
+              --apiIssuer "$APP_STORE_ISSUER_ID"
+            echo "App uploaded successfully to App Store Connect!"
+          else
+            echo "No .ipa file found in $RUNNER_TEMP/ipa. Skipping direct upload."
           fi
 
       - name: Upload Archive to GitHub Artifacts

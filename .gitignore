@@ -47,3 +47,10 @@ xcuserdata/
 **/build/
 **/dist/
 **/.dart_tool/
+
+# iOS Signing Keys & Certs
+ios-certs/
+*.p12
+*.cer
+*.mobileprovision
+*.certSigningRequest
