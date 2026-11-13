@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Calendar, MapPin, Heart, MessageSquare, Plus, CheckCircle2, Navigation, X, Send, PawPrint, Crown, LogOut, MoreVertical, Edit3, Trash2, ChevronDown, RotateCcw, Sparkles, Filter, Check, SlidersHorizontal, ShieldAlert, Flag, Clock, Flame, Play, Pause, Square, ChevronRight, ArrowLeft } from 'lucide-react';
 import { DogProfile, MOCK_DOGS, getMockDogs, isSameDogName, getDefaultDogAvatar, normalizeDogProfile, getLiveDogAvatar, getLiveDogProfile, localizeBreed, localizePersonalityTags, localizeDogName, sanitizePetList } from '../data/mockDogs';
 import { MeetupChatModal } from './MeetupChatModal';
@@ -15,7 +15,7 @@ import {
   addSimulatedWalkDistance,
   isDogInActiveSession
 } from '../services/walkTrackerService';
-import { isUserBlocked, blockUser } from '../services/moderationService';
+import { isUserBlocked, blockUser, getBlockedUsers } from '../services/moderationService';
 import { validateUserContent } from '../utils/profanityFilter';
 import { useTranslation } from '../i18n/LanguageContext';
 import { auth, db, COLLECTIONS } from '../firebase';
@@ -280,42 +280,89 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
     return localizedMeetups;
   });
 
-  // Save to localStorage and Firestore whenever meetups change
+  const PENDING_MEETUP_IDS_KEY = 'WALWAL_PENDING_MEETUP_IDS';
+  const DELETED_MEETUP_IDS_KEY = 'WALWAL_DELETED_MEETUP_IDS';
+
+  const readIdList = (key: string): string[] => {
+    try {
+      const raw = localStorage.getItem(key);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const addIdToList = (key: string, id?: string) => {
+    if (!id) return;
+    const list = readIdList(key);
+    if (!list.includes(id)) {
+      localStorage.setItem(key, JSON.stringify([...list, id]));
+    }
+  };
+
+  const removeIdFromList = (key: string, id?: string) => {
+    if (!id) return;
+    const list = readIdList(key);
+    if (list.includes(id)) {
+      localStorage.setItem(key, JSON.stringify(list.filter(item => item !== id)));
+    }
+  };
+
+  const syncMeetupWithPending = (meetup: WalkMeetup) => {
+    if (!meetup?.id || ['m1', 'm2', 'm3', 'm4'].includes(meetup.id)) return;
+    addIdToList(PENDING_MEETUP_IDS_KEY, meetup.id);
+    syncMeetupToFirestore(meetup).then((ok) => {
+      if (ok) removeIdFromList(PENDING_MEETUP_IDS_KEY, meetup.id);
+    });
+  };
+
+  // Save to localStorage whenever meetups change (Firestore sync happens on explicit mutations)
   React.useEffect(() => {
     localStorage.setItem('WALWAL_MEETUPS', JSON.stringify(meetups));
-    if (meetups && meetups.length > 0) {
-      meetups.forEach(m => {
-        syncMeetupToFirestore(m);
-      });
-    }
   }, [meetups]);
 
   // Two-way sync with Firestore meetups collection
   React.useEffect(() => {
     const unsub = onSnapshot(collection(db, COLLECTIONS.MEETUPS), (snapshot) => {
-      if (snapshot.empty) return;
+      const deletedIds = new Set(readIdList(DELETED_MEETUP_IDS_KEY));
+      const pendingIds = new Set(readIdList(PENDING_MEETUP_IDS_KEY));
+
       const remoteList: WalkMeetup[] = [];
       snapshot.forEach(docSnap => {
-        remoteList.push({ id: docSnap.id, ...docSnap.data() } as WalkMeetup);
+        if (!['m1', 'm2', 'm3', 'm4'].includes(docSnap.id) && !deletedIds.has(docSnap.id)) {
+          remoteList.push({ id: docSnap.id, ...docSnap.data() } as WalkMeetup);
+          if (pendingIds.has(docSnap.id)) {
+            removeIdFromList(PENDING_MEETUP_IDS_KEY, docSnap.id);
+            pendingIds.delete(docSnap.id);
+          }
+        }
       });
+
+      if (snapshot.empty && pendingIds.size === 0 && snapshot.metadata.fromCache) {
+        return;
+      }
+
       setMeetups(prev => {
-        const map = new Map<string, WalkMeetup>();
-        prev.forEach(m => {
-          if (m.id && !['m1', 'm2', 'm3', 'm4'].includes(m.id)) {
-            map.set(m.id, m);
+        const remoteMap = new Map<string, WalkMeetup>();
+        remoteList.forEach(rm => remoteMap.set(rm.id, rm));
+
+        const nextList: WalkMeetup[] = [...remoteList];
+        // Keep and retry only genuinely unsynced local meetups
+        prev.forEach(localItem => {
+          if (
+            localItem.id &&
+            !['m1', 'm2', 'm3', 'm4'].includes(localItem.id) &&
+            !deletedIds.has(localItem.id) &&
+            pendingIds.has(localItem.id) &&
+            !remoteMap.has(localItem.id)
+          ) {
+            nextList.push(localItem);
+            syncMeetupWithPending(localItem);
           }
         });
-        let hasChanges = false;
-        remoteList.forEach(rm => {
-          if (rm.id && !['m1', 'm2', 'm3', 'm4'].includes(rm.id)) {
-            if (!map.has(rm.id)) {
-              map.set(rm.id, rm);
-              hasChanges = true;
-            }
-          }
-        });
-        if (!hasChanges) return prev;
-        return Array.from(map.values());
+
+        return nextList;
       });
     }, (err) => {
       console.warn('Community meetups onSnapshot error:', err);
@@ -325,16 +372,23 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
 
   // Sync loaded meetups when language changes
   React.useEffect(() => {
-    setMeetups(prev => prev.map(m => {
-      let cleanedHostOwner = normalizeHostOwnerName(m.hostOwner, language);
-      let cleanedHostDog = m.hostDog ? localizeDogName(m.hostDog, language) : m.hostDog;
-      const cleanedParticipants = (m.participants || []).map((p: any) => ({
-        ...p,
-        name: localizeDogName(p.name, language),
-        breed: localizeBreed(p.breed, language)
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      setMeetups(prev => prev.map(m => {
+        let cleanedHostOwner = normalizeHostOwnerName(m.hostOwner, language);
+        let cleanedHostDog = m.hostDog ? localizeDogName(m.hostDog, language) : m.hostDog;
+        const cleanedParticipants = (m.participants || []).map((p: any) => ({
+          ...p,
+          name: localizeDogName(p.name, language),
+          breed: localizeBreed(p.breed, language)
+        }));
+        return { ...m, hostOwner: cleanedHostOwner, hostDog: cleanedHostDog, participants: cleanedParticipants };
       }));
-      return { ...m, hostOwner: cleanedHostOwner, hostDog: cleanedHostDog, participants: cleanedParticipants };
-    }));
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [language]);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -420,12 +474,23 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
   const [showParticipantsModal, setShowParticipantsModal] = useState<WalkMeetup | null>(null);
   const [activeChatMeetup, setActiveChatMeetup] = useState<WalkMeetup | null>(null);
   const [reportTarget, setReportTarget] = useState<ReportModalTarget | null>(null);
-  const [petVersion, setPetVersion] = useState(0);
-  const [blockedVersion, setBlockedVersion] = useState(0);
+  const readStoredMyPets = () => {
+    try {
+      const saved = localStorage.getItem('WALWAL_PETS');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) { }
+    return [];
+  };
+
+  const [rawMyPets, setRawMyPets] = useState<any[]>(() => readStoredMyPets());
+  const [blockedUsers, setBlockedUsers] = useState<string[]>(() => getBlockedUsers());
 
   useEffect(() => {
-    const handlePetUpdate = () => setPetVersion(v => v + 1);
-    const handleBlockedUpdate = () => setBlockedVersion(v => v + 1);
+    const handlePetUpdate = () => setRawMyPets(readStoredMyPets());
+    const handleBlockedUpdate = () => setBlockedUsers(getBlockedUsers());
     window.addEventListener('walwal_pets_updated', handlePetUpdate);
     window.addEventListener('walwal_blocked_users_updated', handleBlockedUpdate);
     window.addEventListener('storage', handlePetUpdate);
@@ -438,17 +503,9 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
 
   // 내 전체 반려견 목록 (다견 지원 - 등록된 반려견이 없으면 빈 배열)
   const myPets = React.useMemo(() => {
-    try {
-      const saved = localStorage.getItem('WALWAL_PETS');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return sanitizePetList(parsed, language);
-        }
-      }
-    } catch (e) { }
-    return [];
-  }, [language, petVersion]);
+    if (rawMyPets.length === 0) return [];
+    return sanitizePetList(rawMyPets, language);
+  }, [rawMyPets, language]);
 
   const myDog = myPets[0] || null;
 
@@ -547,7 +604,7 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
     return false;
   };
 
-  const isUserHost = (m: WalkMeetup): boolean => {
+  const isUserHost = useCallback((m: WalkMeetup): boolean => {
     const currentEmail = (auth?.currentUser?.email || localStorage.getItem('WALWAL_USER_EMAIL') || localStorage.getItem('walwal_user_email') || '').toLowerCase().trim();
     const currentUid = auth?.currentUser?.uid || '';
 
@@ -575,10 +632,10 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
     }
 
     return false;
-  };
+  }, [myPets]);
 
   // 모임 참가 여부 엄격 검증 (호스트이거나, 등록된 내 반려견이 실제 참가자 목록에 포함된 경우만)
-  const isUserJoined = (m: WalkMeetup): boolean => {
+  const isUserJoined = useCallback((m: WalkMeetup): boolean => {
     if (isUserHost(m)) return true;
     if (!myPets || myPets.length === 0) return false;
     const myPetKeys = new Set(myPets.map(p => (p.id || p.name).toLowerCase()));
@@ -586,7 +643,7 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
     if (m.userJoinedPets && m.userJoinedPets.some(p => myPetKeys.has((p.id || p.name).toLowerCase()))) return true;
     if (m.participants && m.participants.some(p => myPetKeys.has((p.name || '').toLowerCase()))) return true;
     return false;
-  };
+  }, [isUserHost, myPets]);
 
   // 모임 톡방 입장 핸들러 (참가하지 않았거나 마감된 모임 입장 가드)
   const handleEnterChat = (m: WalkMeetup) => {
@@ -671,32 +728,29 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
 
     const hostOwnerName = `${hostDogName} ${ownerSuffix}`;
 
-    setMeetups(prev => prev.map(m => {
-      if (m.id === editingMeetup.id) {
-        const prevHostPetsCount = m.userJoinedPets?.length || 1;
-        const otherParticipants = (m.participants || []).filter(p => !m.userJoinedPets?.some(up => (up.id || up.name) === (p.id || p.name)));
-        const nextParticipants = [...otherParticipants, ...selectedPets];
-        const nextParticipantsCount = m.participantsCount - prevHostPetsCount + selectedPets.length;
+    const prevHostPetsCount = editingMeetup.userJoinedPets?.length || 1;
+    const otherParticipants = (editingMeetup.participants || []).filter(p => !editingMeetup.userJoinedPets?.some(up => (up.id || up.name) === (p.id || p.name)));
+    const nextParticipants = [...otherParticipants, ...selectedPets];
+    const nextParticipantsCount = editingMeetup.participantsCount - prevHostPetsCount + selectedPets.length;
+    const updatedMeetup: WalkMeetup = {
+      ...editingMeetup,
+      title: editTitle.trim(),
+      location: editLocation.trim(),
+      time: formattedTime,
+      tag: editTag.trim() || '#자유모임',
+      maxParticipants: editMax,
+      hostDog: hostDogName,
+      hostOwner: hostOwnerName,
+      avatar: selectedPets[0].avatar,
+      participantsCount: nextParticipantsCount,
+      userJoinedPets: selectedPets,
+      joinedPetIds: selectedEditPetIds,
+      participants: nextParticipants,
+      isCustomEdited: true
+    };
 
-        return {
-          ...m,
-          title: editTitle.trim(),
-          location: editLocation.trim(),
-          time: formattedTime,
-          tag: editTag.trim() || '#자유모임',
-          maxParticipants: editMax,
-          hostDog: hostDogName,
-          hostOwner: hostOwnerName,
-          avatar: selectedPets[0].avatar,
-          participantsCount: nextParticipantsCount,
-          userJoinedPets: selectedPets,
-          joinedPetIds: selectedEditPetIds,
-          participants: nextParticipants,
-          isCustomEdited: true
-        };
-      }
-      return m;
-    }));
+    setMeetups(prev => prev.map(m => (m.id === editingMeetup.id ? updatedMeetup : m)));
+    syncMeetupWithPending(updatedMeetup);
 
     if (activeChatMeetup && activeChatMeetup.id === editingMeetup.id) {
       setActiveChatMeetup(prev => prev ? ({
@@ -728,8 +782,10 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
 
   const handleDeleteMeetup = (id: string) => {
     if (window.confirm(t.community?.deleteConfirm || '정말로 이 산책 모임을 삭제하시겠습니까?')) {
+      addIdToList(DELETED_MEETUP_IDS_KEY, id);
+      removeIdFromList(PENDING_MEETUP_IDS_KEY, id);
       setMeetups(prev => prev.filter(m => m.id !== id));
-      deleteDoc(doc(db, 'meetups', id)).catch(() => { });
+      deleteDoc(doc(db, COLLECTIONS.MEETUPS, id)).catch(() => { });
       if (activeChatMeetup && activeChatMeetup.id === id) {
         setActiveChatMeetup(null);
       }
@@ -838,6 +894,7 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
     };
 
     setMeetups([newMeetup, ...meetups]);
+    syncMeetupWithPending(newMeetup);
     setShowCreateModal(false);
 
     setFormTitle('');
@@ -847,24 +904,6 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
     setFormTag('');
     setFormMax(5);
   };
-
-  // Sync when language changes
-  React.useEffect(() => {
-    setMeetups(prev => prev.map(m => {
-      if (m.isCustomEdited) return m;
-      const localizedM = localizedMeetups.find(lm => lm.id === m.id);
-      if (localizedM) {
-        return {
-          ...m,
-          title: localizedM.title,
-          location: localizedM.location,
-          time: localizedM.time,
-          tag: localizedM.tag
-        };
-      }
-      return m;
-    }));
-  }, [language]);
 
   const handleJoin = (id: string) => {
     const targetMeetup = meetups.find(m => m.id === id);
@@ -877,24 +916,19 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
 
     // 이미 참여한 모임이면 -> 취소 처리
     if (isUserJoined(targetMeetup)) {
-      setMeetups(prev =>
-        prev.map(m => {
-          if (m.id === id) {
-            const myNames = new Set(myPets.map((p: any) => p.name));
-            const filteredParticipants = (m.participants || []).filter(p => !myNames.has(p.name));
-            const removedCount = (m.participants || []).length - filteredParticipants.length;
-            return {
-              ...m,
-              joined: false,
-              participantsCount: Math.max(0, m.participantsCount - (removedCount || 1)),
-              participants: filteredParticipants,
-              userJoinedPets: [],
-              joinedPetIds: []
-            };
-          }
-          return m;
-        })
-      );
+      const myNames = new Set(myPets.map((p: any) => p.name));
+      const filteredParticipants = (targetMeetup.participants || []).filter(p => !myNames.has(p.name));
+      const removedCount = (targetMeetup.participants || []).length - filteredParticipants.length;
+      const updatedMeetup: WalkMeetup = {
+        ...targetMeetup,
+        joined: false,
+        participantsCount: Math.max(0, targetMeetup.participantsCount - (removedCount || 1)),
+        participants: filteredParticipants,
+        userJoinedPets: [],
+        joinedPetIds: []
+      };
+      setMeetups(prev => prev.map(m => (m.id === id ? updatedMeetup : m)));
+      syncMeetupWithPending(updatedMeetup);
       return;
     }
 
@@ -912,22 +946,16 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
     }
 
     // 반려견이 1마리인 경우 -> 바로 1마리로 참여
-    setMeetups(prev =>
-      prev.map(m => {
-        if (m.id === id) {
-          const nextParticipants = [...(m.participants || []), myDog];
-          return {
-            ...m,
-            joined: true,
-            participantsCount: m.participantsCount + 1,
-            participants: nextParticipants,
-            userJoinedPets: [myDog],
-            joinedPetIds: [myDog.id || myDog.name]
-          };
-        }
-        return m;
-      })
-    );
+    const updatedMeetup: WalkMeetup = {
+      ...targetMeetup,
+      joined: true,
+      participantsCount: targetMeetup.participantsCount + 1,
+      participants: [...(targetMeetup.participants || []), myDog],
+      userJoinedPets: [myDog],
+      joinedPetIds: [myDog.id || myDog.name]
+    };
+    setMeetups(prev => prev.map(m => (m.id === id ? updatedMeetup : m)));
+    syncMeetupWithPending(updatedMeetup);
 
     import('../utils/notificationService').then(({ sendPushNotification }) => {
       sendPushNotification({
@@ -942,23 +970,17 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
     if (!joinPetSelectionMeetup || selectedJoinPetIds.length === 0) return;
 
     const chosenDogs = myPets.filter((p: any) => selectedJoinPetIds.includes(p.id || p.name));
+    const updatedMeetup: WalkMeetup = {
+      ...joinPetSelectionMeetup,
+      joined: true,
+      participantsCount: joinPetSelectionMeetup.participantsCount + chosenDogs.length,
+      participants: [...(joinPetSelectionMeetup.participants || []), ...chosenDogs],
+      userJoinedPets: chosenDogs,
+      joinedPetIds: selectedJoinPetIds
+    };
 
-    setMeetups(prev =>
-      prev.map(m => {
-        if (m.id === joinPetSelectionMeetup.id) {
-          const nextParticipants = [...(m.participants || []), ...chosenDogs];
-          return {
-            ...m,
-            joined: true,
-            participantsCount: m.participantsCount + chosenDogs.length,
-            participants: nextParticipants,
-            userJoinedPets: chosenDogs,
-            joinedPetIds: selectedJoinPetIds
-          };
-        }
-        return m;
-      })
-    );
+    setMeetups(prev => prev.map(m => (m.id === joinPetSelectionMeetup.id ? updatedMeetup : m)));
+    syncMeetupWithPending(updatedMeetup);
 
     const meetupTitle = joinPetSelectionMeetup.title;
     const meetupId = joinPetSelectionMeetup.id;
@@ -1046,9 +1068,13 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
   const dateLabel = dateFilter === 'today' ? '오늘' : dateFilter === 'tomorrow' ? '내일' : dateFilter === 'weekend' ? '주말' : '날짜';
 
   const filteredMeetups = useMemo(() => {
+    const blockedSet = new Set(blockedUsers);
     return meetups.filter(m => {
       // 0. Blocked user filter
-      if (isUserBlocked(m.hostDog) || isUserBlocked(m.hostOwner)) {
+      if (
+        (m.hostDog && blockedSet.has(m.hostDog.trim().toLowerCase())) ||
+        (m.hostOwner && blockedSet.has(m.hostOwner.trim().toLowerCase()))
+      ) {
         return false;
       }
 
@@ -1145,12 +1171,16 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
 
       return true;
     });
-  }, [meetups, meetupStatusFilter, openOnly, dogSize, walkStyle, distanceFilter, dateFilter, customDate, timeSlotFilter, myDogMatch, myDog, blockedVersion]);
+  }, [meetups, meetupStatusFilter, openOnly, dogSize, walkStyle, distanceFilter, dateFilter, customDate, timeSlotFilter, myDogMatch, myDog, blockedUsers, isUserJoined]);
 
   const draftMatchCount = useMemo(() => {
+    const blockedSet = new Set(blockedUsers);
     return meetups.filter(m => {
       // 0. Blocked user filter
-      if (isUserBlocked(m.hostDog) || isUserBlocked(m.hostOwner)) {
+      if (
+        (m.hostDog && blockedSet.has(m.hostDog.trim().toLowerCase())) ||
+        (m.hostOwner && blockedSet.has(m.hostOwner.trim().toLowerCase()))
+      ) {
         return false;
       }
 
@@ -1235,7 +1265,7 @@ export const CommunityView: React.FC<CommunityViewProps> = () => {
 
       return true;
     }).length;
-  }, [meetups, meetupStatusFilter, draftOpenOnly, draftDogSize, draftWalkStyle, draftDistanceFilter, draftDateFilter, draftCustomDate, draftTimeSlotFilter, draftMyDogMatch, myDog, blockedVersion]);
+  }, [meetups, meetupStatusFilter, draftOpenOnly, draftDogSize, draftWalkStyle, draftDistanceFilter, draftDateFilter, draftCustomDate, draftTimeSlotFilter, draftMyDogMatch, myDog, blockedUsers, isUserJoined]);
 
   if (showWalkHistoryModal) {
     return (

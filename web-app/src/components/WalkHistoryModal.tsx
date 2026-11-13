@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { X, ArrowLeft, MapPin, Clock, Calendar, Flame, Award, Plus, Check, ChevronUp, TrendingUp, Sun, Moon, Zap, Compass, Edit2, Play, Pause, Square } from 'lucide-react';
 import { DogProfile, getDefaultDogAvatar, getPetWalkGoals, setPetWalkGoals, localizeDogName } from '../data/mockDogs';
 import {
@@ -389,13 +389,19 @@ export const WalkHistoryModal: React.FC<WalkHistoryModalProps> = ({
   const [currentDog, setCurrentDog] = useState<DogProfile>(dog);
 
   useEffect(() => {
-    setCurrentDog(dog);
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (!cancelled) setCurrentDog(dog);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [dog]);
 
   const [activeTab, setActiveTab] = useState<'distance' | 'time'>(initialTab);
 
   // 초기 산책 기록 생성기 (기존 프로필 데이터와 자연스럽게 연동)
-  const generateInitialRecords = (d: DogProfile): WalkRecord[] => {
+  const generateInitialRecords = useCallback((d: DogProfile): WalkRecord[] => {
     const today = new Date();
     const todayDistance = d.todayWalkDistance !== undefined ? d.todayWalkDistance : 1.8;
     const todayMinutes = d.todayWalkMinutes !== undefined ? d.todayWalkMinutes : 45;
@@ -441,9 +447,9 @@ export const WalkHistoryModal: React.FC<WalkHistoryModalProps> = ({
     }
 
     return baseRecords;
-  };
+  }, [language]);
 
-  const loadDogRecords = (d: DogProfile): WalkRecord[] => {
+  const loadDogRecords = useCallback((d: DogProfile): WalkRecord[] => {
     const keys = [`WALWAL_WALK_LOGS_${d.id}`, `WALWAL_WALK_LOGS_${d.name}`].filter(Boolean);
     for (const k of keys) {
       try {
@@ -457,7 +463,7 @@ export const WalkHistoryModal: React.FC<WalkHistoryModalProps> = ({
     const initial = generateInitialRecords(d);
     localStorage.setItem(`WALWAL_WALK_LOGS_${d.id || d.name}`, JSON.stringify(initial));
     return initial;
-  };
+  }, [generateInitialRecords]);
 
   const [records, setRecords] = useState<WalkRecord[]>(() => loadDogRecords(currentDog));
 
@@ -474,13 +480,20 @@ export const WalkHistoryModal: React.FC<WalkHistoryModalProps> = ({
 
   // 반려견 전환 시 일지 기록 및 목표 실시간 리로드
   useEffect(() => {
-    setRecords(loadDogRecords(currentDog));
-    const goals = getPetWalkGoals(currentDog);
-    setDailyDistanceGoal(goals.distance);
-    setDailyTimeGoal(goals.minutes);
-    setTempDistanceGoal(String(goals.distance));
-    setTempTimeGoal(String(goals.minutes));
-  }, [currentDog]);
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      setRecords(loadDogRecords(currentDog));
+      const goals = getPetWalkGoals(currentDog);
+      setDailyDistanceGoal(goals.distance);
+      setDailyTimeGoal(goals.minutes);
+      setTempDistanceGoal(String(goals.distance));
+      setTempTimeGoal(String(goals.minutes));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentDog, loadDogRecords]);
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [newDistance, setNewDistance] = useState('');
@@ -575,7 +588,7 @@ export const WalkHistoryModal: React.FC<WalkHistoryModalProps> = ({
 
     window.addEventListener('walwal_walk_completed', handleWalkCompleted);
     return () => window.removeEventListener('walwal_walk_completed', handleWalkCompleted);
-  }, [currentDog, onUpdateStats]);
+  }, [currentDog, onUpdateStats, loadDogRecords]);
 
   const formatTimer = (totalSeconds: number) => {
     const hrs = Math.floor(totalSeconds / 3600);

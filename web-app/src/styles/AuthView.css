@@ -290,6 +290,13 @@
 }
 
 /* Social Buttons */
+.auth-social-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
 .auth-social-btn {
   width: 100%;
   height: 48px;
@@ -312,6 +319,22 @@
   background: #F8FAFC;
   border-color: #9a9da0;
   transform: translateY(-1px);
+}
+
+.auth-social-btn.apple {
+  background: #000000;
+  border-color: #000000;
+  color: #FFFFFF;
+}
+
+.auth-social-btn.apple:hover:not(:disabled) {
+  background: #1A1A1A;
+  border-color: #1A1A1A;
+}
+
+.auth-social-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 /* Reviewer / Fast Test Box (Critical for Google Console Approval) */

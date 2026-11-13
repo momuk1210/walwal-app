@@ -6,6 +6,7 @@ const {
   TwaManifest,
   TwaGenerator,
   KeyTool,
+  JarSigner,
   GradleWrapper,
   JdkHelper,
   AndroidSdkTools,
@@ -54,7 +55,7 @@ async function main() {
   twaManifest.navigationColor = new Color('#FFFFFF');
   twaManifest.backgroundColor = new Color('#FFFBF7');
   twaManifest.appVersionName = '1.5.0';
-  twaManifest.appVersionCode = 3;
+  twaManifest.appVersionCode = 4;
   twaManifest.minSdkVersion = 24;
   twaManifest.signingKey = {
     path: keystorePath,
@@ -147,34 +148,47 @@ async function main() {
 
   // Build AAB (App Bundle)
   console.log('⚙️ Running Gradle bundleRelease...');
-  await gradleWrapper.bundleRelease(env, log);
+  await gradleWrapper.bundleRelease();
   console.log('✅ AAB bundle built successfully!');
 
   // Build APK
   console.log('⚙️ Running Gradle assembleRelease...');
-  await gradleWrapper.assembleRelease(env, log);
+  await gradleWrapper.assembleRelease();
   console.log('✅ APK built successfully!');
 
-  // 7. Output files to dist-app directory
+  // 7. Sign AAB & APK and output files to dist-app directory
   const distAppDir = path.join(__dirname, '..', 'dist-app');
   fs.mkdirSync(distAppDir, { recursive: true });
 
   const aabSource = path.join(projectDir, 'app', 'build', 'outputs', 'bundle', 'release', 'app-release.aab');
+  const signedAabSource = path.join(projectDir, 'app-release-bundle.aab');
   const apkSource = path.join(projectDir, 'app', 'build', 'outputs', 'apk', 'release', 'app-release-unsigned.apk');
-  const signedApkSource = path.join(projectDir, 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk');
+  const alignedApkSource = path.join(projectDir, 'app-release-unsigned-aligned.apk');
+  const signedApkSource = path.join(projectDir, 'app-release-signed.apk');
 
   const aabTarget = path.join(distAppDir, 'walwal-release.aab');
   const apkTarget = path.join(distAppDir, 'walwal-release.apk');
 
   if (fs.existsSync(aabSource)) {
-    fs.copyFileSync(aabSource, aabTarget);
-    console.log('🎉 Google Play Store AAB Bundle created:', aabTarget);
+    const jarSigner = new JarSigner(jdkHelper);
+    await jarSigner.sign(twaManifest.signingKey, keyPassword, keyPassword, aabSource, signedAabSource);
+    fs.copyFileSync(signedAabSource, aabTarget);
+    console.log('🎉 Signed Google Play Store AAB Bundle created:', aabTarget);
   }
 
-  const apkToCopy = fs.existsSync(signedApkSource) ? signedApkSource : apkSource;
-  if (fs.existsSync(apkToCopy)) {
-    fs.copyFileSync(apkToCopy, apkTarget);
-    console.log('🎉 Test APK file created:', apkTarget);
+  if (fs.existsSync(apkSource)) {
+    await androidSdkTools.zipalignOnlyVerification(apkSource);
+    fs.copyFileSync(apkSource, alignedApkSource);
+    await androidSdkTools.apksigner(
+      twaManifest.signingKey.path,
+      keyPassword,
+      twaManifest.signingKey.alias,
+      keyPassword,
+      alignedApkSource,
+      signedApkSource
+    );
+    fs.copyFileSync(signedApkSource, apkTarget);
+    console.log('🎉 Signed Test APK file created:', apkTarget);
   }
 
   console.log('\n=========================================');

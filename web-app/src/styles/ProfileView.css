@@ -461,7 +461,6 @@
   justify-content: space-between !important;
   padding: 16px 18px !important;
   background: #FFFFFF !important;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
   z-index: 20 !important;
 }
 
@@ -533,4 +532,8 @@
   gap: 12px;
   margin-top: 24px;
   padding-bottom: max(32px, env(safe-area-inset-bottom, 24px));
+  width: calc(100% - 32px);
+  position: fixed;
+  bottom: 0;
+
 }

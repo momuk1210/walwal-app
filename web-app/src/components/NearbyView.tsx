@@ -10,6 +10,23 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import '../styles/NearbyView.css';
 
+const readStoredMyPets = (): DogProfile[] => {
+  try {
+    const saved = localStorage.getItem('WALWAL_PETS');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) { }
+  return [];
+};
+
+const computeNearbyOffset = (baseLat: number, baseLng: number, meterDist: number, angleDeg: number) => {
+  const latOffset = (meterDist * Math.cos((angleDeg * Math.PI) / 180)) / 111000;
+  const lngOffset = (meterDist * Math.sin((angleDeg * Math.PI) / 180)) / (111000 * Math.cos((baseLat * Math.PI) / 180));
+  return { lat: baseLat + latOffset, lng: baseLng + lngOffset };
+};
+
 export interface NearbyViewProps {
   onStartVirtualChat: (dog1: DogProfile, dog2: DogProfile) => void;
 }
@@ -50,7 +67,7 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat }) =>
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number }>({ lat: 37.4200, lng: 127.1267 });
   const [locationLabel, setLocationLabel] = useState<string>('내 현재 위치 탐색 중...');
   const [isLocating, setIsLocating] = useState<boolean>(false);
-  const [petsUpdateKey, setPetsUpdateKey] = useState<number>(0);
+  const [rawMyPets, setRawMyPets] = useState<DogProfile[]>(() => readStoredMyPets());
 
   // Firestore에서 실시간으로 불러온 실제 가입 반려견 목록
   const [firestoreDogs, setFirestoreDogs] = useState<DogProfile[]>([]);
@@ -63,35 +80,15 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat }) =>
 
   // 1. 내 반려견 프로필 조회 (로컬 스토리지에 등록된 내 반려견들 - 등록된 반려견이 없으면 빈 배열)
   const myPets = useMemo<DogProfile[]>(() => {
-    try {
-      const saved = localStorage.getItem('WALWAL_PETS');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return sanitizePetList(parsed, language);
-        }
-      }
-    } catch (e) { }
-    return [];
-  }, [language, petsUpdateKey]);
+    if (rawMyPets.length === 0) return [];
+    return sanitizePetList(rawMyPets, language);
+  }, [rawMyPets, language]);
 
   const primaryPet = myPets[0] || null;
 
   // 선택된 핀 (기본값: null - 지도에서 강아지 사진/핀 클릭 시에만 모달 표시)
   const [selectedPin, setSelectedPin] = useState<DogProfile | null>(null);
-
-  useEffect(() => {
-    if (myPets.length === 0 && (selectedPin as any)?.isMyPet) {
-      setSelectedPin(null);
-    }
-  }, [myPets.length]);
-
-  // Calculate meter distance to lat/lng offsets around actual user coordinates
-  const getNearbyOffset = (meterDist: number, angleDeg: number) => {
-    const latOffset = (meterDist * Math.cos((angleDeg * Math.PI) / 180)) / 111000;
-    const lngOffset = (meterDist * Math.sin((angleDeg * Math.PI) / 180)) / (111000 * Math.cos((userCoords.lat * Math.PI) / 180));
-    return { lat: userCoords.lat + latOffset, lng: userCoords.lng + lngOffset };
-  };
+  const activeSelectedPin = (myPets.length === 0 && (selectedPin as any)?.isMyPet) ? null : selectedPin;
 
   // 2. Firestore dogs 컬렉션에서 실제 가입된 모든 강아지 실시간 동기화 (가짜 데이터 없음)
   useEffect(() => {
@@ -146,7 +143,7 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat }) =>
     if (myPets.length > 0 && userCoords.lat && userCoords.lng) {
       myPets.forEach((pet, idx) => {
         if (!pet.id) return;
-        const petPos = idx === 0 ? userCoords : getNearbyOffset(18 * idx, 60 * idx);
+        const petPos = idx === 0 ? userCoords : computeNearbyOffset(userCoords.lat, userCoords.lng, 18 * idx, 60 * idx);
         try {
           setDoc(doc(db, 'dogs', pet.id), {
             id: pet.id,
@@ -167,7 +164,7 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat }) =>
         } catch (e) { }
       });
     }
-  }, [myPets, userCoords.lat, userCoords.lng]);
+  }, [myPets, userCoords]);
 
   // 4. 지도에 표시할 반려견 목록: 내 반려견들 + 실제 가입된 다른 사용자 반려견들
   const displayDogs = useMemo<Array<DogProfile & { isMyPet: boolean; distanceMeters: number }>>(() => {
@@ -177,7 +174,7 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat }) =>
     // A. 내 반려견들 등록 (내 현재 위치 및 함께 산책하는 위치 - 중복 제거)
     const cleanMyPets = sanitizePetList(myPets, language);
     cleanMyPets.forEach((pet, idx) => {
-      const pos = idx === 0 ? userCoords : getNearbyOffset(18 * idx, 60 * idx);
+      const pos = idx === 0 ? userCoords : computeNearbyOffset(userCoords.lat, userCoords.lng, 18 * idx, 60 * idx);
       const alreadyInList = list.some(d => isSameDogName(d.name, pet.name) || (pet.id && d.id === pet.id));
       if (!alreadyInList) {
         list.push({
@@ -213,7 +210,7 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat }) =>
       if (meters < 90) {
         const charSeed = (dog.id || dog.name || 'dog').split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
         const angleDeg = (charSeed * 53 + 45) % 360;
-        const adjustedPos = getNearbyOffset(120, angleDeg);
+        const adjustedPos = computeNearbyOffset(userCoords.lat, userCoords.lng, 120, angleDeg);
         dogLat = adjustedPos.lat;
         dogLng = adjustedPos.lng;
         meters = 120;
@@ -334,6 +331,17 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat }) =>
     }
   };
 
+  const detectLocationRef = useRef(detectUserRealLocation);
+  useEffect(() => {
+    detectLocationRef.current = detectUserRealLocation;
+  });
+  const initialMapConfigRef = useRef({
+    zoom: nearbyZoom,
+    lat: userCoords.lat,
+    lng: userCoords.lng,
+    theme: mapTheme
+  });
+
   // 범위 선택 버튼 클릭 시 지도 이동 및 줌 연동
   const handleSelectRange = (range: '300m' | '500m' | '1km') => {
     setNearbyZoom(range);
@@ -348,9 +356,10 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat }) =>
     if (!mapContainerRef.current) return;
     if (leafletMapRef.current) return;
 
-    const zoomLevel = nearbyZoom === '300m' ? 17 : nearbyZoom === '500m' ? 16 : 15;
+    const { zoom, lat, lng, theme } = initialMapConfigRef.current;
+    const zoomLevel = zoom === '300m' ? 17 : zoom === '500m' ? 16 : 15;
     const map = L.map(mapContainerRef.current, {
-      center: [userCoords.lat, userCoords.lng],
+      center: [lat, lng],
       zoom: zoomLevel,
       zoomControl: false,
       attributionControl: false
@@ -359,7 +368,7 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat }) =>
     // Clean OpenStreetMap Tile
     const tile = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      className: mapTheme === 'dark' ? 'radar-dark-map-tiles' : ''
+      className: theme === 'dark' ? 'radar-dark-map-tiles' : ''
     }).addTo(map);
     tileLayerRef.current = tile;
 
@@ -380,7 +389,7 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat }) =>
     });
 
     // 동네친구 탭 진입 시: 브라우저 위치 권한 팝업 없이 부드럽게 IP/동네 위치로 표시
-    detectUserRealLocation(false);
+    detectLocationRef.current(false);
 
     return () => {
       map.remove();
@@ -391,7 +400,7 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat }) =>
   // Sync pets update events from local storage
   useEffect(() => {
     const handlePetsUpdated = () => {
-      setPetsUpdateKey(prev => prev + 1);
+      setRawMyPets(readStoredMyPets());
     };
     window.addEventListener('walwal_pets_updated', handlePetsUpdated);
     window.addEventListener('storage', handlePetsUpdated);
@@ -401,7 +410,7 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat }) =>
       if (e?.detail?.type === 'location' || !e?.detail) {
         const isAllowed = localStorage.getItem('WALWAL_PERM_LOCATION') !== 'false';
         if (isAllowed) {
-          detectUserRealLocation(false);
+          detectLocationRef.current(false);
         }
       }
     };
@@ -466,7 +475,7 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat }) =>
       displayDogs.forEach((dog) => {
         if (!dog.lat || !dog.lng) return;
 
-        const isSelected = selectedPin ? (selectedPin.id === dog.id || isSameDogName(selectedPin.name, dog.name)) : false;
+        const isSelected = activeSelectedPin ? (activeSelectedPin.id === dog.id || isSameDogName(activeSelectedPin.name, dog.name)) : false;
         const isMyPet = dog.isMyPet;
 
         const markerClasses = ['dog-marker-icon'];
@@ -515,7 +524,7 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat }) =>
         marker.addTo(dogMarkersGroupRef.current!);
       });
     }
-  }, [userCoords, nearbyZoom, selectedPin, displayDogs, mapTheme, language]);
+  }, [userCoords, nearbyZoom, activeSelectedPin, displayDogs, mapTheme, language, myPets.length]);
 
   return (
     <div className="page-root">
@@ -582,7 +591,7 @@ export const NearbyView: React.FC<NearbyViewProps> = ({ onStartVirtualChat }) =>
 
       {/* Selected Dog Profile Modal */}
       <DogProfileModal
-        dog={selectedPin}
+        dog={activeSelectedPin}
         onClose={() => setSelectedPin(null)}
         onSendNote={(dog) => setOwnerNoteTarget(dog)}
       />

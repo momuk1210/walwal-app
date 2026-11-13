@@ -31,35 +31,26 @@ export const openPWAInstallGuide = () => {
 
 export const PWAInstallBanner: React.FC = () => {
   const { language } = useTranslation();
-  const [canInstall, setCanInstall] = useState(true);
-  const [isIOS, setIsIOS] = useState(false);
-  const [isSafari, setIsSafari] = useState(true);
+  const [canInstall, setCanInstall] = useState(() => {
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
+    return !isStandalone;
+  });
+  const [isIOS] = useState(() => {
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    return /iphone|ipad|ipod/.test(userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  });
+  const [isSafari] = useState(() => {
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    return /safari/.test(userAgent) && !/chrome|crios|fxios|naver|kakaotalk/.test(userAgent);
+  });
   const [showGuide, setShowGuide] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissed, setDismissed] = useState(() => Boolean(sessionStorage.getItem('WALWAL_PWA_BANNER_DISMISSED')));
 
   useEffect(() => {
-    // 1. Check if already installed in standalone mode
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
-    if (isStandalone) {
-      setCanInstall(false);
-      return;
-    }
+    if (isStandalone) return;
 
-    // 2. Check if dismissed before in session
-    const isDismissed = sessionStorage.getItem('WALWAL_PWA_BANNER_DISMISSED');
-    if (isDismissed) {
-      setDismissed(true);
-    }
-
-    // 3. Detect iOS
-    const userAgent = window.navigator.userAgent.toLowerCase();
-    const isIosDevice = /iphone|ipad|ipod/.test(userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    const isSafariBrowser = /safari/.test(userAgent) && !/chrome|crios|fxios|naver|kakaotalk/.test(userAgent);
-
-    setIsIOS(isIosDevice);
-    setIsSafari(isSafariBrowser);
-
-    // 4. Capture Android/Chrome beforeinstallprompt event
+    // Capture Android/Chrome beforeinstallprompt event
     const handleBeforeInstall = (e: Event) => {
       e.preventDefault();
       deferredPrompt = e as BeforeInstallPromptEvent;

@@ -362,6 +362,7 @@ export const AllServicesModal: React.FC<AllServicesModalProps> = ({
 
   // Active dog info
   const activeDog = useMemo(() => {
+    if (!isOpen) return getMockDogs(language)[0];
     try {
       const savedPets = localStorage.getItem('WALWAL_PETS');
       if (savedPets) {
@@ -564,7 +565,7 @@ export const AllServicesModal: React.FC<AllServicesModalProps> = ({
         ]
       }
     ];
-  }, [tr, onNavigate, onClose]);
+  }, [tr, language, onNavigate, onClose]);
 
   // Search filter
   const filteredCategories = useMemo(() => {

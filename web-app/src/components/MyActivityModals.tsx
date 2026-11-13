@@ -69,17 +69,20 @@ export const SavedPostsModal: React.FC<SavedPostsModalProps> = ({
   useEffect(() => {
     if (!isOpen) return;
 
-    setIsLoading(true);
-
     // 1. Read current bookmarked IDs from localStorage
     let currentBookmarkedIds: string[] = [];
     try {
       const savedIdsStr = localStorage.getItem('WALWAL_BOOKMARKED_POST_IDS');
       currentBookmarkedIds = savedIdsStr ? JSON.parse(savedIdsStr).map(String) : [];
-      setBookmarkedIds(currentBookmarkedIds);
     } catch (e) { }
 
     let isMounted = true;
+
+    Promise.resolve().then(() => {
+      if (!isMounted) return;
+      setIsLoading(true);
+      setBookmarkedIds(currentBookmarkedIds);
+    });
 
     // Helper: process, filter and hydrate posts
     const processAndSetPosts = (allPosts: any[]) => {
@@ -159,7 +162,7 @@ export const SavedPostsModal: React.FC<SavedPostsModalProps> = ({
         }
       });
       if (localCandidates.length > 0) {
-        processAndSetPosts(localCandidates);
+        Promise.resolve().then(() => processAndSetPosts(localCandidates));
       }
     } catch (e) { }
 
@@ -192,7 +195,9 @@ export const SavedPostsModal: React.FC<SavedPostsModalProps> = ({
       unsubs.push(unsub2);
     } catch (err) {
       console.warn('Failed to listen to Firestore:', err);
-      setIsLoading(false);
+      Promise.resolve().then(() => {
+        if (isMounted) setIsLoading(false);
+      });
     }
 
     return () => {
@@ -457,23 +462,31 @@ export const FollowersModal: React.FC<FollowersModalProps> = ({
   // Load follower and followed state (strictly exclude my pets and clean any mock data)
   useEffect(() => {
     if (!isOpen) return;
+    let cancelled = false;
 
-    try {
-      // 1. Followed users (sanitize by excluding my own dogs)
-      const savedFollowed = localStorage.getItem('WALWAL_FOLLOWED_USERS');
-      const parsedFollowed: string[] = savedFollowed ? JSON.parse(savedFollowed) : [];
-      const cleanFollowed = parsedFollowed.filter(name => !checkIsMyDog(name));
-      setFollowedUsers(cleanFollowed);
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      try {
+        // 1. Followed users (sanitize by excluding my own dogs)
+        const savedFollowed = localStorage.getItem('WALWAL_FOLLOWED_USERS');
+        const parsedFollowed: string[] = savedFollowed ? JSON.parse(savedFollowed) : [];
+        const cleanFollowed = parsedFollowed.filter(name => !checkIsMyDog(name));
+        setFollowedUsers(cleanFollowed);
 
-      // 2. Followers (strictly purge any mock data like 모찌, 땅콩, 구름이)
-      const MOCK_NAMES = ['모찌', '땅콩', '구름이'];
-      const savedFollowers = localStorage.getItem('WALWAL_FOLLOWER_USERS');
-      const parsedFollowers: string[] = savedFollowers ? JSON.parse(savedFollowers) : [];
-      const cleanFollowers = parsedFollowers.filter(name => !MOCK_NAMES.includes(name) && !checkIsMyDog(name));
+        // 2. Followers (strictly purge any mock data like 모찌, 땅콩, 구름이)
+        const MOCK_NAMES = ['모찌', '땅콩', '구름이'];
+        const savedFollowers = localStorage.getItem('WALWAL_FOLLOWER_USERS');
+        const parsedFollowers: string[] = savedFollowers ? JSON.parse(savedFollowers) : [];
+        const cleanFollowers = parsedFollowers.filter(name => !MOCK_NAMES.includes(name) && !checkIsMyDog(name));
 
-      setFollowers(cleanFollowers);
-      localStorage.setItem('WALWAL_FOLLOWER_USERS', JSON.stringify(cleanFollowers));
-    } catch (e) { }
+        setFollowers(cleanFollowers);
+        localStorage.setItem('WALWAL_FOLLOWER_USERS', JSON.stringify(cleanFollowers));
+      } catch (e) { }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen]);
 
   // Toggle follow / following (Mutual follow)
@@ -676,15 +689,23 @@ export const FollowingModal: React.FC<FollowingModalProps> = ({
   // Load following state (strictly exclude user's own dogs)
   useEffect(() => {
     if (!isOpen) return;
+    let cancelled = false;
 
-    try {
-      const saved = localStorage.getItem('WALWAL_FOLLOWED_USERS');
-      const parsed: string[] = saved ? JSON.parse(saved) : [];
-      // Strictly exclude my own pets from following list
-      const cleanFollowing = parsed.filter(name => !checkIsMyDog(name));
-      setFollowedUsers(cleanFollowing);
-      localStorage.setItem('WALWAL_FOLLOWED_USERS', JSON.stringify(cleanFollowing));
-    } catch (e) { }
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      try {
+        const saved = localStorage.getItem('WALWAL_FOLLOWED_USERS');
+        const parsed: string[] = saved ? JSON.parse(saved) : [];
+        // Strictly exclude my own pets from following list
+        const cleanFollowing = parsed.filter(name => !checkIsMyDog(name));
+        setFollowedUsers(cleanFollowing);
+        localStorage.setItem('WALWAL_FOLLOWED_USERS', JSON.stringify(cleanFollowing));
+      } catch (e) { }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen]);
 
   const handleUnfollow = (dogName: string) => {

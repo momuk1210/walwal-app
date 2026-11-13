@@ -114,6 +114,7 @@ function WalWalMain() {
   const [activeDirectChatDog, setActiveDirectChatDog] = useState<any | null>(null);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [activeLegalModal, setActiveLegalModal] = useState<LegalViewType | null>(null);
+  const [feedDraft, setFeedDraft] = useState<{ dog: DogProfile; thought: string; image?: string; poster?: string; isVideo?: boolean } | null>(null);
 
   useEffect(() => {
     const handleOpenServices = () => setIsAllServicesOpen(true);
@@ -174,7 +175,6 @@ function WalWalMain() {
   const [studioSnapshot, setStudioSnapshot] = useState<string | undefined>(undefined);
   const [studioPoster, setStudioPoster] = useState<string | undefined>(undefined);
   const [interactionPair, setInteractionPair] = useState<{ dog1: DogProfile; dog2: DogProfile } | null>(null);
-  const [feedDraft, setFeedDraft] = useState<{ dog: DogProfile; thought: string; image?: string; poster?: string; isVideo?: boolean } | null>(null);
 
   const handleCaptureToStory = (dog: any, thought: string, snapshot?: string, poster?: string) => {
     setStudioTargetDog(dog);

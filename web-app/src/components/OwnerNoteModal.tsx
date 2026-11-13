@@ -46,7 +46,6 @@ export const OwnerNoteModal: React.FC<OwnerNoteModalProps> = ({
   // Firestore 'dogs' 컬렉션에서 상대견의 최신 상세 프로필(이름, 견종, 나이, 성별, 보호자명 등) 조회 및 캐시
   useEffect(() => {
     if (!isOpen || !targetDog) {
-      setCloudDogData(null);
       return;
     }
     let cancelled = false;
@@ -83,10 +82,16 @@ export const OwnerNoteModal: React.FC<OwnerNoteModalProps> = ({
   const resolvedDog = useMemo(() => {
     if (!targetDog) return null;
     const live = getLiveDogProfile(targetDog.name || targetDog.id, language);
+    const matchingCloud =
+      cloudDogData &&
+      ((cloudDogData.id && targetDog.id && cloudDogData.id === targetDog.id) ||
+        (cloudDogData.name && isSameDogName(cloudDogData.name, targetDog.name)))
+        ? cloudDogData
+        : {};
     const merged: any = {
       ...(live || {}),
       ...targetDog,
-      ...(cloudDogData || {}),
+      ...matchingCloud,
     };
     const name = merged.name || targetDog.name || '반려견';
     const isStrawberry = isSameDogName(name, '딸기');
@@ -118,20 +123,25 @@ export const OwnerNoteModal: React.FC<OwnerNoteModalProps> = ({
 
   // 모달 열릴 때 기존 대화 복원 + body 스크롤 잠금
   useEffect(() => {
+    let cancelled = false;
     if (isOpen && targetDog) {
-      const existingConv = getConversation(targetDog);
-      if (existingConv && Array.isArray(existingConv.messages)) {
-        setMessages(existingConv.messages);
-      } else {
-        setMessages([]);
-      }
-      setMessageText('');
       // body 스크롤 잠금 → 뒷 화면 레이아웃 틀어짐 방지
       document.body.style.overflow = 'hidden';
+      Promise.resolve().then(() => {
+        if (cancelled) return;
+        const existingConv = getConversation(targetDog);
+        if (existingConv && Array.isArray(existingConv.messages)) {
+          setMessages(existingConv.messages);
+        } else {
+          setMessages([]);
+        }
+        setMessageText('');
+      });
     } else {
       document.body.style.overflow = '';
     }
     return () => {
+      cancelled = true;
       document.body.style.overflow = '';
     };
   }, [isOpen, targetDog]);

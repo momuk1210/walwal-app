@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { User, Globe, Settings, Award, Zap, Heart, Shield, Sparkles, Edit3, Plus, Camera, X, Check, Upload, LogOut, Trash2, MapPin, Clock, Calendar, ChevronRight, ChevronLeft, Menu, Dog, RotateCcw, ArrowLeft } from 'lucide-react';
-import { DogProfile, MOCK_DOGS, getMockDogs, isSameDogName, getDefaultDogAvatar, normalizeDogProfile, localizeBreed, localizePersonalityTags, localizeDogName, isMockNeighborDog, isDeletedPet, sanitizePetList, getBreedRecommendedGoals } from '../data/mockDogs';
+import { DogProfile, MOCK_DOGS, getMockDogs, isSameDogName, getDefaultDogAvatar, normalizeDogProfile, localizeBreed, localizePersonalityTags, localizeDogName, isMockNeighborDog, isDeletedPet, markPetAsDeleted, sanitizePetList, getBreedRecommendedGoals } from '../data/mockDogs';
 import { useTranslation } from '../i18n/LanguageContext';
 import { auth, db, COLLECTIONS } from '../firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
@@ -8,7 +8,36 @@ import { signOut, deleteUser, onAuthStateChanged } from 'firebase/auth';
 import { SettingsView } from './SettingsView';
 import { WalkHistoryModal } from './WalkHistoryModal';
 import { saveDogProfile, deleteDogProfile } from '../services/db';
+import { readFileAsCompressedDataUrl } from '../utils/imageCompress';
 import '../styles/ProfileView.css';
+
+const PENDING_PET_IDS_KEY = 'WALWAL_PENDING_PET_IDS';
+
+const getPendingPetIds = (): string[] => {
+  try {
+    const raw = localStorage.getItem(PENDING_PET_IDS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+};
+
+const addPendingPetId = (petId?: string) => {
+  if (!petId) return;
+  const ids = getPendingPetIds();
+  if (!ids.includes(petId)) {
+    localStorage.setItem(PENDING_PET_IDS_KEY, JSON.stringify([...ids, petId]));
+  }
+};
+
+const removePendingPetId = (petId?: string) => {
+  if (!petId) return;
+  const ids = getPendingPetIds();
+  if (ids.includes(petId)) {
+    localStorage.setItem(PENDING_PET_IDS_KEY, JSON.stringify(ids.filter(id => id !== petId)));
+  }
+};
 
 interface ProfileViewProps {
 }
@@ -163,7 +192,7 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
       }
     } catch (e) { }
     return count;
-  }, [myDog?.name, myDog?.stats?.studioCount]);
+  }, [myDog]);
 
   const joinedMeetupsCount = React.useMemo(() => {
     if (!myDog) return 0;
@@ -176,7 +205,7 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
     } catch (e) { }
     // Fallback based on INITIAL_MEETUPS where Bori is in m1 and m4
     return isSameDogName(myDog.name, '보리') ? 2 : 1;
-  }, [myDog?.name]);
+  }, [myDog]);
 
   // Sync to localStorage and Firestore
   const savePetsToStorage = (updated: DogProfile[]) => {
@@ -187,7 +216,10 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
     // 클라우드 Firestore dogs 컬렉션 동기화 (유효한 사용자 반려견만)
     sanitized.forEach(pet => {
       if (!isMockNeighborDog(pet) && !isDeletedPet(pet)) {
-        saveDogProfile(pet, currentUser?.uid);
+        addPendingPetId(pet.id);
+        saveDogProfile(pet, currentUser?.uid).then((ok) => {
+          if (ok) removePendingPetId(pet.id);
+        });
       }
     });
   };
@@ -195,7 +227,6 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
   // 실시간 Firestore dogs 동기화 (Single Source of Truth: Firestore가 최우선 기준)
   useEffect(() => {
     const unsub = onSnapshot(collection(db, COLLECTIONS.DOGS), (snapshot) => {
-      if (snapshot.empty) return;
       const remoteDogs: DogProfile[] = [];
       snapshot.forEach(docSnap => {
         const data = docSnap.data();
@@ -207,7 +238,7 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
       const rawEmail = (currentUser?.email || localStorage.getItem('WALWAL_USER_EMAIL') || localStorage.getItem('walwal_user_email') || '').toLowerCase().trim();
       const currentEmail = rawEmail || (isDaisynara ? 'daisynara@gmail.com' : '');
 
-      // 기존 로컬 반려견 로드 (절대 강제 삭제 금지)
+      // 기존 로컬 반려견 로드
       let localPets: DogProfile[] = [];
       try {
         const saved = localStorage.getItem('WALWAL_PETS');
@@ -219,12 +250,19 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
 
       // 유효한 사용자 반려견만 필터링 (가짜 이웃견/삭제된 견 제외)
       const validLocalPets = localPets.filter(lp => lp && lp.name && !isMockNeighborDog(lp) && !isDeletedPet(lp));
+      const pendingIds = getPendingPetIds();
 
-      // 로컬에 등록된 반려견이 Firestore에 없으면 자동 백업 업로드
+      // 오프라인 등에서 아직 Firestore에 업로드되지 않은 보류 반려견만 재업로드
       validLocalPets.forEach(lp => {
-        const existsRemote = remoteDogs.some(rd => rd.id === lp.id || rd.name === lp.name);
-        if (!existsRemote) {
-          saveDogProfile(lp, currentUser?.uid);
+        if (lp.id && pendingIds.includes(lp.id)) {
+          const existsRemote = remoteDogs.some(rd => rd.id === lp.id);
+          if (!existsRemote) {
+            saveDogProfile(lp, currentUser?.uid).then((ok) => {
+              if (ok) removePendingPetId(lp.id);
+            });
+          } else {
+            removePendingPetId(lp.id);
+          }
         }
       });
 
@@ -239,16 +277,33 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
         return validLocalPets.some(lp => lp.id === rd.id || lp.name === rd.name);
       });
 
-      // 로컬 반려견과 원격 반려견 병합 (단일 진실 공급원 Firestore 우선 병합)
+      // 로컬 반려견과 원격 반려견 병합 (Firestore 우선, 로컬 산책/목표 필드 보존)
       const combinedMap = new Map<string, DogProfile>();
-      validLocalPets.forEach(lp => {
-        combinedMap.set(lp.id || lp.name, lp);
-      });
       myRemoteDogs.forEach(rd => {
-        combinedMap.set(rd.id || rd.name, rd);
+        const localMatch = validLocalPets.find(lp => (lp.id && lp.id === rd.id) || (lp.name && lp.name === rd.name));
+        const merged: DogProfile = {
+          ...(localMatch || {}),
+          ...rd,
+          todayWalkDistance: rd.todayWalkDistance ?? localMatch?.todayWalkDistance,
+          todayWalkMinutes: rd.todayWalkMinutes ?? localMatch?.todayWalkMinutes,
+          walkGoalDistance: rd.walkGoalDistance ?? localMatch?.walkGoalDistance,
+          walkGoalMinutes: rd.walkGoalMinutes ?? localMatch?.walkGoalMinutes,
+          dailyDistanceGoal: rd.dailyDistanceGoal ?? localMatch?.dailyDistanceGoal,
+          dailyTimeGoal: rd.dailyTimeGoal ?? localMatch?.dailyTimeGoal,
+          stats: rd.stats ?? localMatch?.stats,
+        };
+        combinedMap.set(rd.id || rd.name, merged);
       });
 
-      // 만약 currentEmail이 wal.wal.app365@gmail.com 이거나 daisynara 인데 로컬에 없다면 원격에서 불러오기
+      // 아직 클라우드에 올라가지 않은 로컬 보류 반려견 유지
+      validLocalPets.forEach(lp => {
+        const key = lp.id || lp.name;
+        if (!combinedMap.has(key) && lp.id && pendingIds.includes(lp.id)) {
+          combinedMap.set(key, lp);
+        }
+      });
+
+      // 만약 currentEmail 이 있는데 myRemoteDogs에서 매칭된 항목이 없더라도 소유 이메일이 정확히 일치하는 원격 반려견 복구
       if (currentEmail && combinedMap.size === 0) {
         remoteDogs.forEach(rd => {
           if (!isMockNeighborDog(rd) && !isDeletedPet(rd) && (rd.ownerEmail || '').toLowerCase().trim() === currentEmail) {
@@ -257,11 +312,18 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
         });
       }
 
+      if (snapshot.empty && pendingIds.length === 0 && !snapshot.metadata.fromCache) {
+        setPets([]);
+        localStorage.setItem('WALWAL_PETS', JSON.stringify([]));
+        window.dispatchEvent(new Event('walwal_pets_updated'));
+        return;
+      }
+
       const mergedList = Array.from(combinedMap.values());
       const normalizedRemote = mergedList.map(rd => normalizeDogProfile(rd, language));
       const sanitized = sanitizePetList(normalizedRemote, language);
 
-      if (sanitized.length > 0 || validLocalPets.length === 0) {
+      if (sanitized.length > 0 || !snapshot.metadata.fromCache) {
         setPets(sanitized);
         localStorage.setItem('WALWAL_PETS', JSON.stringify(sanitized));
         window.dispatchEvent(new Event('walwal_pets_updated'));
@@ -291,7 +353,7 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
   };
 
   // Open Add Modal
-  const openAddModal = () => {
+  const openAddModal = useCallback(() => {
     setFormName('');
     const defaultBreed = t.profile.breedOptions?.[0] || '골든 리트리버';
     setFormBreed(defaultBreed);
@@ -306,7 +368,7 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
     setFormWalkGoalDistance(String(rec.distance));
     setFormWalkGoalMinutes(String(rec.minutes));
     setModalMode('add');
-  };
+  }, [t]);
 
   useEffect(() => {
     const handleOpenRegister = () => {
@@ -314,30 +376,30 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
     };
     window.addEventListener('walwal_open_pet_register', handleOpenRegister);
     return () => window.removeEventListener('walwal_open_pet_register', handleOpenRegister);
-  }, []);
+  }, [openAddModal]);
 
   // Handle Photo Upload (Modal)
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (uploadEvent) => {
-        if (uploadEvent.target?.result) {
-          setFormAvatar(uploadEvent.target.result as string);
+      try {
+        const compressed = await readFileAsCompressedDataUrl(file, 512, 0.78);
+        if (compressed) {
+          setFormAvatar(compressed);
         }
-      };
-      reader.readAsDataURL(file);
+      } catch {
+        // ignore read error
+      }
     }
   };
 
   // Direct Photo Upload on Profile Avatar Camera Click
-  const handleDirectPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDirectPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (uploadEvent) => {
-        if (uploadEvent.target?.result) {
-          const newAvatar = uploadEvent.target.result as string;
+      try {
+        const newAvatar = await readFileAsCompressedDataUrl(file, 512, 0.78);
+        if (newAvatar) {
           const updated = pets.map((p, idx) => {
             if (idx === activePetIndex) {
               return { ...p, avatar: newAvatar };
@@ -346,8 +408,9 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
           });
           savePetsToStorage(updated);
         }
-      };
-      reader.readAsDataURL(file);
+      } catch {
+        // ignore read error
+      }
     }
     // reset target value so selecting the same file again triggers change
     e.target.value = '';
@@ -404,7 +467,7 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
             historic.push(oldName);
             localStorage.setItem('WALWAL_HISTORIC_PET_NAMES', JSON.stringify(historic));
           }
-        } catch (e) {}
+        } catch (e) { }
       }
       const updated = pets.map((p, idx) => {
         if (idx === activePetIndex) {
@@ -484,7 +547,9 @@ export const ProfileView: React.FC<ProfileViewProps> = () => {
       : `Are you sure you want to delete '${targetPet.name}'?`;
     if (!window.confirm(confirmMsg)) return;
 
-    // Delete from Firestore
+    // Mark deleted locally & delete from Firestore
+    markPetAsDeleted(targetPet.id, targetPet.name);
+    removePendingPetId(targetPet.id);
     if (targetPet.id) {
       await deleteDogProfile(targetPet.id, currentUser?.uid);
     }

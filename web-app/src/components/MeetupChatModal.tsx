@@ -46,7 +46,21 @@ const saveChatHistory = (meetupId: string, msgs: any[]) => {
 
 export const MeetupChatModal: React.FC<MeetupChatModalProps> = ({ meetup, onClose, language = 'ko', onEdit, onDelete, isHost }) => {
   const t = TRANSLATIONS[language] || TRANSLATIONS['ko'];
-  const [petUpdateTrigger, setPetUpdateTrigger] = useState(0);
+  const readMyPetsFromStorage = () => {
+    try {
+      const saved = localStorage.getItem('WALWAL_PETS');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const isInitialMockDump = parsed.length === 4 && parsed[0]?.id === 'dog-1' && parsed[1]?.id === 'dog-2' && parsed[2]?.id === 'dog-3' && parsed[3]?.id === 'dog-4';
+          return isInitialMockDump ? [parsed[0]] : parsed;
+        }
+      }
+    } catch (e) { }
+    return [];
+  };
+
+  const [allMyPets, setAllMyPets] = useState<any[]>(() => readMyPetsFromStorage());
   const [showMenu, setShowMenu] = useState(false);
   const [reportTarget, setReportTarget] = useState<ReportModalTarget | null>(null);
   const [blockedVersion, setBlockedVersion] = useState(0);
@@ -67,7 +81,7 @@ export const MeetupChatModal: React.FC<MeetupChatModalProps> = ({ meetup, onClos
 
   useEffect(() => {
     const handlePetsUpdated = () => {
-      setPetUpdateTrigger(prev => prev + 1);
+      setAllMyPets(readMyPetsFromStorage());
     };
     const handleBlockedUpdated = () => {
       setBlockedVersion(prev => prev + 1);
@@ -81,22 +95,6 @@ export const MeetupChatModal: React.FC<MeetupChatModalProps> = ({ meetup, onClos
       window.removeEventListener('storage', handlePetsUpdated);
     };
   }, []);
-
-  // 내 전체 반려견 목록 (등록된 반려견이 없으면 빈 배열)
-  const allMyPets = React.useMemo(() => {
-    try {
-      const saved = localStorage.getItem('WALWAL_PETS');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const isInitialMockDump = parsed.length === 4 && parsed[0]?.id === 'dog-1' && parsed[1]?.id === 'dog-2' && parsed[2]?.id === 'dog-3' && parsed[3]?.id === 'dog-4';
-          const listToUse = isInitialMockDump ? [parsed[0]] : parsed;
-          return listToUse;
-        }
-      }
-    } catch (e) { }
-    return [];
-  }, [language, petUpdateTrigger]);
 
   const activePet = allMyPets[0] || null;
   const currentUserEmail = (auth?.currentUser?.email || localStorage.getItem('WALWAL_USER_EMAIL') || localStorage.getItem('walwal_user_email') || '').toLowerCase().trim();

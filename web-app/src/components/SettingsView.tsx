@@ -1,7 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation, Language } from '../i18n/LanguageContext';
 import { auth } from '../firebase';
-import { signOut, deleteUser, onAuthStateChanged, updatePassword, sendPasswordResetEmail } from 'firebase/auth';
+import {
+  signOut,
+  deleteUser,
+  onAuthStateChanged,
+  updatePassword,
+  sendPasswordResetEmail,
+  GoogleAuthProvider,
+  OAuthProvider,
+  EmailAuthProvider,
+  reauthenticateWithPopup,
+  reauthenticateWithCredential
+} from 'firebase/auth';
+import { deleteUserAccountData } from '../services/db';
 import { LegalView, LegalViewType } from './LegalView';
 import {
   ArrowLeft,
@@ -44,6 +56,57 @@ const GoogleIcon = ({ size = 16 }: { size?: number }) => (
     <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
     <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
   </svg>
+);
+
+const AppleIcon = ({ size = 16 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.08zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
+  </svg>
+);
+
+const Toggle = ({ active, onChange }: { active: boolean; onChange: () => void }) => (
+  <div
+    className={`settings-toggle ${active ? 'active' : 'inactive'}`}
+    onClick={onChange}
+  >
+    <div className={`settings-toggle-knob ${active ? 'active' : 'inactive'}`} />
+  </div>
+);
+
+const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
+  <div className="settings-section">
+    <h3 className="settings-section-title">{title}</h3>
+    <div className="settings-section-content">{children}</div>
+  </div>
+);
+
+const ListItem = ({
+  icon,
+  title,
+  subtitle,
+  rightElement,
+  onClick,
+  destructive
+}: {
+  icon: React.ReactNode;
+  title: string;
+  subtitle?: string;
+  rightElement?: React.ReactNode;
+  onClick?: () => void;
+  destructive?: boolean;
+}) => (
+  <div
+    className={`settings-list-item  ${destructive ? 'destructive' : ''}`}
+    style={{ cursor: onClick ? 'pointer' : 'default' }}
+    onClick={onClick}
+  >
+    <div className="settings-list-icon">{icon}</div>
+    <div className="settings-list-text">
+      <div className="settings-list-title">{title}</div>
+      {subtitle && <div className="settings-list-subtitle">{subtitle}</div>}
+    </div>
+    {rightElement || (onClick && <ChevronRight size={20} color="#121212" />)}
+  </div>
 );
 
 interface SettingsViewProps {
@@ -205,29 +268,45 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
 
   // Admin Mode Gate
   const [currentUser, setCurrentUser] = useState<any>(auth.currentUser);
+  const [versionTaps, setVersionTaps] = useState(0);
+  const [showAdminPinModal, setShowAdminPinModal] = useState(false);
+  const [adminPin, setAdminPin] = useState('');
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState(localStorage.getItem('WALWAL_ADMIN_AUTH') === 'true');
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
       setCurrentUser(u);
       if (u?.email) {
         localStorage.setItem('WALWAL_USER_EMAIL', u.email);
+        if (!u.email.toLowerCase().includes('daisynara')) {
+          localStorage.removeItem('WALWAL_ADMIN_AUTH');
+          setIsAdminUnlocked(false);
+        }
       }
     });
     return () => unsub();
   }, []);
-
-  const [versionTaps, setVersionTaps] = useState(0);
-  const [showAdminPinModal, setShowAdminPinModal] = useState(false);
-  const [adminPin, setAdminPin] = useState('');
-  const [isAdminUnlocked, setIsAdminUnlocked] = useState(localStorage.getItem('WALWAL_ADMIN_AUTH') === 'true');
 
   const userEmail = useMemo(() => {
     return currentUser?.email || localStorage.getItem('WALWAL_USER_EMAIL') || localStorage.getItem('walwal_user_email') || '';
   }, [currentUser]);
 
   const isGoogleUser = useMemo(() => {
-    return currentUser?.providerData?.some((p: any) => p.providerId === 'google.com');
+    return Boolean(currentUser?.providerData?.some((p: any) => p.providerId === 'google.com'));
   }, [currentUser]);
+
+  const isAppleUser = useMemo(() => {
+    return Boolean(currentUser?.providerData?.some((p: any) => p.providerId === 'apple.com'));
+  }, [currentUser]);
+
+  const isSocialUser = isGoogleUser || isAppleUser;
+
+  // Delete Account Modal states
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteNeedsReauth, setDeleteNeedsReauth] = useState(false);
+  const [deleteReauthPassword, setDeleteReauthPassword] = useState('');
+  const [deleteErrorMsg, setDeleteErrorMsg] = useState<string | null>(null);
 
   // Password Change Modal states
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -296,15 +375,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
   useEffect(() => {
     if (userEmail && !isDaisynara) {
       localStorage.removeItem('WALWAL_ADMIN_AUTH');
-      setIsAdminUnlocked(false);
     }
   }, [userEmail, isDaisynara]);
 
   const handleOpenPasswordModal = () => {
-    if (isGoogleUser) {
+    if (isSocialUser) {
+      const providerLabel = isAppleUser ? 'Apple' : 'Google';
       alert(language === 'ko'
-        ? 'Google 소셜 로그인으로 연동된 계정입니다.\n비밀번호 변경은 Google 계정 관리(myaccount.google.com)에서 관리됩니다.'
-        : 'You signed in with Google.\nPassword changes are managed through your Google Account (myaccount.google.com).');
+        ? `${providerLabel} 소셜 로그인으로 연동된 계정입니다.\n비밀번호 변경은 ${providerLabel} 계정 설정에서 관리됩니다.`
+        : `You signed in with ${providerLabel}.\nPassword changes are managed through your ${providerLabel} Account.`);
     } else if (!userEmail) {
       alert(language === 'ko' ? '로그인이 필요합니다.' : 'Please log in first.');
     } else {
@@ -384,77 +463,65 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
     }
   };
 
-  const handleDeleteAccount = async () => {
-    const confirmMsg = t.settings?.confirmDelete || "정말로 계정을 탈퇴하시겠습니까? 탈퇴 시 모든 데이터가 삭제되며 복구할 수 없습니다.";
-    const confirmDelete = window.confirm(confirmMsg);
-    if (confirmDelete) {
-      try {
-        if (auth.currentUser) {
-          await deleteUser(auth.currentUser);
-        }
-        localStorage.removeItem('walwal_logged_in');
-        localStorage.removeItem('walwal_app_state');
-        localStorage.removeItem('WALWAL_PETS');
-        localStorage.removeItem('WALWAL_FEED_POSTS');
-        window.location.reload();
-      } catch (error: any) {
-        if (error.code === 'auth/requires-recent-login') {
-          alert("보안을 위해 다시 로그인한 후 탈퇴를 진행해주세요.");
-        } else {
-          console.error("Account deletion error", error);
-          localStorage.removeItem('walwal_logged_in');
-          localStorage.removeItem('walwal_app_state');
-          window.location.reload();
-        }
-      }
-    }
+  const handleDeleteAccount = () => {
+    setDeleteErrorMsg(null);
+    setDeleteNeedsReauth(false);
+    setDeleteReauthPassword('');
+    setShowDeleteModal(true);
   };
 
-  const Toggle = ({ active, onChange }: { active: boolean, onChange: () => void }) => (
-    <div
-      className={`settings-toggle ${active ? 'active' : 'inactive'}`}
-      onClick={onChange}
-    >
-      <div className={`settings-toggle-knob ${active ? 'active' : 'inactive'}`} />
-    </div>
-  );
+  const executeAccountDeletion = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setDeleteErrorMsg(null);
+    setDeleteLoading(true);
+    const activeUser = auth.currentUser;
+    const uid = activeUser?.uid;
 
-  const Section = ({ title, children }: { title: string, children: React.ReactNode }) => (
-    <div className="settings-section">
-      <h3 className="settings-section-title">{title}</h3>
-      <div className="settings-section-content">{children}</div>
-      {activeLegalView && <LegalView type={activeLegalView} onClose={() => setActiveLegalView(null)} />}
-    </div>
-  );
+    try {
+      if (activeUser) {
+        if (deleteNeedsReauth) {
+          if (isAppleUser) {
+            const appleProvider = new OAuthProvider('apple.com');
+            await reauthenticateWithPopup(activeUser, appleProvider);
+          } else if (isGoogleUser) {
+            const googleProvider = new GoogleAuthProvider();
+            await reauthenticateWithPopup(activeUser, googleProvider);
+          } else {
+            if (!deleteReauthPassword.trim()) {
+              setDeleteErrorMsg(language === 'ko' ? '현재 비밀번호를 입력해 주세요.' : 'Please enter your current password.');
+              setDeleteLoading(false);
+              return;
+            }
+            const cred = EmailAuthProvider.credential(activeUser.email || userEmail, deleteReauthPassword.trim());
+            await reauthenticateWithCredential(activeUser, cred);
+          }
+        }
+        await deleteUser(activeUser);
+      }
 
-  const ListItem = ({
-    icon,
-    title,
-    subtitle,
-    rightElement,
-    onClick,
-    destructive
-  }: {
-    icon: React.ReactNode,
-    title: string,
-    subtitle?: string,
-    rightElement?: React.ReactNode,
-    onClick?: () => void,
-    destructive?: boolean
-  }) => (
-    <div
-      className={`settings-list-item  ${destructive ? 'destructive' : ''}`}
-      style={{ cursor: onClick ? 'pointer' : 'default' }}
-      onClick={onClick}
-    >
-      <div className="settings-list-icon">{icon}</div>
-      <div className="settings-list-text">
-        <div className="settings-list-title">{title}</div>
-        {subtitle && <div className="settings-list-subtitle">{subtitle}</div>}
-      </div>
-      {rightElement || (onClick && <ChevronRight size={20} color="#121212" />)}
-    </div>
-  );
+      await deleteUserAccountData(userEmail, uid);
+      try { await signOut(auth); } catch { }
+      setShowDeleteModal(false);
+      alert(language === 'ko' ? '회원 탈퇴 및 계정 데이터 삭제가 완료되었습니다.' : 'Your account and data have been permanently deleted.');
+      window.location.reload();
+    } catch (error: any) {
+      console.error('Account deletion error', error);
+      if (error?.code === 'auth/requires-recent-login') {
+        setDeleteNeedsReauth(true);
+        setDeleteErrorMsg(
+          language === 'ko'
+            ? '보안을 위해 본인 재인증이 필요합니다. 아래에서 재인증 후 탈퇴를 완료해 주세요.'
+            : 'Please re-authenticate to complete account deletion.'
+        );
+      } else if (error?.code === 'auth/wrong-password' || error?.code === 'auth/invalid-credential') {
+        setDeleteErrorMsg(language === 'ko' ? '비밀번호가 일치하지 않습니다.' : 'Incorrect password.');
+      } else if (error?.code !== 'auth/popup-closed-by-user') {
+        setDeleteErrorMsg(error?.message || (language === 'ko' ? '탈퇴 처리 중 오류가 발생했습니다.' : 'Failed to delete account.'));
+      }
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
 
   return (
     <div className="settings-view-root">
@@ -480,8 +547,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
               <span className="settings-account-email">
                 {userEmail || (language === 'ko' ? '로그인되지 않음' : 'Not Logged In')}
               </span>
-              <span className="settings-account-provider-badge" title={isGoogleUser ? 'Google 계정' : '이메일 계정'}>
-                {isGoogleUser ? (
+              <span className="settings-account-provider-badge" title={isAppleUser ? 'Apple 계정' : isGoogleUser ? 'Google 계정' : '이메일 계정'}>
+                {isAppleUser ? (
+                  <AppleIcon size={17} />
+                ) : isGoogleUser ? (
                   <GoogleIcon size={18} />
                 ) : (
                   <Mail size={18} className="settings-account-provider-mail" />
@@ -844,6 +913,113 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
         </div>
       )}
 
+      {/* Delete Account Confirmation & Re-auth Modal */}
+      {showDeleteModal && (
+        <div className="admin-modal-backdrop" style={{ zIndex: 100000 }}>
+          <div className="admin-modal" style={{ maxWidth: '390px', textAlign: 'left' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#DC2626' }}>
+                  <Trash2 size={18} />
+                </div>
+                <h3 style={{ margin: 0, fontSize: '1.08rem', fontWeight: 800, color: '#111' }}>
+                  {t.settings?.deleteAccount || '회원 탈퇴'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                disabled={deleteLoading}
+                onClick={() => setShowDeleteModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <p style={{ margin: '0 0 12px 0', fontSize: '0.86rem', color: '#475569', lineHeight: 1.55 }}>
+              {t.settings?.confirmDelete || '정말로 계정을 탈퇴하시겠습니까? 탈퇴 시 모든 데이터가 삭제되며 복구할 수 없습니다.'}
+            </p>
+            <ul style={{ margin: '0 0 14px 0', paddingLeft: '18px', fontSize: '0.8rem', color: '#64748B', lineHeight: 1.6 }}>
+              <li>{language === 'ko' ? '계정 정보 및 로그인 연동 해제' : 'Account credentials and login association'}</li>
+              <li>{language === 'ko' ? '등록한 반려견 프로필 및 산책 기록' : 'Registered pet profiles and walk records'}</li>
+              <li>{language === 'ko' ? '작성한 피드 게시물 · 동네 모임 · 차단 목록' : 'Created posts, meetups, and blocked list'}</li>
+            </ul>
+
+            <form onSubmit={executeAccountDeletion}>
+              {deleteNeedsReauth && !isSocialUser && (
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, marginBottom: '6px', color: '#333' }}>
+                    {language === 'ko' ? '본인 확인 비밀번호' : 'Current Password'}
+                  </label>
+                  <input
+                    type="password"
+                    value={deleteReauthPassword}
+                    onChange={(e) => setDeleteReauthPassword(e.target.value)}
+                    placeholder={language === 'ko' ? '현재 비밀번호 입력' : 'Enter password'}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      border: '1.5px solid #E2E8F0',
+                      fontSize: '0.9rem',
+                      boxSizing: 'border-box',
+                      outline: 'none'
+                    }}
+                    required
+                  />
+                </div>
+              )}
+
+              {deleteErrorMsg && (
+                <div style={{
+                  padding: '10px 12px',
+                  borderRadius: '10px',
+                  marginBottom: '14px',
+                  fontSize: '0.82rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  background: '#FEF2F2',
+                  color: '#DC2626',
+                  border: '1px solid #FECACA'
+                }}>
+                  <AlertCircle size={16} />
+                  <span>{deleteErrorMsg}</span>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  disabled={deleteLoading}
+                  onClick={() => setShowDeleteModal(false)}
+                  className="admin-btn-cancel"
+                  style={{ flex: 1 }}
+                >
+                  {language === 'ko' ? '취소' : 'Cancel'}
+                </button>
+                <button
+                  type="submit"
+                  disabled={deleteLoading}
+                  className="admin-btn-confirm"
+                  style={{ flex: 1, background: '#DC2626' }}
+                >
+                  {deleteLoading
+                    ? (language === 'ko' ? '삭제 중...' : 'Deleting...')
+                    : deleteNeedsReauth
+                      ? (isAppleUser
+                        ? (language === 'ko' ? 'Apple 재인증 후 탈퇴' : 'Re-auth Apple & Delete')
+                        : isGoogleUser
+                          ? (language === 'ko' ? 'Google 재인증 후 탈퇴' : 'Re-auth Google & Delete')
+                          : (language === 'ko' ? '확인 후 탈퇴' : 'Verify & Delete'))
+                      : (language === 'ko' ? '영구 탈퇴' : 'Delete Forever')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Admin PIN Verification Modal */}
       {showAdminPinModal && (
         <div className="admin-modal-backdrop">
@@ -938,6 +1114,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
           onClose={() => setSelectedDogForNote(null)}
         />
       )}
+
+      {activeLegalView && <LegalView type={activeLegalView} onClose={() => setActiveLegalView(null)} />}
     </div>
   );
 };

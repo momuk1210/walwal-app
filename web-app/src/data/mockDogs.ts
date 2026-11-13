@@ -395,11 +395,50 @@ export const isMockNeighborDog = (p: any): boolean => {
   return false;
 };
 
+export const markPetAsDeleted = (petId?: string, petName?: string) => {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const raw = localStorage.getItem('WALWAL_DELETED_PETS');
+    const parsed: any = raw ? JSON.parse(raw) : null;
+    const ids: string[] = Array.isArray(parsed)
+      ? [...parsed]
+      : Array.isArray(parsed?.ids)
+        ? [...parsed.ids]
+        : [];
+    const names: string[] = Array.isArray(parsed?.names) ? [...parsed.names] : [];
+    if (petId && !ids.includes(petId)) ids.push(petId);
+    const cleanName = (petName || '').trim();
+    if (cleanName && !names.includes(cleanName)) names.push(cleanName);
+    localStorage.setItem('WALWAL_DELETED_PETS', JSON.stringify({ ids, names }));
+  } catch {
+    // ignore storage errors
+  }
+};
+
 export const isDeletedPet = (p: any): boolean => {
   if (!p) return true;
   const cleanName = (p.name || '').trim();
   // 꼬북이 is explicitly marked deleted per user request
   if (cleanName === '꼬북이' || p.id === 'pet-1791121947345') return true;
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const raw = localStorage.getItem('WALWAL_DELETED_PETS');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          if (p.id && parsed.includes(String(p.id))) return true;
+          if (cleanName && parsed.includes(cleanName)) return true;
+        } else {
+          const ids: string[] = Array.isArray(parsed?.ids) ? parsed.ids : [];
+          const names: string[] = Array.isArray(parsed?.names) ? parsed.names : [];
+          if (p.id && ids.includes(String(p.id))) return true;
+          if (cleanName && names.includes(cleanName)) return true;
+        }
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }
   return false;
 };
 

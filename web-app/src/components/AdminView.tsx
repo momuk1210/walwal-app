@@ -17,8 +17,9 @@ import {
   AlertTriangle,
   ChevronDown
 } from 'lucide-react';
-import { db, auth, COLLECTIONS } from '../firebase';
-import { syncMeetupToFirestore, saveDogProfile, syncUserToFirestore } from '../services/db';
+import { db, auth, COLLECTIONS, STORAGE_KEYS } from '../firebase';
+import { syncUserToFirestore } from '../services/db';
+import { markPetAsDeleted } from '../data/mockDogs';
 import {
   collection,
   onSnapshot,
@@ -49,7 +50,7 @@ interface SubscriberGroup {
 export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedDogPerSub, setSelectedDogPerSub] = useState<Record<string, string>>({});
 
   // Firestore & Local Data Collections
@@ -92,34 +93,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
 
   // 1. Subscribe to Firestore Collections & Synchronize Local Data
   useEffect(() => {
-    setIsLoading(true);
-
-    // Initial pass: ensure local meetups & dogs are pushed to Firestore
-    try {
-      const localMeetupsStr = localStorage.getItem('WALWAL_MEETUPS');
-      if (localMeetupsStr) {
-        const localList = JSON.parse(localMeetupsStr);
-        if (Array.isArray(localList)) {
-          localList.forEach((m: any) => {
-            if (m.id && !['m1', 'm2', 'm3', 'm4'].includes(m.id)) {
-              syncMeetupToFirestore(m);
-            }
-          });
-        }
-      }
-      const localPetsStr = localStorage.getItem('WALWAL_PETS');
-      if (localPetsStr) {
-        const localPets = JSON.parse(localPetsStr);
-        if (Array.isArray(localPets)) {
-          localPets.forEach((p: any) => {
-            if (p.id) saveDogProfile(p);
-          });
-        }
-      }
-    } catch (e) {
-      console.warn('Initial admin sync error:', e);
-    }
-
     const unsubUsers = onSnapshot(collection(db, COLLECTIONS.USERS), (snapshot) => {
       const list: any[] = [];
       snapshot.forEach(docSnap => {
@@ -158,23 +131,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
     const unsubMeetups = onSnapshot(collection(db, COLLECTIONS.MEETUPS), (snapshot) => {
       const list: any[] = [];
       snapshot.forEach(docSnap => {
-        list.push({ id: docSnap.id, ...docSnap.data() });
-      });
-      // Merge local meetups so count is never falsely 0
-      try {
-        const saved = localStorage.getItem('WALWAL_MEETUPS');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) {
-            parsed.forEach((m: any) => {
-              if (m.id && !['m1', 'm2', 'm3', 'm4'].includes(m.id) && !list.some(item => item.id === m.id)) {
-                list.push(m);
-                syncMeetupToFirestore(m);
-              }
-            });
-          }
+        if (!['m1', 'm2', 'm3', 'm4'].includes(docSnap.id)) {
+          list.push({ id: docSnap.id, ...docSnap.data() });
         }
-      } catch (e) { }
+      });
       setMeetups(list);
     });
 
@@ -382,12 +342,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
             window.dispatchEvent(new Event('walwal_pets_updated'));
           }
         }
-        // Record in WALWAL_DELETED_PETS
-        const deletedRaw = localStorage.getItem('WALWAL_DELETED_PETS');
-        const deletedList: string[] = deletedRaw ? JSON.parse(deletedRaw) : [];
-        if (dog.id && !deletedList.includes(dog.id)) deletedList.push(dog.id);
-        if (dog.name && !deletedList.includes(dog.name)) deletedList.push(dog.name);
-        localStorage.setItem('WALWAL_DELETED_PETS', JSON.stringify(deletedList));
+        markPetAsDeleted(dog.id, dog.name);
       } catch (e) { }
       alert(`'${dog.name}' 반려견이 성공적으로 삭제되었습니다.`);
     } catch (err) {
@@ -419,6 +374,22 @@ export const AdminView: React.FC<AdminViewProps> = ({ onClose }) => {
     if (!window.confirm(`이 게시물(작성자: ${post.name || '알 수 없음'})을 영구 삭제하시겠습니까?`)) return;
     try {
       await deleteDoc(doc(db, COLLECTIONS.POSTS, post.id));
+      try {
+        const rawDeleted = localStorage.getItem('WALWAL_DELETED_POST_IDS');
+        const deletedIds: string[] = rawDeleted ? JSON.parse(rawDeleted) : [];
+        if (post.id && !deletedIds.includes(String(post.id))) {
+          localStorage.setItem('WALWAL_DELETED_POST_IDS', JSON.stringify([...deletedIds, String(post.id)]));
+        }
+        [STORAGE_KEYS.SNAPS_POSTS, STORAGE_KEYS.FEED_POSTS].forEach(key => {
+          const saved = localStorage.getItem(key);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) {
+              localStorage.setItem(key, JSON.stringify(parsed.filter((p: any) => String(p.id) !== String(post.id))));
+            }
+          }
+        });
+      } catch (e) { }
       alert('게시물이 삭제되었습니다.');
     } catch (err) {
       console.error(err);

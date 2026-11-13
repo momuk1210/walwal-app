@@ -13,8 +13,37 @@ import { doc, getDoc, setDoc, onSnapshot, serverTimestamp, collection, query, or
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { syncGlobalFeedPosts, syncSinglePost, deleteFeedPost, updateFeedPost } from '../services/db';
 import { ensureVideoPlayable, uploadVideoToCloud, extractPosterFromVideo, rotateAndCropVideoBlob } from '../services/mediaSync';
+import { readFileAsCompressedDataUrl } from '../utils/imageCompress';
 import { OwnerNoteModal } from './OwnerNoteModal';
 import '../styles/OwnerNoteModal.css';
+
+const PENDING_POST_IDS_KEY = 'WALWAL_PENDING_POST_IDS';
+
+const getPendingPostIds = (): string[] => {
+  try {
+    const raw = localStorage.getItem(PENDING_POST_IDS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+};
+
+const addPendingPostId = (postId?: string) => {
+  if (!postId) return;
+  const ids = getPendingPostIds();
+  if (!ids.includes(postId)) {
+    localStorage.setItem(PENDING_POST_IDS_KEY, JSON.stringify([...ids, postId]));
+  }
+};
+
+const removePendingPostId = (postId?: string) => {
+  if (!postId) return;
+  const ids = getPendingPostIds();
+  if (ids.includes(postId)) {
+    localStorage.setItem(PENDING_POST_IDS_KEY, JSON.stringify(ids.filter(id => id !== postId)));
+  }
+};
 
 export interface SnapsViewProps {
   snapsDraft?: { dog: any, thought: string, image?: string, poster?: string, isVideo?: boolean } | null;
@@ -312,7 +341,7 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
       isMounted = false;
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [post.id, post.feedImage]);
+  }, [post, videoSrc]);
 
   // Ensure DOM video muted property is set immediately on mount (fixes mobile browser autoplay policy)
   useEffect(() => {
@@ -519,7 +548,7 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
               videoRef.current.muted = nextMuted;
               videoRef.current.defaultMuted = nextMuted;
               if (!nextMuted && videoRef.current.paused) {
-                videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+                videoRef.current.play().then(() => setIsPlaying(true)).catch(() => { });
               }
             }
           }}
@@ -572,6 +601,37 @@ const FeedVideoCard: React.FC<{ post: any }> = ({ post }) => {
   );
 };
 
+const readStoredPetsList = (): any[] => {
+  try {
+    const saved = localStorage.getItem('WALWAL_PETS');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) { }
+  return [];
+};
+
+const buildPetOptions = (rawMyPets: any[], language: 'ko' | 'en' | 'ja' | 'es' | 'fr' | 'zh') => {
+  if (rawMyPets.length === 0) return [];
+  const myPets = sanitizePetList(rawMyPets, language);
+  const mockDogs = getMockDogs(language);
+  return myPets.map((p: any) => {
+    const mock = mockDogs.find(m => isSameDogName(m.name, p.name));
+    const avatar = p.avatar || mock?.avatar || getDefaultDogAvatar(p.name || p.breed);
+    return {
+      id: p.id || p.name,
+      name: p.name,
+      breed: p.breed,
+      ownerName: p.name,
+      avatar,
+      age: p.age ? String(p.age).replace(/[^0-9]/g, '') : '1',
+      gender: p.gender || mock?.gender || 'male',
+      personality: p.personality || p.tags || mock?.personality || ['#댕댕이']
+    };
+  });
+};
+
 export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft, feedDraft: propFeedDraft, onClearFeedDraft: propOnClearFeedDraft, onClearSnapsDraft: propOnClearSnapsDraft, handleClearFeedDraft: propHandleClearFeedDraft, onRetake }) => {
   const { t, language } = useTranslation();
 
@@ -581,14 +641,15 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
   const [isDraftVideoMuted, setIsDraftVideoMuted] = useState<boolean>(false);
   const feedDraft = propSnapsDraft || propFeedDraft || localFeedDraft;
 
-  const handleCommentImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCommentImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setModalCommentImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      try {
+        const compressed = await readFileAsCompressedDataUrl(file, 720, 0.78);
+        if (compressed) setModalCommentImage(compressed);
+      } catch {
+        // ignore read error
+      }
     }
     if (e.target) e.target.value = '';
   };
@@ -625,11 +686,13 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
           });
         });
       } else {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setLocalFeedDraft({ dog: myDog, thought: '', image: reader.result as string, isVideo: false });
-        };
-        reader.readAsDataURL(file);
+        readFileAsCompressedDataUrl(file, 1080, 0.8).then(compressed => {
+          if (compressed) {
+            setLocalFeedDraft({ dog: myDog, thought: '', image: compressed, isVideo: false });
+          }
+        }).catch(() => {
+          // ignore read error
+        });
       }
     }
     if (e.target) e.target.value = '';
@@ -651,33 +714,10 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
   };
 
 
-  const [petsUpdateTrigger, setPetsUpdateTrigger] = useState(0);
+  const [rawMyPets, setRawMyPets] = useState<any[]>(() => readStoredPetsList());
 
   // 내 반려견 목록 (개별 강아지들) - localStorage 최신 데이터 반영
-  const petOptions = React.useMemo(() => {
-    let myPets: any[] = [];
-    try {
-      const saved = localStorage.getItem('WALWAL_PETS');
-      if (saved) myPets = JSON.parse(saved);
-    } catch (e) { }
-
-    myPets = sanitizePetList(myPets, language);
-
-    return myPets.map((p: any) => {
-      const mock = getMockDogs(language).find(m => isSameDogName(m.name, p.name));
-      const avatar = p.avatar || mock?.avatar || getDefaultDogAvatar(p.name || p.breed);
-      return {
-        id: p.id || p.name,
-        name: p.name,
-        breed: p.breed,
-        ownerName: p.name,
-        avatar,
-        age: p.age ? String(p.age).replace(/[^0-9]/g, '') : '1',
-        gender: p.gender || mock?.gender || 'male',
-        personality: p.personality || p.tags || mock?.personality || ['#댕댕이']
-      };
-    });
-  }, [language, petsUpdateTrigger]);
+  const petOptions = React.useMemo(() => buildPetOptions(rawMyPets, language), [rawMyPets, language]);
 
   const myDog = petOptions[0] || null;
 
@@ -818,9 +858,13 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
     } catch (e) { }
   };
 
+  const checkIsMyPostRef = useRef<(post: any) => boolean>(() => false);
+  const loadPostsWithMediaRef = useRef<(postsToLoad: any[]) => void>(() => {});
+  const loadLocalRef = useRef<() => void>(() => {});
+
   React.useEffect(() => {
     // 1. Immediately render cached posts synchronously so feed displays instantly
-    loadLocal();
+    loadLocalRef.current();
 
     const handleFeedUpdate = () => {
       setFeedPosts(prev => {
@@ -828,7 +872,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
         if (prev && prev.length > 0) {
           return prev.filter(p => p && !deletedIds.has(String(p.id)) && !isMockDummyPost(p));
         }
-        loadLocal();
+        loadLocalRef.current();
         return prev;
       });
     };
@@ -867,7 +911,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
             const data = docSnap.data();
             if (data?.isDeleted || isMockDummyPost({ ...data, id: docSnap.id })) return;
 
-            const isMine = checkIsMyPost({ ...data, id: docSnap.id });
+            const isMine = checkIsMyPostRef.current({ ...data, id: docSnap.id });
             let createdAt = data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || data.clientCreatedAt);
             if (!createdAt && docSnap.id.startsWith('post_')) {
               const num = parseInt(docSnap.id.replace('post_', ''), 10);
@@ -883,66 +927,77 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
             });
           });
 
-          // Preserve and auto-upload any unsynced local posts (e.g. created on PWA while Firestore auth was offline)
+          // Preserve and auto-upload ONLY genuinely unsynced offline posts (never resurrect deleted remote posts)
           try {
-            const savedLocal = localStorage.getItem(STORAGE_KEYS.SNAPS_POSTS) || localStorage.getItem(STORAGE_KEYS.FEED_POSTS);
-            if (savedLocal) {
-              const localList = JSON.parse(savedLocal);
-              if (Array.isArray(localList)) {
-                localList.forEach((lp: any) => {
-                  if (!lp || !lp.id || deletedIds.has(String(lp.id)) || lp.isDeleted || isMockDummyPost(lp)) return;
-                  const existsRemote = remotePosts.some(rp => String(rp.id) === String(lp.id));
-                  if (!existsRemote) {
-                    remotePosts.push({
-                      ...lp,
-                      isMine: checkIsMyPost(lp),
-                      createdAt: lp.createdAt || lp.clientCreatedAt || new Date().toISOString()
-                    });
-                    // Upload missing local post & media to Cloud Firestore
-                    (async () => {
-                      try {
-                        let feedImageToSave = lp.isVideo ? `indexeddb:${lp.id}` : (lp.feedImage || lp.poster || '');
-                        let posterToSave = lp.poster || (!lp.isVideo ? lp.feedImage : '') || '';
-                        if ((!feedImageToSave || feedImageToSave.startsWith('blob:')) && !lp.isVideo) {
-                          const mediaBlob = await getMedia(String(lp.id)).catch(() => null);
-                          if (mediaBlob) {
-                            const dataUrl = await new Promise<string>((res) => {
-                              const reader = new FileReader();
-                              reader.onloadend = () => res(String(reader.result || ''));
-                              reader.onerror = () => res('');
-                              reader.readAsDataURL(mediaBlob);
-                            });
-                            if (dataUrl) {
-                              const compressed = await compressImageForFirestore(dataUrl).catch(() => dataUrl);
-                              feedImageToSave = compressed;
-                              posterToSave = compressed;
+            const pendingIds = new Set(getPendingPostIds());
+            remotePosts.forEach(rp => {
+              if (pendingIds.has(String(rp.id))) {
+                removePendingPostId(String(rp.id));
+                pendingIds.delete(String(rp.id));
+              }
+            });
+
+            if (pendingIds.size > 0) {
+              const savedLocal = localStorage.getItem(STORAGE_KEYS.SNAPS_POSTS) || localStorage.getItem(STORAGE_KEYS.FEED_POSTS);
+              if (savedLocal) {
+                const localList = JSON.parse(savedLocal);
+                if (Array.isArray(localList)) {
+                  localList.forEach((lp: any) => {
+                    if (!lp || !lp.id || !pendingIds.has(String(lp.id)) || deletedIds.has(String(lp.id)) || lp.isDeleted || isMockDummyPost(lp)) return;
+                    const existsRemote = remotePosts.some(rp => String(rp.id) === String(lp.id));
+                    if (!existsRemote) {
+                      remotePosts.push({
+                        ...lp,
+                        isMine: checkIsMyPostRef.current(lp),
+                        createdAt: lp.createdAt || lp.clientCreatedAt || new Date().toISOString()
+                      });
+                      // Upload pending local post & media to Cloud Firestore
+                      (async () => {
+                        try {
+                          let feedImageToSave = lp.isVideo ? `indexeddb:${lp.id}` : (lp.feedImage || lp.poster || '');
+                          let posterToSave = lp.poster || (!lp.isVideo ? lp.feedImage : '') || '';
+                          if ((!feedImageToSave || feedImageToSave.startsWith('blob:')) && !lp.isVideo) {
+                            const mediaBlob = await getMedia(String(lp.id)).catch(() => null);
+                            if (mediaBlob) {
+                              const dataUrl = await new Promise<string>((res) => {
+                                const reader = new FileReader();
+                                reader.onloadend = () => res(String(reader.result || ''));
+                                reader.onerror = () => res('');
+                                reader.readAsDataURL(mediaBlob);
+                              });
+                              if (dataUrl) {
+                                const compressed = await compressImageForFirestore(dataUrl).catch(() => dataUrl);
+                                feedImageToSave = compressed;
+                                posterToSave = compressed;
+                              }
                             }
                           }
-                        }
-                        const cleanPost = cleanForFirestore({
-                          ...lp,
-                          feedImage: feedImageToSave,
-                          poster: posterToSave || lp.avatar || '',
-                          createdAt: null
-                        });
-                        delete cleanPost.createdAt;
-                        await setDoc(doc(db, COLLECTIONS.POSTS, String(lp.id)), {
-                          ...cleanPost,
-                          createdAt: lp.clientCreatedAt || lp.createdAt || serverTimestamp()
-                        }, { merge: true });
+                          const cleanPost = cleanForFirestore({
+                            ...lp,
+                            feedImage: feedImageToSave,
+                            poster: posterToSave || lp.avatar || '',
+                            createdAt: null
+                          });
+                          delete cleanPost.createdAt;
+                          await setDoc(doc(db, COLLECTIONS.POSTS, String(lp.id)), {
+                            ...cleanPost,
+                            createdAt: lp.clientCreatedAt || lp.createdAt || serverTimestamp()
+                          }, { merge: true });
+                          removePendingPostId(String(lp.id));
 
-                        if (lp.isVideo) {
-                          const vBlob = blobCache.get(lp.id) || await getMedia(String(lp.id)).catch(() => null);
-                          if (vBlob) {
-                            await uploadVideoToCloud(String(lp.id), vBlob);
+                          if (lp.isVideo) {
+                            const vBlob = blobCache.get(lp.id) || await getMedia(String(lp.id)).catch(() => null);
+                            if (vBlob) {
+                              await uploadVideoToCloud(String(lp.id), vBlob);
+                            }
                           }
+                        } catch (syncErr) {
+                          console.warn('Auto-sync local post to Firestore error:', syncErr);
                         }
-                      } catch (syncErr) {
-                        console.warn('Auto-sync local post to Firestore error:', syncErr);
-                      }
-                    })();
-                  }
-                });
+                      })();
+                    }
+                  });
+                }
               }
             }
           } catch (mergeErr) {
@@ -961,18 +1016,18 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
             localStorage.setItem(STORAGE_KEYS.FEED_POSTS, JSON.stringify(lightPosts));
           } catch (lsErr) { }
 
-          loadPostsWithMedia(remotePosts);
+          loadPostsWithMediaRef.current(remotePosts);
         } catch (snapErr) {
           console.error('Error handling Firestore onSnapshot:', snapErr);
-          loadLocal();
+          loadLocalRef.current();
         }
       }, (error) => {
         console.warn('Firestore snapshot error, falling back to local storage:', error);
-        loadLocal();
+        loadLocalRef.current();
       });
     } catch (e) {
       console.error('Firestore init error, using local storage:', e);
-      loadLocal();
+      loadLocalRef.current();
     }
 
     return () => {
@@ -1105,6 +1160,12 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
     loadPostsWithMedia(localPosts);
   };
 
+  useEffect(() => {
+    checkIsMyPostRef.current = checkIsMyPost;
+    loadPostsWithMediaRef.current = loadPostsWithMedia;
+    loadLocalRef.current = loadLocal;
+  });
+
   const [newCommentText, setNewCommentText] = useState<{ [key: string]: string }>({});
   const [activeCommentPostId, setActiveCommentPostId] = useState<string | null>(null);
   const [modalCommentInput, setModalCommentInput] = useState('');
@@ -1129,7 +1190,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
         });
       }
     }
-  }, [selectedDetailPost?.id]);
+  }, [selectedDetailPost]);
   const [viewMode, setViewMode] = useState<'grid' | 'feed'>('feed');
   const [selectedFeedPostId, setSelectedFeedPostId] = useState<string | null>(null);
   const [activeFeedMenuId, setActiveFeedMenuId] = useState<string | null>(null);
@@ -1304,7 +1365,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
         clearTimeout(timer);
       };
     }
-  }, [viewMode, feedPosts]);
+  }, [viewMode, feedPosts, selectedFeedPostId]);
 
   // 피드 모드에서 스크롤 시 화면 상단/중앙에 위치한 카드 ID를 ref로 추적하여 리렌더링 및 스크롤 충돌 방지
   useEffect(() => {
@@ -1427,7 +1488,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
   // 반려견 프로필 수정/추가 시 실시간 동기화
   useEffect(() => {
     const handlePetsUpdated = () => {
-      setPetsUpdateTrigger(prev => prev + 1);
+      setRawMyPets(readStoredPetsList());
     };
     window.addEventListener('walwal_pets_updated', handlePetsUpdated);
     window.addEventListener('storage', handlePetsUpdated);
@@ -1758,18 +1819,17 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
   }, [feedDraft?.image]);
 
   useEffect(() => {
-    if (!feedDraft?.image || isVideo) {
-      setProcessedImage(null);
-      return;
-    }
-
-    if (editRotation === 0 && editCropRatio === 'original') {
-      setProcessedImage(null);
-      return;
+    let isCancelled = false;
+    if (!feedDraft?.image || isVideo || (editRotation === 0 && editCropRatio === 'original')) {
+      Promise.resolve().then(() => {
+        if (!isCancelled) setProcessedImage(null);
+      });
+      return () => {
+        isCancelled = true;
+      };
     }
 
     const sourceSrc = baseOriginalImageRef.current || feedDraft.image;
-    let isCancelled = false;
     const img = new Image();
     if (!sourceSrc.startsWith('data:') && !sourceSrc.startsWith('blob:')) {
       img.crossOrigin = 'anonymous';
@@ -1982,13 +2042,19 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
 
   // When feedDraft changes, initialize the text
   React.useEffect(() => {
-    if (feedDraft) {
+    if (!feedDraft) return;
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (cancelled) return;
       setDraftText(stripQuotes(feedDraft.thought));
       if (feedDraft.dog && feedDraft.dog.id) {
         const found = petOptions.find(o => o.id === feedDraft.dog.id || o.name === feedDraft.dog.name);
         if (found) setSelectedPetIds([found.id]);
       }
-    }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [feedDraft, petOptions]);
 
   const handlePostFeedDraft = async () => {
@@ -2254,6 +2320,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
 
       // 7. Background Firestore DB save
       try {
+        addPendingPostId(postId);
         const sanitizedPost = cleanForFirestore({
           ...storagePost,
           createdAt: null
@@ -2263,6 +2330,8 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
         setDoc(doc(db, COLLECTIONS.POSTS, postId), {
           ...sanitizedPost,
           createdAt: serverTimestamp()
+        }).then(() => {
+          removePendingPostId(postId);
         }).catch(dbErr => {
           console.warn('Firestore setDoc background error:', dbErr);
         });
@@ -2288,6 +2357,7 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
 
     // 1. Blacklist ID so it can never be loaded from Firestore or mock data
     addDeletedPostId(targetId);
+    removePendingPostId(targetId);
     setActiveMenuPostId(null);
     setActiveFeedMenuId(null);
 
@@ -3510,30 +3580,6 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                     </h2>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleRetake}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '6px 12px',
-                    borderRadius: '999px',
-                    border: '1.5px solid #FF9E58',
-                    background: '#FFF8F1',
-                    color: '#EA580C',
-                    fontSize: '0.82rem',
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                >
-                  <RotateCcw size={14} strokeWidth={2.5} />
-                  <span>
-                    {feedDraft.isVideo
-                      ? (language === 'ko' ? '재녹화' : language === 'ja' ? '再録画' : 'Re-record')
-                      : (language === 'ko' ? '재촬영' : language === 'ja' ? '再撮影' : 'Retake')}
-                  </span>
-                </button>
               </div>
 
 
@@ -3744,27 +3790,11 @@ export const SnapsView: React.FC<SnapsViewProps> = ({ snapsDraft: propSnapsDraft
                     type="button"
                     onClick={handleRetake}
                     className="snaps-modal-retake-btn"
-                    style={{
-                      zIndex: 30,
-                      width: 'auto',
-                      height: '38px',
-                      padding: '0 16px',
-                      background: 'rgba(255, 255, 255, 0.95)',
-                      color: '#1E293B',
-                      boxShadow: '0 4px 14px rgba(0, 0, 0, 0.28)',
-                      opacity: 1,
-                      border: '1.5px solid #FF9E58'
-                    }}
                     title={feedDraft.isVideo
-                      ? (language === 'ko' ? '재녹화' : language === 'ja' ? '再録画' : 'Re-record')
-                      : (language === 'ko' ? '재촬영' : language === 'ja' ? '再撮影' : 'Retake')}
+                      ? (language === 'ko' ? '다시' : language === 'ja' ? '再録画' : 'Re-record')
+                      : (language === 'ko' ? '다시' : language === 'ja' ? '再撮影' : 'Retake')}
                   >
-                    <RotateCcw size={18} strokeWidth={2.5} color="#1E293B" />
-                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1E293B' }}>
-                      {feedDraft.isVideo
-                        ? (language === 'ko' ? '재녹화' : language === 'ja' ? '再録画' : 'Re-record')
-                        : (language === 'ko' ? '재촬영' : language === 'ja' ? '再撮影' : 'Retake')}
-                    </span>
+                    <RotateCcw size={18} strokeWidth={2.5} />
                   </button>
                 </div>
               </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Camera, RefreshCw, Volume2, VolumeX, Mic, MicOff, Share2, ShieldCheck, Zap, Activity, MessageCircle, Send, Video, Play, Pause, Disc, Layers, PlusSquare, Bone, Scan, ScanFace } from 'lucide-react';
 import { BREED_DEFINITIONS, BreedDefinition } from '../data/breedProfiles';
 import { DogProfile, MOCK_DOGS, getMockDogs, sanitizePetList } from '../data/mockDogs';
@@ -56,7 +56,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
   const { language, t } = useTranslation();
 
   // 앵글 프리셋 (기본: 단독 반려견 앵글)
-  const [anglePreset, setAnglePreset] = useState<AnglePreset>('single');
+  const [anglePreset, setAnglePreset] = useState<AnglePreset>(() => (interactionPair ? 'pack3' : 'single'));
   const [turnIndex, setTurnIndex] = useState<number>(0);
   const turnIndexRef = useRef<number>(0);
 
@@ -115,14 +115,6 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
   useEffect(() => {
     aiThoughtTextRef.current = aiThoughtText;
   }, [aiThoughtText]);
-
-  useEffect(() => {
-    const cfg = LANG_CONFIG[language] || LANG_CONFIG.ko;
-    if (!isDogInView) {
-      setAiThoughtText(cfg.noDogThought);
-      setAiEmotionTag(cfg.noDogTag);
-    }
-  }, [language, isDogInView]);
   const [ownerNoteTarget, setOwnerNoteTarget] = useState<DogProfile | null>(null);
   const [showTargetSelector, setShowTargetSelector] = useState<boolean>(false);
 
@@ -192,7 +184,6 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
     const isMobileDevice = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     if (!isMobileDevice) {
       orientationStateRef.current = { isLandscape: false, rotation: 0 };
-      setIsLandscapeMode(false);
       return;
     }
 
@@ -356,7 +347,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       clearTimeout(initialFocus);
       clearInterval(cycleInterval);
     };
-  }, []);
+  }, [t.ar.mockDogCenter, t.ar.mockDogLeft, t.ar.mockDogRight]);
 
   // ================= 실시간 모션 트래킹 (라이브 카메라 전용) =================
   useEffect(() => {
@@ -513,7 +504,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
 
 
   // 현재 비디오 화면 프레임 캡처 (480px & 0.75 JPEG 압축으로 모션/피사체 디테일 확보 및 빠른 전송)
-  const captureCurrentFrameBase64 = (): string | undefined => {
+  const captureCurrentFrameBase64 = useCallback((): string | undefined => {
     try {
       const video = videoRef.current;
       if (video && video.videoWidth > 0 && video.videoHeight > 0) {
@@ -541,7 +532,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       console.warn('Frame capture failed:', e);
     }
     return undefined;
-  };
+  }, [isCameraLive]);
 
   // 로컬 Ollama AI 서버 연결 상태 주기적 확인 (6초 간격)
   useEffect(() => {
@@ -616,7 +607,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       isCancelled = true;
       if (warmupTimer) clearTimeout(warmupTimer);
     };
-  }, [isCameraLive, language, behaviorState]);
+  }, [isCameraLive, language, behaviorState, captureCurrentFrameBase64]);
 
   // 카메라가 켜져 있는 동안 주기적으로 실제 화면 연속 실시간 비전/상황 분석
   useEffect(() => {
@@ -659,7 +650,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
     }, 3500);
 
     return () => clearInterval(liveLoop);
-  }, [isCameraLive, language, behaviorState]);
+  }, [isCameraLive, language, behaviorState, captureCurrentFrameBase64]);
 
   // 뷰파인더 탭 시 해당 위치로 포커스 이동
   const handleViewfinderTap = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -871,6 +862,22 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
     }
   };
 
+  const startLiveCameraRef = useRef(startLiveCamera);
+  useEffect(() => {
+    startLiveCameraRef.current = startLiveCamera;
+  });
+
+  useEffect(() => {
+    if (!interactionPair) return;
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (!cancelled) setAnglePreset('pack3');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [interactionPair]);
+
   // 설정(SettingsView)에서 권한 토글 시 즉시 카메라/마이크 제어
   useEffect(() => {
     const handlePermUpdate = (e: any) => {
@@ -883,7 +890,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
         if (!nextLive) {
           stopLiveCamera(true);
         } else {
-          startLiveCamera();
+          startLiveCameraRef.current();
         }
       } else if (permType === 'mic') {
         const micOn = permValue !== undefined ? Boolean(permValue) : localStorage.getItem('WALWAL_PERM_MIC') !== 'false';
@@ -912,18 +919,14 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       window.removeEventListener('walwal_permissions_updated', handlePermUpdate);
       window.removeEventListener('storage', handlePermUpdate);
     };
-  }, [cameraFacingMode]);
+  }, []);
 
   // 컴포넌트 마운트 및 facingMode 변경 시 처리 (즉시 라이브 카메라 시작)
   useEffect(() => {
     isMountedRef.current = true;
-    if (interactionPair) {
-      setAnglePreset('pack3');
-    }
     const isCameraBlocked = localStorage.getItem('WALWAL_PERM_CAMERA') === 'false';
     if (!isCameraBlocked) {
-      setIsCameraLive(true);
-      startLiveCamera();
+      startLiveCameraRef.current();
     }
 
     const handleBeforeUnload = () => stopLiveCamera(true);
@@ -933,8 +936,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
       } else if (document.visibilityState === 'visible' && isMountedRef.current) {
         const isBlocked = localStorage.getItem('WALWAL_PERM_CAMERA') === 'false';
         if (!isBlocked) {
-          setIsCameraLive(true);
-          startLiveCamera();
+          startLiveCameraRef.current();
         }
       }
     };
@@ -965,8 +967,7 @@ export const ARCameraView: React.FC<ARCameraViewProps> = ({
     if (isActiveTrigger && isActiveTrigger > 0) {
       const isCameraBlocked = localStorage.getItem('WALWAL_PERM_CAMERA') === 'false';
       if (!isCameraBlocked) {
-        setIsCameraLive(true);
-        startLiveCamera();
+        startLiveCameraRef.current();
       }
     }
   }, [isActiveTrigger]);

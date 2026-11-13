@@ -1,4 +1,4 @@
-﻿import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import { Language, TRANSLATIONS, TranslationSchema, detectUserLanguage } from './translations';
 export type { Language };
 
@@ -17,15 +17,8 @@ const LanguageContext = createContext<LanguageContextType>({
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [language, setLanguageState] = useState<Language>(() => {
     const saved = localStorage.getItem('WALWAL_LANGUAGE') as Language;
-    return saved || 'ko';
+    return saved || detectUserLanguage();
   });
-
-  useEffect(() => {
-    if (!localStorage.getItem('WALWAL_LANGUAGE')) {
-      const detected = detectUserLanguage();
-      setLanguageState(detected);
-    }
-  }, []);
 
   const setLanguage = (lang: Language) => {
     localStorage.setItem('WALWAL_LANGUAGE', lang);

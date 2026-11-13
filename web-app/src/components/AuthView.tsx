@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { auth, db, COLLECTIONS } from '../firebase';
 import {
@@ -6,6 +6,7 @@ import {
   signInWithRedirect,
   getRedirectResult,
   GoogleAuthProvider,
+  OAuthProvider,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword
 } from 'firebase/auth';
@@ -28,40 +29,13 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // 모바일 리다이렉트 로그인 결과 자동 감지 및 처리
-  useEffect(() => {
-    getRedirectResult(auth)
-      .then((res) => {
-        if (res?.user?.email) {
-          finalizeLogin(res.user.email.toLowerCase().trim());
-        }
-      })
-      .catch((err) => {
-        console.warn("getRedirectResult note:", err);
-      });
-  }, []);
-
-  // Validate Email
-  const isValidEmail = (val: string) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
-  };
-
-  // Pre-fill reviewer accounts
-  const handleSelectQuickAccount = async (type: 'user' | 'admin') => {
-    setErrorMsg(null);
-    if (type === 'user') {
-      setEmail('user@walwal.app');
-      setPassword('Walwal2026!');
-    } else {
-      setEmail('daisynara@gmail.com');
-      setPassword('walwal777');
-    }
-  };
-
-  const finalizeLogin = async (targetEmail: string) => {
+  const finalizeLogin = useCallback(async (targetEmail: string, meta?: { provider?: string; ownerName?: string; uid?: string }) => {
     localStorage.setItem('walwal_logged_in', 'true');
     localStorage.setItem('walwal_user_email', targetEmail);
     localStorage.setItem('WALWAL_USER_EMAIL', targetEmail);
+    if (meta?.uid) {
+      localStorage.setItem('walwal_user_id', meta.uid);
+    }
     localStorage.setItem('walwal_app_state', 'main');
     if (targetEmail.toLowerCase().includes('daisynara')) {
       localStorage.setItem('WALWAL_ADMIN_AUTH', 'true');
@@ -73,7 +47,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
     try {
       await syncUserToFirestore({
         email: targetEmail,
-        ownerName: targetEmail.split('@')[0],
+        ownerName: meta?.ownerName || targetEmail.split('@')[0],
+        provider: meta?.provider,
         role: targetEmail.toLowerCase().includes('daisynara') ? 'admin' : 'user',
         lastLoginAt: new Date().toISOString()
       });
@@ -112,6 +87,53 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
     }
 
     onLoginSuccess();
+  }, [onLoginSuccess]);
+
+  const resolveAuthUserMeta = useCallback((user: any, fallbackProvider?: string) => {
+    const providerId = user?.providerData?.[0]?.providerId || fallbackProvider || 'password';
+    const rawEmail = user?.email || user?.providerData?.find((p: any) => p?.email)?.email || '';
+    const cleanEmail = rawEmail
+      ? rawEmail.toLowerCase().trim()
+      : (providerId.includes('apple') && user?.uid ? `${user.uid}@privaterelay.appleid.com` : '');
+    return {
+      email: cleanEmail,
+      provider: providerId,
+      ownerName: user?.displayName || (cleanEmail ? cleanEmail.split('@')[0] : undefined),
+      uid: user?.uid
+    };
+  }, []);
+
+  // 모바일 리다이렉트 로그인 결과 자동 감지 및 처리
+  useEffect(() => {
+    getRedirectResult(auth)
+      .then((res) => {
+        if (res?.user) {
+          const meta = resolveAuthUserMeta(res.user);
+          if (meta.email) {
+            finalizeLogin(meta.email, meta);
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn("getRedirectResult note:", err);
+      });
+  }, [finalizeLogin, resolveAuthUserMeta]);
+
+  // Validate Email
+  const isValidEmail = (val: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+  };
+
+  // Pre-fill reviewer accounts
+  const handleSelectQuickAccount = async (type: 'user' | 'admin') => {
+    setErrorMsg(null);
+    if (type === 'user') {
+      setEmail('user@walwal.app');
+      setPassword('Walwal2026!');
+    } else {
+      setEmail('daisynara@gmail.com');
+      setPassword('walwal777');
+    }
   };
 
   // Email & Password Login Handler
@@ -258,13 +280,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
     }
   };
 
-  // Google Social Login Handler
-  const handleGoogleLogin = async () => {
+  // Shared Social OAuth Login Handler (Google / Apple)
+  const handleOAuthLogin = async (provider: GoogleAuthProvider | OAuthProvider, providerName: 'Google' | 'Apple') => {
     try {
       setLoading(true);
       setErrorMsg(null);
-      const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: 'select_account' });
 
       // 모바일 PWA 환경 감지: 팝업 창이 닫히거나 차단되기 쉬운 환경은 리다이렉트 우선
       const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -277,35 +297,51 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
 
       try {
         const res = await signInWithPopup(auth, provider);
-        const cleanEmail = res?.user?.email ? res.user.email.toLowerCase().trim() : '';
-        if (cleanEmail) {
-          finalizeLogin(cleanEmail);
+        const meta = resolveAuthUserMeta(res?.user, providerName.toLowerCase());
+        if (meta.email) {
+          finalizeLogin(meta.email, meta);
+        } else {
+          setErrorMsg(`${providerName} 계정에서 이메일 정보를 확인할 수 없습니다.`);
         }
       } catch (popupErr: any) {
         // 팝업이 차단되었거나 모바일 팝업 에러 시 리다이렉트로 자동 전환
         if (
           popupErr?.code === 'auth/popup-blocked' ||
-          popupErr?.code === 'auth/cancelled-popup-request' ||
-          popupErr?.code === 'auth/popup-closed-by-user'
+          popupErr?.code === 'auth/cancelled-popup-request'
         ) {
-          console.info("Popup blocked or closed, trying redirect login...");
+          console.info("Popup blocked, trying redirect login...");
           await signInWithRedirect(auth, provider);
           return;
         }
         throw popupErr;
       }
     } catch (error: any) {
-      console.error("Google login failed", error);
+      console.error(`${providerName} login failed`, error);
       if (error?.code === 'auth/popup-blocked') {
         setErrorMsg("팝업이 차단되었습니다. 브라우저 팝업 차단을 해제해 주세요.");
       } else if (error?.code === 'auth/unauthorized-domain' || String(error?.message).includes('authorized')) {
         setErrorMsg("Firebase 콘솔의 [승인된 도메인]에 도메인이 등록되어 있는지 확인해 주세요.");
+      } else if (error?.code === 'auth/operation-not-allowed') {
+        setErrorMsg(`Firebase 콘솔(Authentication)에서 ${providerName} 로그인이 활성화되지 않았습니다.`);
       } else if (error?.code !== 'auth/popup-closed-by-user') {
-        setErrorMsg(error?.message || "Google 로그인에 실패했습니다. 이메일 로그인을 이용해 주세요.");
+        setErrorMsg(error?.message || `${providerName} 로그인에 실패했습니다. 이메일 로그인을 이용해 주세요.`);
       }
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGoogleLogin = () => {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    return handleOAuthLogin(provider, 'Google');
+  };
+
+  const handleAppleLogin = () => {
+    const provider = new OAuthProvider('apple.com');
+    provider.addScope('email');
+    provider.addScope('name');
+    return handleOAuthLogin(provider, 'Apple');
   };
 
   return (
@@ -437,24 +473,39 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
             <span>{t.auth.orDivider || '또는'}</span>
           </div>
 
-          {/* Google Sign In Button */}
-          <button
-            type="button"
-            onClick={handleGoogleLogin}
-            disabled={loading}
-            className="auth-social-btn"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-            </svg>
-            <span>{t.auth.continueGoogle || 'Google로 계속하기'}</span>
-          </button>
+          <div className="auth-social-stack">
+            {/* Sign in with Apple Button (Required by Apple App Store Guideline 4.8) */}
+            <button
+              type="button"
+              onClick={handleAppleLogin}
+              disabled={loading}
+              className="auth-social-btn apple"
+            >
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.08zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
+              </svg>
+              <span>{t.auth.continueApple || 'Apple로 계속하기'}</span>
+            </button>
+
+            {/* Google Sign In Button */}
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={loading}
+              className="auth-social-btn"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+              </svg>
+              <span>{t.auth.continueGoogle || 'Google로 계속하기'}</span>
+            </button>
+          </div>
 
           {/* Google Play Reviewer / Demo Quick Access Section */}
-          <div className="auth-reviewer-box">
+          {/* <div className="auth-reviewer-box">
             <div className="auth-reviewer-header">
               <Shield size={14} color="#0284C7" />
               <span>{t.auth.quickDemoTitle || '구글 심사관 / 테스트 계정'}</span>
@@ -482,7 +533,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
                 <span>{t.auth.quickAdminUser || '관리자'}</span>
               </button>
             </div>
-          </div>
+          </div> */}
         </div>
       </div>
     </div>

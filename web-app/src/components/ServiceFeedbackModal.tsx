@@ -18,13 +18,14 @@ import {
   collection,
   onSnapshot,
   doc,
-  addDoc,
+  setDoc,
   updateDoc,
   deleteDoc,
   serverTimestamp,
   query,
   orderBy
 } from 'firebase/firestore';
+import { readFileAsCompressedDataUrl } from '../utils/imageCompress';
 import '../styles/ServiceFeedbackModal.css';
 
 interface ServiceFeedbackModalProps {
@@ -113,25 +114,24 @@ export const ServiceFeedbackModal: React.FC<ServiceFeedbackModalProps> = ({
     try {
       const q = query(collection(db, COLLECTIONS.FEEDBACK), orderBy('createdAt', 'desc'));
       const unsub = onSnapshot(q, (snapshot) => {
-        if (!snapshot.empty) {
-          const list: FeedbackItem[] = [];
-          snapshot.forEach(docSnap => {
-            const data = docSnap.data();
-            list.push({
-              id: docSnap.id,
-              content: data.content || '',
-              photoUrl: data.photoUrl || undefined,
-              authorName: data.authorName || '익명 보호자',
-              status: data.status || (data.adminReply ? 'answered' : 'pending'),
-              adminReply: data.adminReply || undefined,
-              adminReplyAt: data.adminReplyAt || undefined,
-              dateStr: data.dateStr || (data.createdAt?.toDate ? data.createdAt.toDate().toISOString().split('T')[0].replace(/-/g, '.') : '2026.10.05'),
-              createdAt: data.createdAt
-            });
+        if (snapshot.empty && snapshot.metadata.fromCache) return;
+        const list: FeedbackItem[] = [];
+        snapshot.forEach(docSnap => {
+          const data = docSnap.data();
+          list.push({
+            id: docSnap.id,
+            content: data.content || '',
+            photoUrl: data.photoUrl || undefined,
+            authorName: data.authorName || '익명 보호자',
+            status: data.status || (data.adminReply ? 'answered' : 'pending'),
+            adminReply: data.adminReply || undefined,
+            adminReplyAt: data.adminReplyAt || undefined,
+            dateStr: data.dateStr || (data.createdAt?.toDate ? data.createdAt.toDate().toISOString().split('T')[0].replace(/-/g, '.') : '2026.10.05'),
+            createdAt: data.createdAt
           });
-          setFeedbacks(list);
-          localStorage.setItem('WALWAL_FEEDBACKS', JSON.stringify(list));
-        }
+        });
+        setFeedbacks(list);
+        localStorage.setItem('WALWAL_FEEDBACKS', JSON.stringify(list));
       }, (err) => {
         console.warn('Firestore feedback listener error:', err);
       });
@@ -143,15 +143,18 @@ export const ServiceFeedbackModal: React.FC<ServiceFeedbackModalProps> = ({
   }, [isOpen]);
 
   // Handle Photo Select
-  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setNewPhoto(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await readFileAsCompressedDataUrl(file, 960, 0.78);
+      if (compressed) {
+        setNewPhoto(compressed);
+      }
+    } catch {
+      // ignore read error
+    }
   };
 
   // Submit Feedback
@@ -189,9 +192,10 @@ export const ServiceFeedbackModal: React.FC<ServiceFeedbackModalProps> = ({
     setFeedbacks(updated);
     localStorage.setItem('WALWAL_FEEDBACKS', JSON.stringify(updated));
 
-    // Save to Firestore
+    // Save to Firestore with matching document ID
     try {
-      await addDoc(collection(db, COLLECTIONS.FEEDBACK), {
+      await setDoc(doc(db, COLLECTIONS.FEEDBACK, newItem.id), {
+        id: newItem.id,
         content: newItem.content,
         photoUrl: newItem.photoUrl || null,
         authorName: newItem.authorName,
@@ -231,7 +235,7 @@ export const ServiceFeedbackModal: React.FC<ServiceFeedbackModalProps> = ({
     localStorage.setItem('WALWAL_FEEDBACKS', JSON.stringify(updated));
 
     try {
-      await updateDoc(doc(db, 'feedback', item.id), {
+      await updateDoc(doc(db, COLLECTIONS.FEEDBACK, item.id), {
         adminReply: replyText,
         status: 'answered',
         adminReplyAt: serverTimestamp()
@@ -253,7 +257,7 @@ export const ServiceFeedbackModal: React.FC<ServiceFeedbackModalProps> = ({
     localStorage.setItem('WALWAL_FEEDBACKS', JSON.stringify(filtered));
 
     try {
-      await deleteDoc(doc(db, 'feedback', item.id));
+      await deleteDoc(doc(db, COLLECTIONS.FEEDBACK, item.id));
     } catch (err) {
       console.warn('Failed to delete feedback:', err);
     }
