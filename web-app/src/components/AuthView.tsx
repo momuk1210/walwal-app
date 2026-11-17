@@ -11,7 +11,7 @@ import {
   createUserWithEmailAndPassword
 } from 'firebase/auth';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { Mail, Lock, CheckCircle2, Shield, User, AlertCircle, ArrowRight } from 'lucide-react';
+import { Mail, Lock, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
 import { registerAppUser, verifyAppUser, syncUserToFirestore } from '../services/db';
 import walwalWalking from '../assets/walwal-walking.gif';
 import '../styles/AuthView.css';
@@ -122,18 +122,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
   // Validate Email
   const isValidEmail = (val: string) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
-  };
-
-  // Pre-fill reviewer accounts
-  const handleSelectQuickAccount = async (type: 'user' | 'admin') => {
-    setErrorMsg(null);
-    if (type === 'user') {
-      setEmail('user@walwal.app');
-      setPassword('Walwal2026!');
-    } else {
-      setEmail('daisynara@gmail.com');
-      setPassword('walwal777');
-    }
   };
 
   // Email & Password Login Handler
@@ -503,37 +491,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
               <span>{t.auth.continueGoogle || 'Google로 계속하기'}</span>
             </button>
           </div>
-
-          {/* Google Play Reviewer / Demo Quick Access Section */}
-          {/* <div className="auth-reviewer-box">
-            <div className="auth-reviewer-header">
-              <Shield size={14} color="#0284C7" />
-              <span>{t.auth.quickDemoTitle || '구글 심사관 / 테스트 계정'}</span>
-            </div>
-            <p className="auth-reviewer-notice">
-              {t.auth.quickNotice || '클릭 시 콘솔에 등록된 테스트 계정 정보가 자동 입력됩니다.'}
-            </p>
-            <div className="auth-reviewer-actions">
-              <button
-                type="button"
-                className="auth-reviewer-chip"
-                onClick={() => handleSelectQuickAccount('user')}
-                title="user@walwal.app / Walwal2026!"
-              >
-                <User size={18} />
-                <span>{t.auth.quickStandardUser || '일반 사용자'}</span>
-              </button>
-              <button
-                type="button"
-                className="auth-reviewer-chip admin"
-                onClick={() => handleSelectQuickAccount('admin')}
-                title="daisynara@gmail.com / walwal777"
-              >
-                <Shield size={18} />
-                <span>{t.auth.quickAdminUser || '관리자'}</span>
-              </button>
-            </div>
-          </div> */}
         </div>
       </div>
     </div>
