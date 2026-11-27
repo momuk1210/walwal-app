@@ -5,7 +5,8 @@
       "namespace": "android_app",
       "package_name": "com.walwal.app",
       "sha256_cert_fingerprints": [
-        "A9:2F:24:14:05:F0:CB:28:A2:E2:46:85:D8:21:32:ED:CB:98:F4:E7:AC:85:39:8D:BF:CA:85:89:7B:8B:98:66"
+        "A9:2F:24:14:05:F0:CB:28:A2:E2:46:85:D8:21:32:ED:CB:98:F4:E7:AC:85:39:8D:BF:CA:85:89:7B:8B:98:66",
+        "E3:8D:CC:02:98:E8:C5:CE:81:E8:1A:E8:6A:ED:DB:A3:B6:6D:B7:3B:A4:53:FD:18:F6:89:D5:64:9D:C1:CA:08"
       ]
     }
   }
